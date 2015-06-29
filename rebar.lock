@@ -1,0 +1,4 @@
+[{<<"rncryptor">>,
+  {git,"https://github.com/dingosky/RNCryptor-erlang.git",
+       {ref,"bebdd7c39e48a2ef5b4b4ca63c9138e8feab10a4"}},
+  0}].

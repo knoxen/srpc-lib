@@ -1,0 +1,14 @@
+{application, srpcryptor_lib,
+ [{description, "SRP Cryptor Lib"}
+ ,{vsn, "0.1.0"}
+ ,{registered, []}
+ ,{modules, []}
+ ,{applications,
+   [kernel
+   ,stdlib 
+   ,crypto
+   ,rncryptor
+   ]}
+ ,{env
+  ,[]}
+ ]}.
