@@ -19,6 +19,15 @@ encrypt({KeyId, Key}, Data) ->
       {error, list_to_binary(Reason)};
     Packet ->
       {ok, Packet}
+  end;
+encrypt({KeyId, Key, HmacKey}, Data) ->
+  Header = lib_data_hdr(KeyId),  
+  LibData = <<Header/binary, Data/binary>>,
+  case rncryptor:encrypt(Key, HmacKey, LibData) of
+    {error, Reason} ->
+      {error, list_to_binary(Reason)};
+    Packet ->
+      {ok, Packet}
   end.
 
 decrypt({KeyId, Key}, Packet) ->
