@@ -30,6 +30,8 @@ encrypt({KeyId, Key, HmacKey}, Data) ->
       {ok, Packet}
   end.
 
+decrypt({KeyId, Key, HmacKey}, Packet) ->
+  decrypt({KeyId, Key}, <<HmacKey/binary, Packet/binary>>);
 decrypt({KeyId, Key}, Packet) ->
   case rncryptor:decrypt(Key, Packet) of
     {error, Reason} ->
