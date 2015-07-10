@@ -45,7 +45,19 @@ decrypt({KeyId, Key}, Packet) ->
       end
   end;
 decrypt({KeyId, Key, HmacKey}, Packet) ->
-  decrypt({KeyId, Key}, <<HmacKey/binary, Packet/binary>>).
+  case rncryptor:decrypt(Key, HmacKey, Packet) of
+    {error, Reason} ->
+      {error, list_to_binary(Reason)};
+    LibData ->
+      Header = lib_data_hdr(KeyId),
+      HeaderLen = byte_size(Header),
+      case LibData of
+        <<Header:HeaderLen/binary, Data/binary>> ->
+          {ok, Data};
+        _Bin ->
+          {error, <<"Invalid Lib Data header">>}
+      end
+  end.
 
 lib_data_hdr(KeyId) ->
   LibVersion = <<?LIB_VERSION_MAJOR, ?LIB_VERSION_MINOR, ?LIB_VERSION_PATCH, ?LIB_VERSION_OPTIONS>>,
