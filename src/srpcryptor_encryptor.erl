@@ -20,7 +20,10 @@ encrypt({KeyId, Key}, Data) ->
     Packet ->
       {ok, Packet}
   end;
-encrypt({KeyId, Key, HmacKey}, Data) ->
+
+encrypt(#{keyId   := KeyId
+         ,key     := Key
+         ,hmacKey := HmacKey}, Data) ->
   Header = lib_data_hdr(KeyId),  
   LibData = <<Header/binary, Data/binary>>,
   case rncryptor:encrypt(Key, HmacKey, LibData) of
@@ -28,23 +31,13 @@ encrypt({KeyId, Key, HmacKey}, Data) ->
       {error, list_to_binary(Reason)};
     Packet ->
       {ok, Packet}
-  end.
-
-decrypt({KeyId, Key}, Packet) ->
-  case rncryptor:decrypt(Key, Packet) of
-    {error, Reason} ->
-      {error, list_to_binary(Reason)};
-    LibData ->
-      Header = lib_data_hdr(KeyId),
-      HeaderLen = byte_size(Header),
-      case LibData of
-        <<Header:HeaderLen/binary, Data/binary>> ->
-          {ok, Data};
-        _Bin ->
-          {error, <<"Invalid Lib Data header">>}
-      end
   end;
-decrypt({KeyId, Key, HmacKey}, Packet) ->
+encrypt(_Map, _Packet) ->
+  {error, <<"Invalid encrypt Key Data">>}.
+
+decrypt(#{keyId   := KeyId
+         ,key     := Key
+         ,hmacKey := HmacKey}, Packet) ->
   case rncryptor:decrypt(Key, HmacKey, Packet) of
     {error, Reason} ->
       {error, list_to_binary(Reason)};
@@ -57,7 +50,9 @@ decrypt({KeyId, Key, HmacKey}, Packet) ->
         _Bin ->
           {error, <<"Invalid Lib Data header">>}
       end
-  end.
+  end;
+decrypt(_KeyData, _Packet) ->
+  {error, <<"Invalid decrypt Key Data">>}.
 
 lib_data_hdr(KeyId) ->
   LibVersion = <<?LIB_VERSION_MAJOR, ?LIB_VERSION_MINOR, ?LIB_VERSION_PATCH, ?LIB_VERSION_OPTIONS>>,

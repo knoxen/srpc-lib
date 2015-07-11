@@ -9,7 +9,7 @@
         ,lib_key_packet_data/1
         ,lib_key_response_packet/2
         ,lib_key_validate_packet_data/2
-        ,lib_key_validate_response_packet/3
+        ,lib_key_validation_response_packet/4
         ]).
 
 %% Registration
@@ -21,7 +21,7 @@
 -export([login_packet_data/2
         ,login_response_packet/4
         ,login_validate_packet_data/2
-        ,login_validate_response_packet/4
+        ,login_validation_response_packet/4
         ]).
 
 %% Encryption
@@ -43,11 +43,11 @@ lib_key_packet_data(KeyPacket) ->
 lib_key_response_packet(ClientPublicKey, RespData) ->
   srpcryptor_lib_key:response_packet(ClientPublicKey, RespData).
 
-lib_key_validate_packet_data(KeyReqData, ValidatePacket) ->
-  srpcryptor_lib_key_validate:packet_data(KeyReqData, ValidatePacket).
+lib_key_validate_packet_data(KeyData, ValidatePacket) ->
+  srpcryptor_lib_key_validate:packet_data(KeyData, ValidatePacket).
 
-lib_key_validate_response_packet(KeyReqData, ClientChallenge, RespData) ->
-  srpcryptor_lib_key_validate:response_packet(KeyReqData, ClientChallenge, RespData).
+lib_key_validation_response_packet(SrpData, KeyData, ClientChallenge, RespData) ->
+  srpcryptor_lib_key_validate:response_packet(SrpData, KeyData, ClientChallenge, RespData).
 
 registration_packet_data(LibKey, RegistrationPacket) ->
   srpcryptor_registration:packet_data(LibKey, RegistrationPacket).
@@ -64,7 +64,7 @@ login_response_packet(LibKey, Reg, ClientKey, ResponseData) ->
 login_validate_packet_data(LibKey, ValidatePacket) ->
   srpcryptor_login_validate:packet_data(LibKey, ValidatePacket).
 
-login_validate_response_packet(LibKey, ClientChallenge, LoginReqData, RespData) ->
+login_validation_response_packet(LibKey, ClientChallenge, LoginReqData, RespData) ->
   srpcryptor_login_validate:response_packet(LibKey, ClientChallenge, LoginReqData, RespData).
 
 encrypt(KeyInfo, Data) ->

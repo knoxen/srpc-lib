@@ -5,6 +5,7 @@
 -export([validate_public_key/1
         ,generate_emphemeral_keys/1
         ,secret/3
+        ,key_data/1
         ,validate_challenge/2]).
 
 -define(SRP_VERSION, '6a').
@@ -33,11 +34,20 @@ secret(ClientPublicKey, ServerKeys, Verifier) ->
   crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
                      {host, [Verifier, ?SRP_LIB_MODULUS, ?SRP_VERSION]}).
 
-validate_challenge(KeyData, ClientChallenge) ->
+key_data(SrpData) ->
+  KeyId   = maps:get(keyId,  SrpData),
+  Secret  = maps:get(secret, SrpData),
+  Key     = crypto:hash(sha256, Secret),
+  HmacKey = crypto:hash(sha256, <<KeyId/binary, Secret/binary>>),
+  #{keyId   => KeyId
+   ,key     => Key
+   ,hmacKey => HmacKey}.
+
+validate_challenge(SrpData, ClientChallenge) ->
   #{clientKey  := ClientPublicKey
    ,serverKeys := ServerKeys
    ,secret     := Secret
-   } = KeyData,
+   } = SrpData,
 
   {ServerPublicKey, _PrivateKey} = ServerKeys,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, Secret/binary>>,
@@ -51,3 +61,4 @@ validate_challenge(KeyData, ClientChallenge) ->
     false ->
       {invalid, crypto:rand_bytes(?SRP_CHALLENGE_BYTES)}
   end.
+

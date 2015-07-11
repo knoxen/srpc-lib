@@ -10,18 +10,18 @@
 -define(SRP_SALT_BYTES,     20).    %%   160-bit
 -define(SRP_PUB_KEY_BYTES, 256).    %%  2048-bit
 
--define(REG_ID_BITS,   8).
+-define(SRP_ID_BITS,   8).
 
 -define(LOGIN_OK,      1).
 -define(LOGIN_INVALID, 2).
 
-packet_data(KeyInfo, LoginPacket) ->
-  case srpcryptor_encryptor:decrypt(KeyInfo, LoginPacket) of
-    {ok, <<ClientPublicKey:?SRP_PUB_KEY_BYTES/binary, RegIdSize:?REG_ID_BITS, Rest/binary>>} ->
+packet_data(KeyData, LoginPacket) ->
+  case srpcryptor_encryptor:decrypt(KeyData, LoginPacket) of
+    {ok, <<ClientPublicKey:?SRP_PUB_KEY_BYTES/binary, SrpIdSize:?SRP_ID_BITS, Rest/binary>>} ->
       case srpcryptor_srp:validate_public_key(ClientPublicKey) of
         ok ->
-          <<RegId:RegIdSize/binary, ReqData/binary>> = Rest,
-          {ok, {RegId, ClientPublicKey, ReqData}};
+          <<SrpId:SrpIdSize/binary, ReqData/binary>> = Rest,
+          {ok, {SrpId, ClientPublicKey, ReqData}};
         Error ->
           Error
       end;
@@ -31,8 +31,8 @@ packet_data(KeyInfo, LoginPacket) ->
       Error
   end.
 
-response_packet(KeyInfo, invalid, _ClientPublicKey, RespData) ->
-  case encrypt_packet(KeyInfo, ?LOGIN_INVALID,
+response_packet(KeyData, invalid, _ClientPublicKey, RespData) ->
+  case encrypt_packet(KeyData, ?LOGIN_INVALID,
                       crypto:rand_bytes(?KDF_SALT_BYTES),
                       crypto:rand_bytes(?SRP_SALT_BYTES),
                       crypto:rand_bytes(?SRP_PUB_KEY_BYTES),
@@ -42,37 +42,37 @@ response_packet(KeyInfo, invalid, _ClientPublicKey, RespData) ->
     Error ->
       Error
   end;
-response_packet(KeyInfo, {RegId, RegData}, ClientPublicKey, RespData) ->
-  #{kdfSalt  := KdfSalt
+response_packet(KeyData, SrpUserData, ClientPublicKey, RespData) ->
+  #{srpId    := SrpId
+   ,kdfSalt  := KdfSalt
    ,srpSalt  := SrpSalt
-   ,verifier := Verifier} = RegData,
+   ,verifier := Verifier} = SrpUserData,
   ServerKeys =  srpcryptor_srp:generate_emphemeral_keys(Verifier),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
-  case encrypt_packet(KeyInfo, ?LOGIN_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
-    {ok, {LoginReqId, RespPacket}} ->
+  case encrypt_packet(KeyData, ?LOGIN_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
+    {ok, {LoginKeyId, RespPacket}} ->
       Secret = srpcryptor_srp:secret(ClientPublicKey, ServerKeys, Verifier),
-      Key = crypto:hash(sha256, Secret),
-      LoginReqData = #{entityId   => RegId
-                      ,clientKey  => ClientPublicKey
-                      ,serverKeys => ServerKeys
-                      ,secret     => Secret
-                      ,key        => Key
-                      },
-      {ok, {LoginReqId, LoginReqData, RespPacket}};
+      SrpData = #{keyId      => LoginKeyId
+                 ,entityId   => SrpId
+                 ,clientKey  => ClientPublicKey
+                 ,serverKeys => ServerKeys
+                 ,secret     => Secret
+                 },
+      {ok, {SrpData, RespPacket}};
     Error ->
       Error
   end.
 
-encrypt_packet(KeyInfo, Result, KdfSalt, SrpSalt, ServerPublicKey, RespData) ->
-  LoginReqId = srpcryptor_util:rand_key_id(),
-  LoginReqIdLen = byte_size(LoginReqId),
+encrypt_packet(KeyData, Result, KdfSalt, SrpSalt, ServerPublicKey, RespData) ->
+  LoginKeyId = srpcryptor_util:rand_key_id(),
+  LoginKeyIdLen = byte_size(LoginKeyId),
   LibRespData = <<Result, 
                   KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary,
-                  LoginReqIdLen, LoginReqId/binary,
+                  LoginKeyIdLen, LoginKeyId/binary,
                   RespData/binary>>,
-  case srpcryptor_encryptor:encrypt(KeyInfo, LibRespData) of
+  case srpcryptor_encryptor:encrypt(KeyData, LibRespData) of
     {ok, Packet} ->
-      {ok, {LoginReqId, Packet}};
+      {ok, {LoginKeyId, Packet}};
     Error ->
       Error
   end.

@@ -7,29 +7,40 @@
         ]).
 
 -define(CHALLENGE_BYTES, 32).
--define(KEY_REQ_ID_BITS,  8).
+-define(KEY_ID_SIZE_BITS, 8).
 
-packet_data(KeyInfo, ValidatePacket) ->
-  case srpcryptor_encryptor:decrypt(KeyInfo, ValidatePacket) of
-    {ok, <<ClientChallenge:?CHALLENGE_BYTES/binary, KeyReqIdSize:?KEY_REQ_ID_BITS, Rest/binary>>} ->
-      <<KeyReqId:KeyReqIdSize/binary, ReqData/binary>> = Rest,
-      {ok, {ClientChallenge, KeyReqId, ReqData}};
+packet_data(KeyData, ValidatePacket) ->
+  case srpcryptor_encryptor:decrypt(KeyData, ValidatePacket) of
+    {ok, <<ClientChallenge:?CHALLENGE_BYTES/binary, KeyIdSize:?KEY_ID_SIZE_BITS, Rest/binary>>} ->
+      case Rest of
+        <<LoginKeyId:KeyIdSize/binary, ReqData/binary>> ->
+          {ok, {LoginKeyId, ClientChallenge, ReqData}};
+        _Rest ->
+          {error, <<"Invalid validation packet">>}
+      end;
     {ok, << _Data/binary>>} ->
-      {invalid, <<"Invalid challenge data">>};
+      {invalid, <<"Invalid validation packet">>};
     Error ->
       Error
-    end.
+  end.
 
-response_packet(KeyInfo, invalid, ClientChallenge, RespData) ->
-  LibRespData = <<ClientChallenge/binary, RespData/binary>>,
-  srpcryptor_encryptor:encrypt(KeyInfo, LibRespData);
-response_packet(KeyInfo, LoginReqData, ClientChallenge, RespData) ->
-  {ValidateResult, ServerChallenge} = srpcryptor_srp:validate_challenge(LoginReqData, 
-                                                                        ClientChallenge),
+response_packet(LibKeyData, invalid, _ClientChallenge, RespData) ->
+  ServerChallenge = crypto:rand_bytes(?CHALLENGE_BYTES),
   LibRespData = <<ServerChallenge/binary, RespData/binary>>,
-  case srpcryptor_encryptor:encrypt(KeyInfo, LibRespData) of
+  srpcryptor_encryptor:encrypt(LibKeyData, LibRespData);
+response_packet(LibKeyData, SrpData, ClientChallenge, RespData) ->
+  {Result, ServerChallenge} = srpcryptor_srp:validate_challenge(SrpData, ClientChallenge),
+  LibRespData = <<ServerChallenge/binary, RespData/binary>>,
+  case srpcryptor_encryptor:encrypt(LibKeyData, LibRespData) of
     {ok, RespPacket} ->
-      {ValidateResult, RespPacket};
+      LoginKeyData = 
+        case Result of
+          ok ->
+            srpcryptor_srp:key_data(SrpData);
+          invalid ->
+            undefined
+        end,
+      {Result, LoginKeyData, RespPacket};
     Error ->
       Error
   end.
