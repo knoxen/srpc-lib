@@ -1,11 +1,12 @@
 {application, srpcryptor_lib,
  [{description, "SRP Cryptor Lib"}
- ,{vsn, "0.1.0"}
+ ,{vsn, "0.9.0"}
  ,{registered, []}
  ,{modules, []}
  ,{applications,
    [kernel
-   ,stdlib 
+   ,stdlib
+   ,sasl 
    ,crypto
    ,rncryptor
    ]}
