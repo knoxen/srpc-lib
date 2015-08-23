@@ -22,10 +22,7 @@ rand_key_id() ->
   rand_id(?KEY_ID_LEN).
 
 epoch_seconds() ->
-  %% CxTBD Replace with this call after updating to Erlang 18.0
-  %% erlang:system_time(seconds)
-  {MS,S,Ms} = now(),
-  MS*1000000 + S + round(Ms/1000000).
+  erlang:system_time(seconds).
 
 bin_to_hex(Bin) ->
   lists:flatten([io_lib:format("~2.16.0B", [X]) ||
