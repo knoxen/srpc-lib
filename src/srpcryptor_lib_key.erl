@@ -27,7 +27,6 @@ packet_data(<<LibIdSize:?LIB_ID_SIZE_BITS, Packet/binary>>) ->
           {error, <<"Invalid Public Key size">>}
       end;
     <<_LibId:LibIdSize/binary, _Rest/binary>> ->
-      io:format("~p packet_data LibId: ~p~n", [?MODULE, _LibId]),
       {error, <<"Invalid Lib ID">>}
   end.
 
@@ -45,6 +44,5 @@ response_packet(ClientPublicKey, RespData) ->
              },
   LibKeyIdLen = byte_size(LibKeyId),
   LibRespData = <<LibKeyIdLen, LibKeyId/binary, ServerPublicKey/binary, RespData/binary>>,
-  %% LibRespData = <<ServerPublicKey/binary, LibKeyIdLen, LibKeyId/binary, RespData/binary>>,
   {ok, {SrpData, LibRespData}}.
 
