@@ -52,7 +52,7 @@ validate_challenge(SrpData, ClientChallenge) ->
   {ServerPublicKey, _PrivateKey} = ServerKeys,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, Secret/binary>>,
   ChallengeCheck = crypto:hash(sha256, ChallengeData),
-  case rncryptor_util:const_compare(ChallengeCheck, ClientChallenge) of
+  case srpcryptor_util:const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
         <<ClientPublicKey/binary, ClientChallenge/binary, ServerPublicKey/binary>>,

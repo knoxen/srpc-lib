@@ -5,6 +5,7 @@
 -export(
    [rand_id/1
    ,rand_key_id/0
+   ,const_compare/2
    ,bin_to_hex/1
    ,hex_to_bin/1
    ]).
@@ -55,6 +56,35 @@ rand_char(N) when N =< 52 ->
   random:uniform(26) + 96;
 rand_char(_N) ->
   random:uniform(10) + 47.
+
+%%======================================================================================
+%%
+%% Compare binaries for equality
+%%
+%%======================================================================================
+%% @doc Compare two binaries for equality, bit-by-bit, without short-circuits
+%% to avoid timing differences. Note this function does short-circuit to
+%% <code>false</code> if the binaries are not of equal size.
+%% 
+-spec const_compare(Bin1, Bin2) -> boolean() when
+    Bin1 :: binary(),
+    Bin2 :: binary().
+%%--------------------------------------------------------------------------------------
+const_compare(<<X/binary>>, <<Y/binary>>) ->
+  case byte_size(X) == byte_size(Y) of
+    true ->
+      const_compare(X, Y, true);
+    false ->
+      false
+  end;
+const_compare(_X, _Y) ->
+  false.
+
+%% @private
+const_compare(<<X:1/bitstring, XT/bitstring>>, <<Y:1/bitstring, YT/bitstring>>, Acc) ->
+  const_compare(XT, YT, (X == Y) and Acc);
+const_compare(<<>>, <<>>, Acc) ->
+  Acc.
 
 %%======================================================================================
 %%
