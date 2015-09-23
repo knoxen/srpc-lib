@@ -5,23 +5,25 @@
 -include("srpcryptor_lib.hrl").
 
 %% Lib
--export([lib_id/0
-        ,lib_key_packet_data/1
+-export([lib_id/0]).
+
+%% Lib Key
+-export([lib_key_packet_data/1
         ,lib_key_response_packet/2
         ,lib_key_validate_packet_data/2
         ,lib_key_validation_response_packet/4
         ]).
 
-%% Registration
+%% User Registration
 -export([registration_packet_data/2
         ,registration_response_packet/3
         ]).
 
-%% Login
--export([login_packet_data/2
-        ,login_response_packet/4
-        ,login_validate_packet_data/2
-        ,login_validation_response_packet/4
+%% User Key
+-export([user_key_packet_data/2
+        ,user_key_response_packet/4
+        ,user_key_validate_packet_data/2
+        ,user_key_validation_response_packet/4
         ]).
 
 %% Encryption
@@ -55,17 +57,17 @@ registration_packet_data(LibKey, RegistrationPacket) ->
 registration_response_packet(LibKey, RegistrationResult, ResponseData) ->
   srpcryptor_registration:response_packet(LibKey, RegistrationResult, ResponseData).
 
-login_packet_data(LibKey, LoginPacket) ->
-  srpcryptor_login:packet_data(LibKey, LoginPacket).
+user_key_packet_data(LibKey, UserKeyPacket) ->
+  srpcryptor_user_key:packet_data(LibKey, UserKeyPacket).
 
-login_response_packet(LibKey, Reg, ClientKey, ResponseData) ->
-  srpcryptor_login:response_packet(LibKey, Reg, ClientKey, ResponseData).
+user_key_response_packet(LibKey, Reg, ClientKey, ResponseData) ->
+  srpcryptor_user_key:response_packet(LibKey, Reg, ClientKey, ResponseData).
 
-login_validate_packet_data(LibKey, ValidatePacket) ->
-  srpcryptor_login_validate:packet_data(LibKey, ValidatePacket).
+user_key_validate_packet_data(LibKey, ValidatePacket) ->
+  srpcryptor_user_key_validate:packet_data(LibKey, ValidatePacket).
 
-login_validation_response_packet(LibKey, ClientChallenge, LoginReqData, RespData) ->
-  srpcryptor_login_validate:response_packet(LibKey, ClientChallenge, LoginReqData, RespData).
+user_key_validation_response_packet(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
+  srpcryptor_user_key_validate:response_packet(LibKey, ClientChallenge, UserKeyReqData, RespData).
 
 encrypt(KeyData, Data) ->
   srpcryptor_encryptor:encrypt(KeyData, Data).

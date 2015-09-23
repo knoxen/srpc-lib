@@ -1,4 +1,4 @@
--module(srpcryptor_login_validate).
+-module(srpcryptor_user_key_validate).
 
 -author("paul@knoxen.com").
 
@@ -13,8 +13,8 @@ packet_data(KeyData, ValidatePacket) ->
     {ok,
      <<ClientChallenge:?SRP_CHALLENGE_SIZE/binary, KeyIdSize:?KEY_ID_SIZE_BITS, Rest/binary>>}->
       case Rest of
-        <<LoginKeyId:KeyIdSize/binary, ReqData/binary>> ->
-          {ok, {LoginKeyId, ClientChallenge, ReqData}};
+        <<UserKeyKeyId:KeyIdSize/binary, ReqData/binary>> ->
+          {ok, {UserKeyKeyId, ClientChallenge, ReqData}};
         _Rest ->
           {error, <<"Invalid validation packet">>}
       end;
@@ -33,14 +33,14 @@ response_packet(LibKeyData, SrpData, ClientChallenge, RespData) ->
   LibRespData = <<ServerChallenge/binary, RespData/binary>>,
   case srpcryptor_encryptor:encrypt(LibKeyData, LibRespData) of
     {ok, RespPacket} ->
-      LoginKeyData = 
+      UserKeyKeyData = 
         case Result of
           ok ->
             srpcryptor_srp:key_data(SrpData);
           invalid ->
             undefined
         end,
-      {Result, LoginKeyData, RespPacket};
+      {Result, UserKeyKeyData, RespPacket};
     Error ->
       Error
   end.

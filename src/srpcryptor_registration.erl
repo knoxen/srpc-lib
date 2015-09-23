@@ -10,7 +10,7 @@
    ]).
 
 %%
-%% Response Codes
+%% Registration Codes
 %%
 -define(REGISTRATION_OK,   1).
 -define(REGISTRATION_DUP,  2).
