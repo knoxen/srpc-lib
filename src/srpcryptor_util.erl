@@ -2,6 +2,8 @@
 
 -author("paul@knoxen.com").
 
+-include("srpcryptor_lib.hrl").
+
 -export(
    [rand_id/1
    ,rand_key_id/0
@@ -9,8 +11,6 @@
    ,bin_to_hex/1
    ,hex_to_bin/1
    ]).
-
--define(KEY_ID_LEN, 12).
 
 %%======================================================================================
 %%
@@ -123,4 +123,3 @@ hex_to_bin([], Acc) ->
 hex_to_bin([X,Y|T], Acc) ->
   {ok, [V], []} = io_lib:fread("~16u", [X,Y]),
   hex_to_bin(T, [V | Acc]).
-

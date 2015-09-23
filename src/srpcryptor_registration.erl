@@ -2,20 +2,12 @@
 
 -author("paul@knoxen.com").
 
-%% -export([register_user/1]).
+-include("srpcryptor_lib.hrl").
 
--export([packet_data/2
-        ,response_packet/3
-        ]).
-
-%%
-%% Sizes
-%%
--define(KDF_SALT_BYTES,   12).    %%    96-bit
--define(SRP_SALT_BYTES,   20).    %%   160-bit
--define(VERIFIER_BYTES,  256).    %%  2048-bit
-
--define(SRP_ID_BITS,       8).
+-export(
+   [packet_data/2
+   ,response_packet/3
+   ]).
 
 %%
 %% Response Codes
@@ -25,8 +17,8 @@
 
 packet_data(KeyData, RegistrationPacket) ->
   case srpcryptor_encryptor:decrypt(KeyData, RegistrationPacket) of
-    {ok, <<KdfSalt:?KDF_SALT_BYTES/binary, SrpSalt:?SRP_SALT_BYTES/binary,
-           Verifier:?VERIFIER_BYTES/binary, SrpIdSize:?SRP_ID_BITS, Rest/binary>>} ->
+    {ok, <<KdfSalt:?KDF_SALT_SIZE/binary, SrpSalt:?SRP_SALT_SIZE/binary,
+           Verifier:?SRP_VALUE_SIZE/binary, SrpIdSize:?SRP_ID_BITS, Rest/binary>>} ->
       <<SrpId:SrpIdSize/binary, RequestData/binary>> = Rest,
       SrpUserData = #{srpId    => SrpId
                      ,kdfSalt  => KdfSalt

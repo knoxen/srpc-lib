@@ -2,16 +2,16 @@
 
 -author("paul@knoxen.com").
 
+-include("srpcryptor_lib.hrl").
+
 -export([packet_data/2
         ,response_packet/4
         ]).
 
--define(CHALLENGE_BYTES, 32).
--define(KEY_ID_SIZE_BITS, 8).
-
 packet_data(KeyData, ValidatePacket) ->
   case srpcryptor_encryptor:decrypt(KeyData, ValidatePacket) of
-    {ok, <<ClientChallenge:?CHALLENGE_BYTES/binary, KeyIdSize:?KEY_ID_SIZE_BITS, Rest/binary>>} ->
+    {ok,
+     <<ClientChallenge:?SRP_CHALLENGE_SIZE/binary, KeyIdSize:?KEY_ID_SIZE_BITS, Rest/binary>>}->
       case Rest of
         <<LoginKeyId:KeyIdSize/binary, ReqData/binary>> ->
           {ok, {LoginKeyId, ClientChallenge, ReqData}};
@@ -25,7 +25,7 @@ packet_data(KeyData, ValidatePacket) ->
   end.
 
 response_packet(LibKeyData, invalid, _ClientChallenge, RespData) ->
-  ServerChallenge = crypto:rand_bytes(?CHALLENGE_BYTES),
+  ServerChallenge = crypto:rand_bytes(?SRP_CHALLENGE_SIZE),
   LibRespData = <<ServerChallenge/binary, RespData/binary>>,
   srpcryptor_encryptor:encrypt(LibKeyData, LibRespData);
 response_packet(LibKeyData, SrpData, ClientChallenge, RespData) ->

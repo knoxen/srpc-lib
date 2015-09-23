@@ -2,22 +2,18 @@
 
 -author("paul@knoxen.com").
 
+-include("srpcryptor_lib.hrl").
+
 -export([packet_data/2
         ,response_packet/4
         ]).
-
--define(KDF_SALT_BYTES,     12).    %%    96-bit
--define(SRP_SALT_BYTES,     20).    %%   160-bit
--define(SRP_PUB_KEY_BYTES, 256).    %%  2048-bit
-
--define(SRP_ID_BITS,   8).
 
 -define(LOGIN_OK,      1).
 -define(LOGIN_INVALID, 2).
 
 packet_data(KeyData, LoginPacket) ->
   case srpcryptor_encryptor:decrypt(KeyData, LoginPacket) of
-    {ok, <<ClientPublicKey:?SRP_PUB_KEY_BYTES/binary, SrpIdSize:?SRP_ID_BITS, Rest/binary>>} ->
+    {ok, <<ClientPublicKey:?SRP_PUBLIC_KEY_SIZE/binary, SrpIdSize:?SRP_ID_BITS, Rest/binary>>} ->
       case srpcryptor_srp:validate_public_key(ClientPublicKey) of
         ok ->
           <<SrpId:SrpIdSize/binary, ReqData/binary>> = Rest,
@@ -33,9 +29,9 @@ packet_data(KeyData, LoginPacket) ->
 
 response_packet(KeyData, invalid, _ClientPublicKey, RespData) ->
   case encrypt_packet(KeyData, ?LOGIN_INVALID,
-                      crypto:rand_bytes(?KDF_SALT_BYTES),
-                      crypto:rand_bytes(?SRP_SALT_BYTES),
-                      crypto:rand_bytes(?SRP_PUB_KEY_BYTES),
+                      crypto:rand_bytes(?KDF_SALT_SIZE),
+                      crypto:rand_bytes(?SRP_SALT_SIZE),
+                      crypto:rand_bytes(?SRP_PUBLIC_KEY_SIZE),
                       RespData) of
     {ok, {_LoginReqId, Packet}} ->
       {ok, Packet};

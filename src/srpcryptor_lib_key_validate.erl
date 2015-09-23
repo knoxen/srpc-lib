@@ -2,19 +2,16 @@
 
 -author("paul@knoxen.com").
 
+-include("srpcryptor_lib.hrl").
+
 -export([packet_data/2
         ,response_packet/4
         ]).
 
--define(CHALLENGE_SIZE,  32).
--define(LIB_KEY_ID_LEN,  12).
--define(LIB_KEY_BYTES,   32).
--define(CHALLENGE_BYTES, 32).
-
 packet_data(SrpData, ValidatePacket) ->
   KeyData = srpcryptor_srp:key_data(SrpData),
   case srpcryptor_encryptor:decrypt(KeyData, ValidatePacket) of
-    {ok, <<ClientChallenge:?CHALLENGE_SIZE/binary, ReqData/binary>>} ->
+    {ok, <<ClientChallenge:?SRP_CHALLENGE_SIZE/binary, ReqData/binary>>} ->
         {ok, {KeyData, ClientChallenge, ReqData}};
     {ok, _InvalidPacket} ->
       {error, <<"Invalid Lib Key validate packet">>};

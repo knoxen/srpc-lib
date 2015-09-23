@@ -2,7 +2,7 @@
 
 -author("paul@knoxen.com").
 
--define(SRP_CRYPTOR_LIB_ID, <<"C4GPqj6eVWV4">>).
+-include("srpcryptor_lib.hrl").
 
 %% Lib
 -export([lib_id/0
@@ -67,8 +67,8 @@ login_validate_packet_data(LibKey, ValidatePacket) ->
 login_validation_response_packet(LibKey, ClientChallenge, LoginReqData, RespData) ->
   srpcryptor_login_validate:response_packet(LibKey, ClientChallenge, LoginReqData, RespData).
 
-encrypt(KeyInfo, Data) ->
-  srpcryptor_encryptor:encrypt(KeyInfo, Data).
+encrypt(KeyData, Data) ->
+  srpcryptor_encryptor:encrypt(KeyData, Data).
 
-decrypt(KeyInfo, Data) ->
-  srpcryptor_encryptor:decrypt(KeyInfo, Data).
+decrypt(KeyData, Data) ->
+  srpcryptor_encryptor:decrypt(KeyData, Data).
