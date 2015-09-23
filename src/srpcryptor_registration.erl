@@ -15,8 +15,8 @@
 -define(REGISTRATION_OK,   1).
 -define(REGISTRATION_DUP,  2).
 
-packet_data(KeyData, RegistrationPacket) ->
-  case srpcryptor_encryptor:decrypt(KeyData, RegistrationPacket) of
+packet_data(KeyInfo, RegistrationPacket) ->
+  case srpcryptor_encryptor:decrypt(KeyInfo, RegistrationPacket) of
     {ok, <<KdfSalt:?KDF_SALT_SIZE/binary, SrpSalt:?SRP_SALT_SIZE/binary,
            Verifier:?SRP_VALUE_SIZE/binary, SrpIdSize:?SRP_ID_BITS, Rest/binary>>} ->
       <<SrpId:SrpIdSize/binary, RequestData/binary>> = Rest,
@@ -30,9 +30,9 @@ packet_data(KeyData, RegistrationPacket) ->
       Error
   end.
 
-response_packet(Result, KeyData, undefined) ->
-  response_packet(Result, KeyData, <<>>);
-response_packet(ok, KeyData, RespData) ->
-  srpcryptor_encryptor:encrypt(KeyData, <<?REGISTRATION_OK,  RespData/binary>>);
-response_packet(duplicate, KeyData, RespData) ->
-  srpcryptor_encryptor:encrypt(KeyData, <<?REGISTRATION_DUP, RespData/binary>>).
+response_packet(Result, KeyInfo, undefined) ->
+  response_packet(Result, KeyInfo, <<>>);
+response_packet(ok, KeyInfo, RespData) ->
+  srpcryptor_encryptor:encrypt(KeyInfo, <<?REGISTRATION_OK,  RespData/binary>>);
+response_packet(duplicate, KeyInfo, RespData) ->
+  srpcryptor_encryptor:encrypt(KeyInfo, <<?REGISTRATION_DUP, RespData/binary>>).

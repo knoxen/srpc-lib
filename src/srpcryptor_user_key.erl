@@ -11,8 +11,8 @@
 -define(USER_KEY_OK,      1).
 -define(USER_KEY_INVALID, 2).
 
-packet_data(KeyData, UserKeyPacket) ->
-  case srpcryptor_encryptor:decrypt(KeyData, UserKeyPacket) of
+packet_data(KeyInfo, UserKeyPacket) ->
+  case srpcryptor_encryptor:decrypt(KeyInfo, UserKeyPacket) of
     {ok, <<ClientPublicKey:?SRP_PUBLIC_KEY_SIZE/binary, SrpIdSize:?SRP_ID_BITS, Rest/binary>>} ->
       case srpcryptor_srp:validate_public_key(ClientPublicKey) of
         ok ->
@@ -21,14 +21,14 @@ packet_data(KeyData, UserKeyPacket) ->
         Error ->
           Error
       end;
-    {ok, _InvalidUserKeyData} ->
+    {ok, _InvalidUserKeyInfo} ->
       {error, <<"Invalid User Key data">>};
     Error ->
       Error
   end.
 
-response_packet(KeyData, invalid, _ClientPublicKey, RespData) ->
-  case encrypt_packet(KeyData, ?USER_KEY_INVALID,
+response_packet(KeyInfo, invalid, _ClientPublicKey, RespData) ->
+  case encrypt_packet(KeyInfo, ?USER_KEY_INVALID,
                       crypto:rand_bytes(?KDF_SALT_SIZE),
                       crypto:rand_bytes(?SRP_SALT_SIZE),
                       crypto:rand_bytes(?SRP_PUBLIC_KEY_SIZE),
@@ -38,17 +38,17 @@ response_packet(KeyData, invalid, _ClientPublicKey, RespData) ->
     Error ->
       Error
   end;
-response_packet(KeyData, SrpUserData, ClientPublicKey, RespData) ->
+response_packet(KeyInfo, SrpUserData, ClientPublicKey, RespData) ->
   #{srpId    := SrpId
    ,kdfSalt  := KdfSalt
    ,srpSalt  := SrpSalt
    ,verifier := Verifier} = SrpUserData,
   ServerKeys =  srpcryptor_srp:generate_emphemeral_keys(Verifier),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
-  case encrypt_packet(KeyData, ?USER_KEY_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
-    {ok, {UserKeyKeyId, RespPacket}} ->
+  case encrypt_packet(KeyInfo, ?USER_KEY_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
+    {ok, {UserKeyId, RespPacket}} ->
       Secret = srpcryptor_srp:secret(ClientPublicKey, ServerKeys, Verifier),
-      SrpData = #{keyId      => UserKeyKeyId
+      SrpData = #{keyId      => UserKeyId
                  ,entityId   => SrpId
                  ,clientKey  => ClientPublicKey
                  ,serverKeys => ServerKeys
@@ -59,16 +59,16 @@ response_packet(KeyData, SrpUserData, ClientPublicKey, RespData) ->
       Error
   end.
 
-encrypt_packet(KeyData, Result, KdfSalt, SrpSalt, ServerPublicKey, RespData) ->
-  UserKeyKeyId = srpcryptor_util:rand_key_id(),
-  UserKeyKeyIdLen = byte_size(UserKeyKeyId),
+encrypt_packet(KeyInfo, Result, KdfSalt, SrpSalt, ServerPublicKey, RespData) ->
+  UserKeyId = srpcryptor_util:rand_key_id(),
+  UserKeyIdLen = byte_size(UserKeyId),
   LibRespData = <<Result, 
                   KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary,
-                  UserKeyKeyIdLen, UserKeyKeyId/binary,
+                  UserKeyIdLen, UserKeyId/binary,
                   RespData/binary>>,
-  case srpcryptor_encryptor:encrypt(KeyData, LibRespData) of
+  case srpcryptor_encryptor:encrypt(KeyInfo, LibRespData) of
     {ok, Packet} ->
-      {ok, {UserKeyKeyId, Packet}};
+      {ok, {UserKeyId, Packet}};
     Error ->
       Error
   end.

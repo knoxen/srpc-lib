@@ -9,20 +9,20 @@
         ]).
 
 packet_data(SrpData, ValidatePacket) ->
-  KeyData = srpcryptor_srp:key_data(SrpData),
-  case srpcryptor_encryptor:decrypt(KeyData, ValidatePacket) of
+  KeyInfo = srpcryptor_srp:key_info(SrpData),
+  case srpcryptor_encryptor:decrypt(KeyInfo, ValidatePacket) of
     {ok, <<ClientChallenge:?SRP_CHALLENGE_SIZE/binary, ReqData/binary>>} ->
-        {ok, {KeyData, ClientChallenge, ReqData}};
+        {ok, {KeyInfo, ClientChallenge, ReqData}};
     {ok, _InvalidPacket} ->
       {error, <<"Invalid Lib Key validate packet">>};
     Error ->
       Error
   end.
 
-response_packet(SrpData, KeyData, ClientChallenge, RespData) ->
+response_packet(SrpData, KeyInfo, ClientChallenge, RespData) ->
   {IsValid, ServerChallenge} = srpcryptor_srp:validate_challenge(SrpData, ClientChallenge),
   LibRespData = <<ServerChallenge/binary, RespData/binary>>,
-  case srpcryptor_encryptor:encrypt(KeyData, LibRespData) of
+  case srpcryptor_encryptor:encrypt(KeyInfo, LibRespData) of
     {ok, RespPacket} ->
       {IsValid, RespPacket};
     Error ->

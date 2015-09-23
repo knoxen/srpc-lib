@@ -7,7 +7,7 @@
 -export([validate_public_key/1
         ,generate_emphemeral_keys/1
         ,secret/3
-        ,key_data/1
+        ,key_info/1
         ,validate_challenge/2]).
 
 validate_public_key(PublicKey) when byte_size(PublicKey) =:= ?SRP_PUBLIC_KEY_SIZE ->
@@ -28,7 +28,7 @@ secret(ClientPublicKey, ServerKeys, Verifier) ->
   crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
                      {host, [Verifier, ?SRP_LIB_GROUP_MODULUS, ?SRP_VERSION]}).
 
-key_data(SrpData) ->
+key_info(SrpData) ->
   KeyId   = maps:get(keyId,  SrpData),
   Secret  = maps:get(secret, SrpData),
   Key     = crypto:hash(sha256, Secret),

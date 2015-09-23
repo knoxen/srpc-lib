@@ -8,13 +8,13 @@
         ,response_packet/4
         ]).
 
-packet_data(KeyData, ValidatePacket) ->
-  case srpcryptor_encryptor:decrypt(KeyData, ValidatePacket) of
+packet_data(KeyInfo, ValidatePacket) ->
+  case srpcryptor_encryptor:decrypt(KeyInfo, ValidatePacket) of
     {ok,
      <<ClientChallenge:?SRP_CHALLENGE_SIZE/binary, KeyIdSize:?KEY_ID_SIZE_BITS, Rest/binary>>}->
       case Rest of
-        <<UserKeyKeyId:KeyIdSize/binary, ReqData/binary>> ->
-          {ok, {UserKeyKeyId, ClientChallenge, ReqData}};
+        <<UserKeyId:KeyIdSize/binary, ReqData/binary>> ->
+          {ok, {UserKeyId, ClientChallenge, ReqData}};
         _Rest ->
           {error, <<"Invalid validation packet">>}
       end;
@@ -24,23 +24,23 @@ packet_data(KeyData, ValidatePacket) ->
       Error
   end.
 
-response_packet(LibKeyData, invalid, _ClientChallenge, RespData) ->
+response_packet(LibKeyInfo, invalid, _ClientChallenge, RespData) ->
   ServerChallenge = crypto:rand_bytes(?SRP_CHALLENGE_SIZE),
   LibRespData = <<ServerChallenge/binary, RespData/binary>>,
-  srpcryptor_encryptor:encrypt(LibKeyData, LibRespData);
-response_packet(LibKeyData, SrpData, ClientChallenge, RespData) ->
+  srpcryptor_encryptor:encrypt(LibKeyInfo, LibRespData);
+response_packet(LibKeyInfo, SrpData, ClientChallenge, RespData) ->
   {Result, ServerChallenge} = srpcryptor_srp:validate_challenge(SrpData, ClientChallenge),
   LibRespData = <<ServerChallenge/binary, RespData/binary>>,
-  case srpcryptor_encryptor:encrypt(LibKeyData, LibRespData) of
+  case srpcryptor_encryptor:encrypt(LibKeyInfo, LibRespData) of
     {ok, RespPacket} ->
-      UserKeyKeyData = 
+      UserKeyInfo = 
         case Result of
           ok ->
-            srpcryptor_srp:key_data(SrpData);
+            srpcryptor_srp:key_info(SrpData);
           invalid ->
             undefined
         end,
-      {Result, UserKeyKeyData, RespPacket};
+      {Result, UserKeyInfo, RespPacket};
     Error ->
       Error
   end.

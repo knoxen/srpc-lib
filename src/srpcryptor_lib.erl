@@ -45,11 +45,11 @@ lib_key_packet_data(KeyPacket) ->
 lib_key_response_packet(ClientPublicKey, RespData) ->
   srpcryptor_lib_key:response_packet(ClientPublicKey, RespData).
 
-lib_key_validate_packet_data(KeyData, ValidatePacket) ->
-  srpcryptor_lib_key_validate:packet_data(KeyData, ValidatePacket).
+lib_key_validate_packet_data(KeyInfo, ValidatePacket) ->
+  srpcryptor_lib_key_validate:packet_data(KeyInfo, ValidatePacket).
 
-lib_key_validation_response_packet(SrpData, KeyData, ClientChallenge, RespData) ->
-  srpcryptor_lib_key_validate:response_packet(SrpData, KeyData, ClientChallenge, RespData).
+lib_key_validation_response_packet(SrpData, KeyInfo, ClientChallenge, RespData) ->
+  srpcryptor_lib_key_validate:response_packet(SrpData, KeyInfo, ClientChallenge, RespData).
 
 registration_packet_data(LibKey, RegistrationPacket) ->
   srpcryptor_registration:packet_data(LibKey, RegistrationPacket).
@@ -69,8 +69,8 @@ user_key_validate_packet_data(LibKey, ValidatePacket) ->
 user_key_validation_response_packet(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
   srpcryptor_user_key_validate:response_packet(LibKey, ClientChallenge, UserKeyReqData, RespData).
 
-encrypt(KeyData, Data) ->
-  srpcryptor_encryptor:encrypt(KeyData, Data).
+encrypt(KeyInfo, Data) ->
+  srpcryptor_encryptor:encrypt(KeyInfo, Data).
 
-decrypt(KeyData, Data) ->
-  srpcryptor_encryptor:decrypt(KeyData, Data).
+decrypt(KeyInfo, Data) ->
+  srpcryptor_encryptor:decrypt(KeyInfo, Data).
