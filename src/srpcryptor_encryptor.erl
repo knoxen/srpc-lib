@@ -160,29 +160,39 @@ parse_packet(HmacKey, Packet) ->
   end.
 
 %%--------------------------------------------------------------------------------------
-%% @doc SrpCryptor Binary Version
+%% @doc SrpCryptor Version binary header
 %%
--spec srpc_version() -> Version when
+-spec srpc_version_hdr() -> Version when
     Version :: binary().
 %%--------------------------------------------------------------------------------------
-srpc_version() ->
+srpc_version_hdr() ->
   <<?SRPC_VERSION_FORMAT:1,
     ?SRPC_VERSION_MAJOR:4,
     ?SRPC_VERSION_MINOR:5,
     ?SRPC_VERSION_PATCH:6>>.
 
 %%--------------------------------------------------------------------------------------
-%% @doc Header for lib data with embedded KeyId
+%% @doc Header for lib data
+%%
+-spec lib_data_hdr() -> Header when
+    Header :: binary().
+%%--------------------------------------------------------------------------------------
+lib_data_hdr() ->
+  VersionHdr = srpc_version_hdr(),
+  LibId = srpcryptor_lib:lib_id(),
+  <<VersionHdr/binary, ?SRPC_LIB_OPTIONS:8, LibId/binary>>.
+
+%%--------------------------------------------------------------------------------------
+%% @doc Header for lib data with KeyId
 %%
 -spec lib_data_hdr(KeyId) -> Header when
     KeyId  :: string(),
     Header :: binary().
 %%--------------------------------------------------------------------------------------
 lib_data_hdr(KeyId) ->
-  Version = srpc_version(),
-  LibId = srpcryptor_lib:lib_id(),
+  DataHdr = lib_data_hdr(),
   KeyIdLen = byte_size(KeyId),
-  <<Version/binary, ?SRPC_LIB_OPTIONS:8, LibId/binary, KeyIdLen, KeyId/binary>>.
+  <<DataHdr/binary, KeyIdLen, KeyId/binary>>.
 
 %%======================================================================================
 %%

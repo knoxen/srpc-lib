@@ -5,7 +5,10 @@
 -include("srpcryptor_lib.hrl").
 
 %% Lib
--export([lib_id/0]).
+-export([srpcryptor_id/0
+        ,srpcryptor_version/0
+        ,srpcryptor_options/0
+        ]).
 
 %% Lib Key
 -export([lib_key_packet_data/1
@@ -36,8 +39,18 @@
 %%====================================================================
 %% API functions
 %%====================================================================
-lib_id() ->
+srpcryptor_id() ->
   ?SRPC_LIB_ID.
+
+srpcryptor_version() ->
+  Major = ?SRPC_VERSION_MAJOR + 48,
+  Minor = ?SRPC_VERSION_MINOR + 48,
+  Patch = ?SRPC_VERSION_PATCH + 48,
+  <<Major, ".", Minor, ".", Patch>>.
+
+srpcryptor_options() ->
+  %% CxTBD
+  <<"G2048 : AES-CBC-256 : HMAC SHA256">>.
 
 lib_key_packet_data(KeyPacket) ->
   srpcryptor_lib_key:packet_data(KeyPacket).
@@ -74,3 +87,4 @@ encrypt(KeyInfo, Data) ->
 
 decrypt(KeyInfo, Data) ->
   srpcryptor_encryptor:decrypt(KeyInfo, Data).
+
