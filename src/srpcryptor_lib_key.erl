@@ -8,12 +8,12 @@
         ,response_packet/2
         ]).
 
-packet_data(<<LibIdSize:?LIB_ID_SIZE_BITS, Packet/binary>>) ->
+packet_data(<<LibIdSize:?SRPC_LIB_ID_SIZE_BITS, Packet/binary>>) ->
   LibId = srpcryptor_lib:lib_id(),
   case Packet of
     <<LibId:LibIdSize/binary, Rest/binary>> ->
       case Rest of
-        <<ClientPublicKey:?SRP_PUBLIC_KEY_SIZE/binary, ReqData/binary>> ->
+        <<ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ReqData/binary>> ->
           case srpcryptor_srp:validate_public_key(ClientPublicKey) of
             ok ->
               {ok, {ClientPublicKey, ReqData}};
@@ -28,11 +28,11 @@ packet_data(<<LibIdSize:?LIB_ID_SIZE_BITS, Packet/binary>>) ->
   end.
 
 response_packet(ClientPublicKey, RespData) ->
-  ServerKeys = srpcryptor_srp:generate_emphemeral_keys(?SRP_LIB_VERIFIER),
+  ServerKeys = srpcryptor_srp:generate_emphemeral_keys(?SRPC_LIB_VERIFIER),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
 
   LibKeyId = srpcryptor_util:rand_key_id(),
-  Secret = srpcryptor_srp:secret(ClientPublicKey, ServerKeys, ?SRP_LIB_VERIFIER),
+  Secret = srpcryptor_srp:secret(ClientPublicKey, ServerKeys, ?SRPC_LIB_VERIFIER),
   SrpData = #{keyId      => LibKeyId
              ,entityId   => srpcryptor_lib:lib_id()
              ,clientKey  => ClientPublicKey

@@ -11,7 +11,7 @@
 packet_data(KeyInfo, ValidatePacket) ->
   case srpcryptor_encryptor:decrypt(KeyInfo, ValidatePacket) of
     {ok,
-     <<ClientChallenge:?SRP_CHALLENGE_SIZE/binary, KeyIdSize:?KEY_ID_SIZE_BITS, Rest/binary>>}->
+     <<ClientChallenge:?SRPC_CHALLENGE_SIZE/binary, KeyIdSize:?SRPC_KEY_ID_SIZE_BITS, Rest/binary>>}->
       case Rest of
         <<UserKeyId:KeyIdSize/binary, ReqData/binary>> ->
           {ok, {UserKeyId, ClientChallenge, ReqData}};
@@ -25,7 +25,7 @@ packet_data(KeyInfo, ValidatePacket) ->
   end.
 
 response_packet(LibKeyInfo, invalid, _ClientChallenge, RespData) ->
-  ServerChallenge = crypto:rand_bytes(?SRP_CHALLENGE_SIZE),
+  ServerChallenge = crypto:rand_bytes(?SRPC_CHALLENGE_SIZE),
   LibRespData = <<ServerChallenge/binary, RespData/binary>>,
   srpcryptor_encryptor:encrypt(LibKeyInfo, LibRespData);
 response_packet(LibKeyInfo, SrpData, ClientChallenge, RespData) ->

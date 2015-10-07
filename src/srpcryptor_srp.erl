@@ -10,8 +10,8 @@
         ,key_info/1
         ,validate_challenge/2]).
 
-validate_public_key(PublicKey) when byte_size(PublicKey) =:= ?SRP_PUBLIC_KEY_SIZE ->
-  case crypto:mod_pow(PublicKey, 1, ?SRP_LIB_GROUP_MODULUS) of
+validate_public_key(PublicKey) when byte_size(PublicKey) =:= ?SRPC_PUBLIC_KEY_SIZE ->
+  case crypto:mod_pow(PublicKey, 1, ?SRPC_GROUP_MODULUS) of
     <<>> ->
       {error, <<"Public Key mod N == 0">>};
     _ ->
@@ -21,12 +21,12 @@ validate_public_key(_PublicKey) ->
   {error, <<"Invalid public key size">>}.
 
 generate_emphemeral_keys(Verifier) ->
-  SrpParams = [Verifier, ?SRP_LIB_GROUP_GENERATOR, ?SRP_LIB_GROUP_MODULUS, ?SRP_VERSION],
+  SrpParams = [Verifier, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
   crypto:generate_key(srp, {host, SrpParams}).
 
 secret(ClientPublicKey, ServerKeys, Verifier) ->
   crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
-                     {host, [Verifier, ?SRP_LIB_GROUP_MODULUS, ?SRP_VERSION]}).
+                     {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}).
 
 key_info(SrpData) ->
   KeyId   = maps:get(keyId,  SrpData),
@@ -53,6 +53,6 @@ validate_challenge(SrpData, ClientChallenge) ->
       ServerChallenge = crypto:hash(sha256, ServerChallengeData),
       {ok, ServerChallenge};
     false ->
-      {invalid, crypto:rand_bytes(?SRP_CHALLENGE_SIZE)}
+      {invalid, crypto:rand_bytes(?SRPC_CHALLENGE_SIZE)}
   end.
 

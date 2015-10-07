@@ -8,12 +8,9 @@
         ,response_packet/4
         ]).
 
--define(USER_KEY_OK,      1).
--define(USER_KEY_INVALID, 2).
-
 packet_data(KeyInfo, UserKeyPacket) ->
   case srpcryptor_encryptor:decrypt(KeyInfo, UserKeyPacket) of
-    {ok, <<ClientPublicKey:?SRP_PUBLIC_KEY_SIZE/binary, SrpIdSize:?SRP_ID_BITS, Rest/binary>>} ->
+    {ok, <<ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, SrpIdSize:?SRPC_ID_SIZE_BITS, Rest/binary>>} ->
       case srpcryptor_srp:validate_public_key(ClientPublicKey) of
         ok ->
           <<SrpId:SrpIdSize/binary, ReqData/binary>> = Rest,
@@ -28,10 +25,10 @@ packet_data(KeyInfo, UserKeyPacket) ->
   end.
 
 response_packet(KeyInfo, invalid, _ClientPublicKey, RespData) ->
-  case encrypt_packet(KeyInfo, ?USER_KEY_INVALID,
-                      crypto:rand_bytes(?KDF_SALT_SIZE),
-                      crypto:rand_bytes(?SRP_SALT_SIZE),
-                      crypto:rand_bytes(?SRP_PUBLIC_KEY_SIZE),
+  case encrypt_packet(KeyInfo, ?SRPC_USER_KEY_INVALID_IDENTITY,
+                      crypto:rand_bytes(?SRPC_KDF_SALT_SIZE),
+                      crypto:rand_bytes(?SRPC_SRP_SALT_SIZE),
+                      crypto:rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
                       RespData) of
     {ok, {_UserKeyReqId, Packet}} ->
       {ok, Packet};
@@ -45,7 +42,7 @@ response_packet(KeyInfo, SrpUserData, ClientPublicKey, RespData) ->
    ,verifier := Verifier} = SrpUserData,
   ServerKeys =  srpcryptor_srp:generate_emphemeral_keys(Verifier),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
-  case encrypt_packet(KeyInfo, ?USER_KEY_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
+  case encrypt_packet(KeyInfo, ?SRPC_USER_KEY_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
     {ok, {UserKeyId, RespPacket}} ->
       Secret = srpcryptor_srp:secret(ClientPublicKey, ServerKeys, Verifier),
       SrpData = #{keyId      => UserKeyId

@@ -37,7 +37,7 @@
 %% API functions
 %%====================================================================
 lib_id() ->
-  ?SRP_CRYPTOR_LIB_ID.
+  ?SRPC_LIB_ID.
 
 lib_key_packet_data(KeyPacket) ->
   srpcryptor_lib_key:packet_data(KeyPacket).

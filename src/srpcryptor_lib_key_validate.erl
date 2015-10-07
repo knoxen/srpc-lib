@@ -11,7 +11,7 @@
 packet_data(SrpData, ValidatePacket) ->
   KeyInfo = srpcryptor_srp:key_info(SrpData),
   case srpcryptor_encryptor:decrypt(KeyInfo, ValidatePacket) of
-    {ok, <<ClientChallenge:?SRP_CHALLENGE_SIZE/binary, ReqData/binary>>} ->
+    {ok, <<ClientChallenge:?SRPC_CHALLENGE_SIZE/binary, ReqData/binary>>} ->
         {ok, {KeyInfo, ClientChallenge, ReqData}};
     {ok, _InvalidPacket} ->
       {error, <<"Invalid Lib Key validate packet">>};

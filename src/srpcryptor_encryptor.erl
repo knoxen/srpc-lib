@@ -9,7 +9,10 @@
    ,decrypt/2
    ]).
 
--define(SRP_CRYPTOR_DATA_VERSION, 1).
+
+-define(SRPC_DATA_VERSION, 1).
+
+
 
 %%======================================================================================
 %% Defined types
@@ -65,7 +68,7 @@ encrypt(_Map, _Packet) ->
     Reason  :: string().
 %%--------------------------------------------------------------------------------------
 encrypt_data(<<Key/binary>>, <<HmacKey/binary>>, <<Data/binary>>) ->
-  IV = crypto:rand_bytes(?AES_BLOCK_SIZE),
+  IV = crypto:rand_bytes(?SRPC_AES_BLOCK_SIZE),
   encrypt_data(Key, IV, HmacKey, Data).
 
 %%--------------------------------------------------------------------------------------
@@ -80,12 +83,12 @@ encrypt_data(<<Key/binary>>, <<HmacKey/binary>>, <<Data/binary>>) ->
     Packet  :: packet(),
     Reason  :: string().
 %%--------------------------------------------------------------------------------------
-encrypt_data(<<Key/binary>>, <<IV:?AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>, <<Data/binary>>)
-  when byte_size(Key) =:= ?AES_128_KEY_SIZE;
-       byte_size(Key) =:= ?AES_256_KEY_SIZE ->
+encrypt_data(<<Key/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>, <<Data/binary>>)
+  when byte_size(Key) =:= ?SRPC_AES_128_KEY_SIZE;
+       byte_size(Key) =:= ?SRPC_AES_256_KEY_SIZE ->
   CipherText = crypto:block_encrypt(aes_cbc256, Key, IV, enpad(Data)),
-  Cryptor = <<?SRP_CRYPTOR_DATA_VERSION, IV/binary, CipherText/binary>>,
-  Hmac = crypto:hmac(sha256, HmacKey, Cryptor, ?SHA_256_SIZE),
+  Cryptor = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
+  Hmac = crypto:hmac(sha256, HmacKey, Cryptor, ?SRPC_SHA256_SIZE),
   <<Cryptor/binary, Hmac/binary>>;
 encrypt_data(<<_Key/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
   {error, "Invalid key size"};
@@ -144,13 +147,13 @@ decrypt(_KeyInfo, _Packet) ->
 %%--------------------------------------------------------------------------------------
 parse_packet(HmacKey, Packet) ->
   PacketSize = byte_size(Packet),
-  Cryptor = binary_part(Packet, {0, PacketSize-?SHA_256_SIZE}),
-  Hmac    = binary_part(Packet, {PacketSize, -?SHA_256_SIZE}),
-  Challenge = crypto:hmac(sha256, HmacKey, Cryptor, ?SHA_256_SIZE),
+  Cryptor = binary_part(Packet, {0, PacketSize-?SRPC_SHA256_SIZE}),
+  Hmac    = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),
+  Challenge = crypto:hmac(sha256, HmacKey, Cryptor, ?SRPC_SHA256_SIZE),
   case srpcryptor_util:const_compare(Hmac, Challenge) of
     true ->
       case Cryptor of 
-        <<?SRP_CRYPTOR_DATA_VERSION, IV:?AES_BLOCK_SIZE/binary, CipherText/binary>> ->
+        <<?SRPC_DATA_VERSION, IV:?SRPC_AES_BLOCK_SIZE/binary, CipherText/binary>> ->
           {ok, IV, CipherText};
         _ ->
           {error, <<"Invalid cryptor">>}
@@ -167,7 +170,8 @@ parse_packet(HmacKey, Packet) ->
     Header :: binary().
 %%--------------------------------------------------------------------------------------
 lib_data_hdr(KeyId) ->
-  LibVersion = <<?LIB_VERSION_MAJOR, ?LIB_VERSION_MINOR, ?LIB_VERSION_PATCH, ?LIB_VERSION_OPTS>>,
+  LibVersion = <<?SRPC_LIB_VERSION_MAJOR, ?SRPC_LIB_VERSION_MINOR,
+                 ?SRPC_LIB_VERSION_PATCH, ?SRPC_LIB_OPTIONS>>,
   LibId = srpcryptor_lib:lib_id(),
   KeyIdLen = byte_size(KeyId),
   <<LibVersion/binary, LibId/binary, KeyIdLen, KeyId/binary>>.
@@ -188,7 +192,7 @@ lib_data_hdr(KeyId) ->
     Padded :: binary().
 %%--------------------------------------------------------------------------------------
 enpad(Bin) ->
-  enpad(Bin, ?AES_BLOCK_SIZE-(byte_size(Bin) rem ?AES_BLOCK_SIZE)).
+  enpad(Bin, ?SRPC_AES_BLOCK_SIZE-(byte_size(Bin) rem ?SRPC_AES_BLOCK_SIZE)).
 
 %% @private
 enpad(Bin, Len) ->
@@ -217,7 +221,7 @@ enpad(Bin, Len) ->
 depad(Bin) ->
   Len = byte_size(Bin),
   Pad = binary:last(Bin),
-  case Pad =< ?AES_BLOCK_SIZE of
+  case Pad =< ?SRPC_AES_BLOCK_SIZE of
     true ->
       %% The last byte less-equal than our block size and hence represents a padding value
       BinPad = list_to_binary(lists:duplicate(Pad, Pad)),
