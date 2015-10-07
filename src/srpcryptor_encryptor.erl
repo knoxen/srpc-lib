@@ -9,10 +9,7 @@
    ,decrypt/2
    ]).
 
-
 -define(SRPC_DATA_VERSION, 1).
-
-
 
 %%======================================================================================
 %% Defined types
@@ -163,6 +160,18 @@ parse_packet(HmacKey, Packet) ->
   end.
 
 %%--------------------------------------------------------------------------------------
+%% @doc SrpCryptor Binary Version
+%%
+-spec srpc_version() -> Version when
+    Version :: binary().
+%%--------------------------------------------------------------------------------------
+srpc_version() ->
+  <<?SRPC_VERSION_FORMAT:1,
+    ?SRPC_VERSION_MAJOR:4,
+    ?SRPC_VERSION_MINOR:5,
+    ?SRPC_VERSION_PATCH:6>>.
+
+%%--------------------------------------------------------------------------------------
 %% @doc Header for lib data with embedded KeyId
 %%
 -spec lib_data_hdr(KeyId) -> Header when
@@ -170,13 +179,10 @@ parse_packet(HmacKey, Packet) ->
     Header :: binary().
 %%--------------------------------------------------------------------------------------
 lib_data_hdr(KeyId) ->
-  LibVersion = <<?SRPC_LIB_VERSION_MAJOR, ?SRPC_LIB_VERSION_MINOR,
-                 ?SRPC_LIB_VERSION_PATCH, ?SRPC_LIB_OPTIONS>>,
+  Version = srpc_version(),
   LibId = srpcryptor_lib:lib_id(),
   KeyIdLen = byte_size(KeyId),
-  <<LibVersion/binary, LibId/binary, KeyIdLen, KeyId/binary>>.
-
-
+  <<Version/binary, ?SRPC_LIB_OPTIONS:8, LibId/binary, KeyIdLen, KeyId/binary>>.
 
 %%======================================================================================
 %%

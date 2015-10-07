@@ -1,9 +1,20 @@
 %%
-%% Lib Version
+%% Lib Id
 %%
--define(SRPC_LIB_VERSION_MAJOR, 1).
--define(SRPC_LIB_VERSION_MINOR, 0).
--define(SRPC_LIB_VERSION_PATCH, 0).
+-define(SRPC_LIB_ID, <<"C4GPqj6eVWV4">>).
+-define(SRPC_LIB_ID_SIZE_BITS,    8).
+
+%%
+%% Version Format
+%%
+-define(SRPC_VERSION_FORMAT, 0).
+
+%%
+%% Version
+%%
+-define(SRPC_VERSION_MAJOR, 1).
+-define(SRPC_VERSION_MINOR, 0).
+-define(SRPC_VERSION_PATCH, 0).
 
 %%
 %% Lib Options Choices
@@ -14,12 +25,6 @@
 %% Lib Options Setting
 %%
 -define(SRPC_LIB_OPTIONS, ?SRPC_LIB_OPT_G2048_AES_CBC_256_HMAC_SHA256).
-
-%%
-%% Lib Id
-%%
--define(SRPC_LIB_ID, <<"C4GPqj6eVWV4">>).
--define(SRPC_LIB_ID_SIZE_BITS,    8).
 
 %%
 %% Pre-established server relationship with client
@@ -72,7 +77,7 @@
 %% CxTBD How are these being used?
 %%
 -define(SRPC_KEY_ID_SIZE_BITS, 8).
--define(SRPC_ID_SIZE_BITS, 8).
+-define(SRPC_ID_SIZE_BITS,     8).
 
 %%
 %% Sizes
