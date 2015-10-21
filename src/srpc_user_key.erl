@@ -1,17 +1,17 @@
--module(srpcryptor_user_key).
+-module(srpc_user_key).
 
 -author("paul@knoxen.com").
 
--include("srpcryptor_lib.hrl").
+-include("srpc_lib.hrl").
 
 -export([packet_data/2
         ,response_packet/4
         ]).
 
 packet_data(KeyInfo, UserKeyPacket) ->
-  case srpcryptor_encryptor:decrypt(KeyInfo, UserKeyPacket) of
+  case srpc_encryptor:decrypt(KeyInfo, UserKeyPacket) of
     {ok, <<ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, SrpIdSize:?SRPC_ID_SIZE_BITS, Rest/binary>>} ->
-      case srpcryptor_srp:validate_public_key(ClientPublicKey) of
+      case srpc_srp:validate_public_key(ClientPublicKey) of
         ok ->
           <<SrpId:SrpIdSize/binary, ReqData/binary>> = Rest,
           {ok, {SrpId, ClientPublicKey, ReqData}};
@@ -40,11 +40,11 @@ response_packet(KeyInfo, SrpUserData, ClientPublicKey, RespData) ->
    ,kdfSalt  := KdfSalt
    ,srpSalt  := SrpSalt
    ,verifier := Verifier} = SrpUserData,
-  ServerKeys =  srpcryptor_srp:generate_emphemeral_keys(Verifier),
+  ServerKeys =  srpc_srp:generate_emphemeral_keys(Verifier),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
   case encrypt_packet(KeyInfo, ?SRPC_USER_KEY_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
     {ok, {UserKeyId, RespPacket}} ->
-      Secret = srpcryptor_srp:secret(ClientPublicKey, ServerKeys, Verifier),
+      Secret = srpc_srp:secret(ClientPublicKey, ServerKeys, Verifier),
       SrpData = #{keyId      => UserKeyId
                  ,entityId   => SrpId
                  ,clientKey  => ClientPublicKey
@@ -57,13 +57,13 @@ response_packet(KeyInfo, SrpUserData, ClientPublicKey, RespData) ->
   end.
 
 encrypt_packet(KeyInfo, Result, KdfSalt, SrpSalt, ServerPublicKey, RespData) ->
-  UserKeyId = srpcryptor_util:rand_key_id(),
+  UserKeyId = srpc_util:rand_key_id(),
   UserKeyIdLen = byte_size(UserKeyId),
   LibRespData = <<Result, 
                   KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary,
                   UserKeyIdLen, UserKeyId/binary,
                   RespData/binary>>,
-  case srpcryptor_encryptor:encrypt(KeyInfo, LibRespData) of
+  case srpc_encryptor:encrypt(KeyInfo, LibRespData) of
     {ok, Packet} ->
       {ok, {UserKeyId, Packet}};
     Error ->

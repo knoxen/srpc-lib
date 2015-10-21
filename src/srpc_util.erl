@@ -1,8 +1,8 @@
--module(srpcryptor_util).
+-module(srpc_util).
 
 -author("paul@knoxen.com").
 
--include("srpcryptor_lib.hrl").
+-include("srpc_lib.hrl").
 
 -export(
    [rand_id/1

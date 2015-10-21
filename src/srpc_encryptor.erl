@@ -1,8 +1,8 @@
--module(srpcryptor_encryptor).
+-module(srpc_encryptor).
 
 -author("paul@knoxen.com").
 
--include("srpcryptor_lib.hrl").
+-include("srpc_lib.hrl").
 
 -export(
    [encrypt/2
@@ -147,7 +147,7 @@ parse_packet(HmacKey, Packet) ->
   Cryptor = binary_part(Packet, {0, PacketSize-?SRPC_SHA256_SIZE}),
   Hmac    = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),
   Challenge = crypto:hmac(sha256, HmacKey, Cryptor, ?SRPC_SHA256_SIZE),
-  case srpcryptor_util:const_compare(Hmac, Challenge) of
+  case srpc_util:const_compare(Hmac, Challenge) of
     true ->
       case Cryptor of 
         <<?SRPC_DATA_VERSION, IV:?SRPC_AES_BLOCK_SIZE/binary, CipherText/binary>> ->
@@ -179,7 +179,7 @@ srpc_version_hdr() ->
 %%--------------------------------------------------------------------------------------
 lib_data_hdr() ->
   VersionHdr = srpc_version_hdr(),
-  LibId = srpcryptor_lib:lib_id(),
+  LibId = srpc_lib:lib_id(),
   <<VersionHdr/binary, ?SRPC_LIB_OPTIONS:8, LibId/binary>>.
 
 %%--------------------------------------------------------------------------------------

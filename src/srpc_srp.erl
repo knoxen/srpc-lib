@@ -1,8 +1,8 @@
--module(srpcryptor_srp).
+-module(srpc_srp).
 
 -author("paul@knoxen.com").
 
--include("srpcryptor_lib.hrl").
+-include("srpc_lib.hrl").
 
 -export([validate_public_key/1
         ,generate_emphemeral_keys/1
@@ -46,7 +46,7 @@ validate_challenge(SrpData, ClientChallenge) ->
   {ServerPublicKey, _PrivateKey} = ServerKeys,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, Secret/binary>>,
   ChallengeCheck = crypto:hash(sha256, ChallengeData),
-  case srpcryptor_util:const_compare(ChallengeCheck, ClientChallenge) of
+  case srpc_util:const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
         <<ClientPublicKey/binary, ClientChallenge/binary, ServerPublicKey/binary>>,

@@ -1,5 +1,5 @@
-{application, srpcryptor_lib,
- [{description, "SRP Cryptor Lib"}
+{application, srpc_lib,
+ [{description, "Srp Cryptor Lib"}
  ,{vsn, "0.9.1"}
  ,{registered, []}
  ,{modules, []}
