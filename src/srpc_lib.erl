@@ -5,9 +5,9 @@
 -include("srpc_lib.hrl").
 
 %% Lib
--export([srpc_id/0
-        ,srpc_version/0
-        ,srpc_options/0
+-export([lib_id/0
+        ,lib_version/0
+        ,lib_options/0
         ]).
 
 %% Lib Key
@@ -39,16 +39,16 @@
 %%====================================================================
 %% API functions
 %%====================================================================
-srpc_id() ->
+lib_id() ->
   ?SRPC_LIB_ID.
 
-srpc_version() ->
+lib_version() ->
   Major = ?SRPC_VERSION_MAJOR + 48,
   Minor = ?SRPC_VERSION_MINOR + 48,
   Patch = ?SRPC_VERSION_PATCH + 48,
   <<Major, ".", Minor, ".", Patch>>.
 
-srpc_options() ->
+lib_options() ->
   %% CxTBD
   <<"G2048 : AES-CBC-256 : HMAC SHA256">>.
 

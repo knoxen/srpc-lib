@@ -2,7 +2,7 @@
 %% Lib Id
 %%
 -define(SRPC_LIB_ID, <<"C4GPqj6eVWV4">>).
--define(SRPC_LIB_ID_SIZE_BITS,    8).
+-define(SRPC_LIB_ID_SIZE_BITS, 8).
 
 %%
 %% Version Format

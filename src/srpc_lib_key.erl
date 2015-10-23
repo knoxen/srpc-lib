@@ -24,7 +24,7 @@ packet_data(<<LibIdSize:?SRPC_LIB_ID_SIZE_BITS, Packet/binary>>) ->
           {error, <<"Invalid Public Key size">>}
       end;
     <<_LibId:LibIdSize/binary, _Rest/binary>> ->
-      {error, <<"Invalid Lib ID">>}
+      {error, <<"Invalid LibId: ", _LibId/binary>>}
   end.
 
 response_packet(ClientPublicKey, RespData) ->
