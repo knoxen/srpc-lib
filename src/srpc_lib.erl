@@ -8,25 +8,26 @@
 -export([lib_id/0
         ,lib_version/0
         ,lib_options/0
+        ,lib_info/0
         ]).
 
 %% Lib Key
--export([lib_key_packet_data/1
-        ,lib_key_response_packet/2
-        ,lib_key_validate_packet_data/2
-        ,lib_key_validation_response_packet/4
+-export([lib_key_process_exchange_request/1
+        ,lib_key_create_exchange_response/2
+        ,lib_key_process_validation_request/2
+        ,lib_key_create_validation_response/4
         ]).
 
 %% User Registration
--export([registration_packet_data/2
-        ,registration_response_packet/3
+-export([process_registration_request/2
+        ,create_registration_response/3
         ]).
 
 %% User Key
--export([user_key_packet_data/2
-        ,user_key_response_packet/4
-        ,user_key_validate_packet_data/2
-        ,user_key_validation_response_packet/4
+-export([user_key_process_exchange_request/2
+        ,user_key_create_exchange_response/4
+        ,user_key_process_validation_request/2
+        ,user_key_create_validation_response/4
         ]).
 
 %% Encryption
@@ -49,38 +50,43 @@ lib_version() ->
   <<Major, ".", Minor, ".", Patch>>.
 
 lib_options() ->
-  %% CxTBD
   <<"G2048 : AES-CBC-256 : HMAC SHA256">>.
 
-lib_key_packet_data(KeyPacket) ->
-  srpc_lib_key:packet_data(KeyPacket).
+lib_info() ->
+  Id = lib_id(),
+  Version = lib_version(),
+  Options = lib_options(),
+  << Id/binary, " | ",  Version/binary, " | ", Options >>.
 
-lib_key_response_packet(ClientPublicKey, RespData) ->
-  srpc_lib_key:response_packet(ClientPublicKey, RespData).
+lib_key_process_exchange_request(ExchangeRequest) ->
+  srpc_lib_key:process_exchange_request(ExchangeRequest).
 
-lib_key_validate_packet_data(KeyInfo, ValidatePacket) ->
-  srpc_lib_key_validate:packet_data(KeyInfo, ValidatePacket).
+lib_key_create_exchange_response(ClientPublicKey, RespData) ->
+  srpc_lib_key:create_exchange_response(ClientPublicKey, RespData).
 
-lib_key_validation_response_packet(SrpData, KeyInfo, ClientChallenge, RespData) ->
-  srpc_lib_key_validate:response_packet(SrpData, KeyInfo, ClientChallenge, RespData).
+lib_key_process_validation_request(KeyInfo, ValidationRequest) ->
+  srpc_lib_key:process_validation_request(KeyInfo, ValidationRequest).
 
-registration_packet_data(LibKey, RegistrationPacket) ->
-  srpc_registration:packet_data(LibKey, RegistrationPacket).
+lib_key_create_validation_response(SrpData, KeyInfo, ClientChallenge, RespData) ->
+  srpc_lib_key:create_validation_response(SrpData, KeyInfo, ClientChallenge, RespData).
 
-registration_response_packet(LibKey, RegistrationResult, ResponseData) ->
-  srpc_registration:response_packet(LibKey, RegistrationResult, ResponseData).
+process_registration_request(LibKey, RegistrationPacket) ->
+  srpc_registration:process_registration_request(LibKey, RegistrationPacket).
 
-user_key_packet_data(LibKey, UserKeyPacket) ->
-  srpc_user_key:packet_data(LibKey, UserKeyPacket).
+create_registration_response(LibKey, RegistrationResult, ResponseData) ->
+  srpc_registration:create_registration_response(LibKey, RegistrationResult, ResponseData).
 
-user_key_response_packet(LibKey, Reg, ClientKey, ResponseData) ->
-  srpc_user_key:response_packet(LibKey, Reg, ClientKey, ResponseData).
+user_key_process_exchange_request(LibKey, ExchangeRequest) ->
+  srpc_user_key:process_exchange_request(LibKey, ExchangeRequest).
 
-user_key_validate_packet_data(LibKey, ValidatePacket) ->
-  srpc_user_key_validate:packet_data(LibKey, ValidatePacket).
+user_key_create_exchange_response(LibKey, Reg, ClientKey, ResponseData) ->
+  srpc_user_key:create_exchange_response(LibKey, Reg, ClientKey, ResponseData).
 
-user_key_validation_response_packet(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
-  srpc_user_key_validate:response_packet(LibKey, ClientChallenge, UserKeyReqData, RespData).
+user_key_process_validation_request(LibKey, ValidationRequest) ->
+  srpc_user_key:process_validation_request(LibKey, ValidationRequest).
+
+user_key_create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
+  srpc_user_key:create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData).
 
 encrypt(KeyInfo, Data) ->
   srpc_encryptor:encrypt(KeyInfo, Data).

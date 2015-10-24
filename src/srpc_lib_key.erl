@@ -4,11 +4,13 @@
 
 -include("srpc_lib.hrl").
 
--export([packet_data/1
-        ,response_packet/2
+-export([process_exchange_request/1
+        ,create_exchange_response/2
+        ,process_validation_request/2
+        ,create_validation_response/4
         ]).
 
-packet_data(<<LibIdSize:?SRPC_LIB_ID_SIZE_BITS, Packet/binary>>) ->
+process_exchange_request(<<LibIdSize:?SRPC_LIB_ID_SIZE_BITS, Packet/binary>>) ->
   LibId = srpc_lib:lib_id(),
   case Packet of
     <<LibId:LibIdSize/binary, Rest/binary>> ->
@@ -27,7 +29,7 @@ packet_data(<<LibIdSize:?SRPC_LIB_ID_SIZE_BITS, Packet/binary>>) ->
       {error, <<"Invalid LibId: ", _LibId/binary>>}
   end.
 
-response_packet(ClientPublicKey, RespData) ->
+create_exchange_response(ClientPublicKey, RespData) ->
   ServerKeys = srpc_srp:generate_emphemeral_keys(?SRPC_LIB_VERIFIER),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
 
@@ -42,4 +44,26 @@ response_packet(ClientPublicKey, RespData) ->
   LibKeyIdLen = byte_size(LibKeyId),
   LibRespData = <<LibKeyIdLen, LibKeyId/binary, ServerPublicKey/binary, RespData/binary>>,
   {ok, {SrpData, LibRespData}}.
+
+process_validation_request(SrpData, ValidationRequest) ->
+  KeyInfo = srpc_srp:key_info(SrpData),
+  case srpc_encryptor:decrypt(KeyInfo, ValidationRequest) of
+    {ok, <<ClientChallenge:?SRPC_CHALLENGE_SIZE/binary, ReqData/binary>>} ->
+        {ok, {KeyInfo, ClientChallenge, ReqData}};
+    {ok, _InvalidPacket} ->
+      {error, <<"Invalid Lib Key validate packet">>};
+    Error ->
+      Error
+  end.
+
+create_validation_response(SrpData, KeyInfo, ClientChallenge, RespData) ->
+  {IsValid, ServerChallenge} = srpc_srp:validate_challenge(SrpData, ClientChallenge),
+  LibRespData = <<ServerChallenge/binary, RespData/binary>>,
+  case srpc_encryptor:encrypt(KeyInfo, LibRespData) of
+    {ok, RespPacket} ->
+      {IsValid, RespPacket};
+    Error ->
+      Error
+  end.
+
 

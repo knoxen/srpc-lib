@@ -5,12 +5,12 @@
 -include("srpc_lib.hrl").
 
 -export(
-   [packet_data/2
-   ,response_packet/3
+   [process_registration_request/2
+   ,create_registration_response/3
    ]).
 
-packet_data(KeyInfo, RegistrationPacket) ->
-  case srpc_encryptor:decrypt(KeyInfo, RegistrationPacket) of
+process_registration_request(KeyInfo, RegistrationRequest) ->
+  case srpc_encryptor:decrypt(KeyInfo, RegistrationRequest) of
     {ok, <<KdfSalt:?SRPC_KDF_SALT_SIZE/binary, SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
            Verifier:?SRPC_SRP_VALUE_SIZE/binary, SrpIdSize:?SRPC_ID_SIZE_BITS, Rest/binary>>} ->
       <<SrpId:SrpIdSize/binary, RequestData/binary>> = Rest,
@@ -24,9 +24,9 @@ packet_data(KeyInfo, RegistrationPacket) ->
       Error
   end.
 
-response_packet(Result, KeyInfo, undefined) ->
-  response_packet(Result, KeyInfo, <<>>);
-response_packet(ok, KeyInfo, RespData) ->
+create_registration_response(Result, KeyInfo, undefined) ->
+  create_registration_response(Result, KeyInfo, <<>>);
+create_registration_response(ok, KeyInfo, RespData) ->
   srpc_encryptor:encrypt(KeyInfo, <<?SRPC_REGISTRATION_OK,  RespData/binary>>);
-response_packet(duplicate, KeyInfo, RespData) ->
+create_registration_response(duplicate, KeyInfo, RespData) ->
   srpc_encryptor:encrypt(KeyInfo, <<?SRPC_REGISTRATION_DUP, RespData/binary>>).
