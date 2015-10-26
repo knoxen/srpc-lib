@@ -34,22 +34,19 @@ create_exchange_response(ClientPublicKey, RespData) ->
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
 
   LibKeyId = srpc_util:rand_key_id(),
-  Secret = srpc_srp:secret(ClientPublicKey, ServerKeys, ?SRPC_LIB_VERIFIER),
-  SrpData = #{keyId      => LibKeyId
-             ,entityId   => srpc_lib:lib_id()
-             ,clientKey  => ClientPublicKey
-             ,serverKeys => ServerKeys
-             ,secret     => Secret
-             },
+  SrpData = srpc_srp:srp_data(LibKeyId, ClientPublicKey, ServerKeys, ?SRPC_LIB_VERIFIER),
+
   LibKeyIdLen = byte_size(LibKeyId),
   LibRespData = <<LibKeyIdLen, LibKeyId/binary, ServerPublicKey/binary, RespData/binary>>,
   {ok, {SrpData, LibRespData}}.
 
 process_validation_request(SrpData, ValidationRequest) ->
-  KeyInfo = srpc_srp:key_info(SrpData),
+  KeyInfo = #{keyId   => maps:get(keyId,   SrpData)
+             ,key     => maps:get(key,     SrpData)
+             ,hmacKey => maps:get(hmacKey, SrpData)},
   case srpc_encryptor:decrypt(KeyInfo, ValidationRequest) of
     {ok, <<ClientChallenge:?SRPC_CHALLENGE_SIZE/binary, ReqData/binary>>} ->
-        {ok, {KeyInfo, ClientChallenge, ReqData}};
+      {ok, {KeyInfo, ClientChallenge, ReqData}};
     {ok, _InvalidPacket} ->
       {error, <<"Invalid Lib Key validate packet">>};
     Error ->

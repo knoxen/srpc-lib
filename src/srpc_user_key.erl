@@ -12,12 +12,12 @@
 
 process_exchange_request(KeyInfo, ExchangeRequest) ->
   case srpc_encryptor:decrypt(KeyInfo, ExchangeRequest) of
-    {ok, <<ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, SrpIdSize:?SRPC_ID_SIZE_BITS, 
+    {ok, <<ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, SrpcIdSize:?SRPC_ID_SIZE_BITS, 
            Rest/binary>>} ->
       case srpc_srp:validate_public_key(ClientPublicKey) of
         ok ->
-          <<SrpId:SrpIdSize/binary, ReqData/binary>> = Rest,
-          {ok, {SrpId, ClientPublicKey, ReqData}};
+          <<SrpcId:SrpcIdSize/binary, ReqData/binary>> = Rest,
+          {ok, {SrpcId, ClientPublicKey, ReqData}};
         Error ->
           Error
       end;
@@ -39,21 +39,14 @@ create_exchange_response(KeyInfo, invalid, _ClientPublicKey, RespData) ->
       Error
   end;
 create_exchange_response(KeyInfo, SrpUserData, ClientPublicKey, RespData) ->
-  #{srpId    := SrpId
-   ,kdfSalt  := KdfSalt
+  #{kdfSalt  := KdfSalt
    ,srpSalt  := SrpSalt
    ,verifier := Verifier} = SrpUserData,
   ServerKeys =  srpc_srp:generate_emphemeral_keys(Verifier),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
   case encrypt_packet(KeyInfo, ?SRPC_USER_KEY_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
     {ok, {UserKeyId, RespPacket}} ->
-      Secret = srpc_srp:secret(ClientPublicKey, ServerKeys, Verifier),
-      SrpData = #{keyId      => UserKeyId
-                 ,entityId   => SrpId
-                 ,clientKey  => ClientPublicKey
-                 ,serverKeys => ServerKeys
-                 ,secret     => Secret
-                 },
+      SrpData = srpc_srp:srp_data(UserKeyId, ClientPublicKey, ServerKeys, Verifier),
       {ok, {SrpData, RespPacket}};
     Error ->
       Error
@@ -88,7 +81,9 @@ create_validation_response(LibKeyInfo, SrpData, ClientChallenge, RespData) ->
       UserKeyInfo = 
         case Result of
           ok ->
-            srpc_srp:key_info(SrpData);
+            #{keyId   => maps:get(keyId,   SrpData)
+             ,key     => maps:get(key,     SrpData)
+             ,hmacKey => maps:get(hmacKey, SrpData)};
           invalid ->
             undefined
         end,
@@ -96,7 +91,6 @@ create_validation_response(LibKeyInfo, SrpData, ClientChallenge, RespData) ->
     Error ->
       Error
   end.
-
 
 encrypt_packet(KeyInfo, Result, KdfSalt, SrpSalt, ServerPublicKey, RespData) ->
   UserKeyId = srpc_util:rand_key_id(),

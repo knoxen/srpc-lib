@@ -42,8 +42,8 @@
 encrypt(#{keyId   := KeyId
          ,key     := Key
          ,hmacKey := HmacKey}, Data) ->
-  LibDataHdr = lib_data_hdr(KeyId),
-  LibData = <<LibDataHdr/binary, Data/binary>>,
+  SrpcDataHdr = srpc_data_hdr(KeyId),
+  LibData = <<SrpcDataHdr/binary, Data/binary>>,
   case encrypt_data(Key, HmacKey, LibData) of
     {error, Reason} ->
       {error, list_to_binary(Reason)};
@@ -84,9 +84,9 @@ encrypt_data(<<Key/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binar
   when byte_size(Key) =:= ?SRPC_AES_128_KEY_SIZE;
        byte_size(Key) =:= ?SRPC_AES_256_KEY_SIZE ->
   CipherText = crypto:block_encrypt(aes_cbc256, Key, IV, enpad(Data)),
-  Cryptor = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
-  Hmac = crypto:hmac(sha256, HmacKey, Cryptor, ?SRPC_SHA256_SIZE),
-  <<Cryptor/binary, Hmac/binary>>;
+  CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
+  Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
+  <<CryptorText/binary, Hmac/binary>>;
 encrypt_data(<<_Key/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
   {error, "Invalid key size"};
 encrypt_data(_Key, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
@@ -119,16 +119,16 @@ decrypt(#{keyId   := KeyId
          ,hmacKey := HmacKey}, Packet) ->
   case parse_packet(HmacKey, Packet) of
     {ok, IV, CipherText} ->
-      PaddedData = cryptor:block_decrypt(aes_cbc256, Key, IV, CipherText),
+      PaddedData = crypto:block_decrypt(aes_cbc256, Key, IV, CipherText),
       case depad(PaddedData) of
         {ok, Cryptor} ->
-          LibDataHdr = lib_data_hdr(KeyId),
-          HdrLen = byte_size(LibDataHdr),
+          SrpcDataHdr = srpc_data_hdr(KeyId),
+          HdrLen = byte_size(SrpcDataHdr),
           case Cryptor of
-            <<LibDataHdr:HdrLen/binary, Data/binary>> ->
+            <<SrpcDataHdr:HdrLen/binary, Data/binary>> ->
               {ok, Data};
-            _ ->
-              {error, <<"Invalid lib data header">>}
+            <<_SrpcDataHdr:HdrLen/binary, _Data/binary>> ->
+              {error, <<"Invalid Srpc data header">>}
           end;
         Error ->
           Error
@@ -144,53 +144,41 @@ decrypt(_KeyInfo, _Packet) ->
 %%--------------------------------------------------------------------------------------
 parse_packet(HmacKey, Packet) ->
   PacketSize = byte_size(Packet),
-  Cryptor = binary_part(Packet, {0, PacketSize-?SRPC_SHA256_SIZE}),
-  Hmac    = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),
-  Challenge = crypto:hmac(sha256, HmacKey, Cryptor, ?SRPC_SHA256_SIZE),
+  CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_SHA256_SIZE}),
+  Hmac        = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),
+  Challenge = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
   case srpc_util:const_compare(Hmac, Challenge) of
     true ->
-      case Cryptor of 
+      case CryptorText of 
         <<?SRPC_DATA_VERSION, IV:?SRPC_AES_BLOCK_SIZE/binary, CipherText/binary>> ->
           {ok, IV, CipherText};
         _ ->
-          {error, <<"Invalid cryptor">>}
+          {error, <<"Invalid cryptor text">>}
       end;
     false ->
       {error, <<"Invalid hmac">>}
   end.
 
 %%--------------------------------------------------------------------------------------
-%% @doc SrpCryptor Version binary header
-%%
--spec srpc_version_hdr() -> Version when
-    Version :: binary().
-%%--------------------------------------------------------------------------------------
-srpc_version_hdr() ->
-  <<?SRPC_VERSION_FORMAT:1,
-    ?SRPC_VERSION_MAJOR:4,
-    ?SRPC_VERSION_MINOR:5,
-    ?SRPC_VERSION_PATCH:6>>.
-
-%%--------------------------------------------------------------------------------------
 %% @doc Header for lib data
 %%
--spec lib_data_hdr() -> Header when
+-spec srpc_data_hdr() -> Header when
     Header :: binary().
 %%--------------------------------------------------------------------------------------
-lib_data_hdr() ->
-  VersionHdr = srpc_version_hdr(),
+srpc_data_hdr() ->
   LibId = srpc_lib:lib_id(),
-  <<VersionHdr/binary, ?SRPC_LIB_OPTIONS:8, LibId/binary>>.
+  <<?SRPC_VERSION_MAJOR:8, ?SRPC_VERSION_MINOR:8, ?SRPC_VERSION_PATCH:16,
+    ?SRPC_LIB_OPTIONS:16, LibId/binary>>.
 
 %%--------------------------------------------------------------------------------------
 %% @doc Header for lib data with KeyId
 %%
--spec lib_data_hdr(KeyId) -> Header when
+-spec srpc_data_hdr(KeyId) -> Header when
     KeyId  :: string(),
     Header :: binary().
 %%--------------------------------------------------------------------------------------
-lib_data_hdr(KeyId) ->
-  DataHdr = lib_data_hdr(),
+srpc_data_hdr(KeyId) ->
+  DataHdr = srpc_data_hdr(),
   KeyIdLen = byte_size(KeyId),
   <<DataHdr/binary, KeyIdLen, KeyId/binary>>.
 
@@ -245,11 +233,11 @@ depad(Bin) ->
       DataLen = Len - Pad,
       case Bin of
         <<Data:DataLen/binary, BinPad/binary>> ->
-          Data;
+          {ok, Data};
         _ ->
           {error, "Data not properly padded"}
       end;
     false ->
       %% The last byte is greater than our block size; we interpret as no padding
-      Bin
+      {ok, Bin}
   end.
