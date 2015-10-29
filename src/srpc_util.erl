@@ -2,7 +2,7 @@
 
 -author("paul@knoxen.com").
 
--include("srpc_lib.hrl").
+-include("srpc.hrl").
 
 -export(
    [rand_id/1

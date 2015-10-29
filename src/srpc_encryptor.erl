@@ -2,7 +2,7 @@
 
 -author("paul@knoxen.com").
 
--include("srpc_lib.hrl").
+-include("srpc.hrl").
 
 -export(
    [encrypt/2
@@ -147,6 +147,7 @@ parse_packet(HmacKey, Packet) ->
   CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_SHA256_SIZE}),
   Hmac        = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),
   Challenge = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
+
   case srpc_util:const_compare(Hmac, Challenge) of
     true ->
       case CryptorText of 
@@ -166,9 +167,9 @@ parse_packet(HmacKey, Packet) ->
     Header :: binary().
 %%--------------------------------------------------------------------------------------
 srpc_data_hdr() ->
-  LibId = srpc_lib:lib_id(),
+  SrpcId = srpc_lib:srpc_id(),
   <<?SRPC_VERSION_MAJOR:8, ?SRPC_VERSION_MINOR:8, ?SRPC_VERSION_PATCH:16,
-    ?SRPC_LIB_OPTIONS:16, LibId/binary>>.
+    ?SRPC_OPTIONS:16, SrpcId/binary>>.
 
 %%--------------------------------------------------------------------------------------
 %% @doc Header for lib data with KeyId

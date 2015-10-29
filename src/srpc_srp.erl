@@ -2,7 +2,7 @@
 
 -author("paul@knoxen.com").
 
--include("srpc_lib.hrl").
+-include("srpc.hrl").
 
 -export([validate_public_key/1
         ,generate_emphemeral_keys/1

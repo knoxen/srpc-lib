@@ -2,7 +2,7 @@
 
 -author("paul@knoxen.com").
 
--include("srpc_lib.hrl").
+-include("srpc.hrl").
 
 -export([process_exchange_request/1
         ,create_exchange_response/2
@@ -10,10 +10,10 @@
         ,create_validation_response/4
         ]).
 
-process_exchange_request(<<LibIdSize:?SRPC_LIB_ID_SIZE_BITS, Packet/binary>>) ->
-  LibId = srpc_lib:lib_id(),
+process_exchange_request(<<SrpcIdSize:?SRPC_ID_SIZE_BITS, Packet/binary>>) ->
+  SrpcId = srpc_lib:srpc_id(),
   case Packet of
-    <<LibId:LibIdSize/binary, Rest/binary>> ->
+    <<SrpcId:SrpcIdSize/binary, Rest/binary>> ->
       case Rest of
         <<ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ReqData/binary>> ->
           case srpc_srp:validate_public_key(ClientPublicKey) of
@@ -25,16 +25,16 @@ process_exchange_request(<<LibIdSize:?SRPC_LIB_ID_SIZE_BITS, Packet/binary>>) ->
         _Rest ->
           {error, <<"Invalid Public Key size">>}
       end;
-    <<_LibId:LibIdSize/binary, _Rest/binary>> ->
-      {error, <<"Invalid LibId: ", _LibId/binary>>}
+    <<_SrpcId:SrpcIdSize/binary, _Rest/binary>> ->
+      {error, <<"Invalid SrpcId: ", _SrpcId/binary>>}
   end.
 
 create_exchange_response(ClientPublicKey, RespData) ->
-  ServerKeys = srpc_srp:generate_emphemeral_keys(?SRPC_LIB_VERIFIER),
+  ServerKeys = srpc_srp:generate_emphemeral_keys(?SRPC_VERIFIER),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
 
   LibKeyId = srpc_util:rand_key_id(),
-  SrpData = srpc_srp:srp_data(LibKeyId, ClientPublicKey, ServerKeys, ?SRPC_LIB_VERIFIER),
+  SrpData = srpc_srp:srp_data(LibKeyId, ClientPublicKey, ServerKeys, ?SRPC_VERIFIER),
 
   LibKeyIdLen = byte_size(LibKeyId),
   LibRespData = <<LibKeyIdLen, LibKeyId/binary, ServerPublicKey/binary, RespData/binary>>,
