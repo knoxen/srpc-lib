@@ -11,8 +11,15 @@
 
 process_registration_request(KeyInfo, RegistrationRequest) ->
   case srpc_encryptor:decrypt(KeyInfo, RegistrationRequest) of
-    {ok, <<KdfSalt:?SRPC_KDF_SALT_SIZE/binary, SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
-           Verifier:?SRPC_SRP_VALUE_SIZE/binary, SrpIdSize:?SRPC_ID_SIZE_BITS, Rest/binary>>} ->
+    {ok, <<RegistrationCode:8,
+           KdfSalt:?SRPC_KDF_SALT_SIZE/binary, 
+           SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
+           Verifier:?SRPC_SRP_VALUE_SIZE/binary, 
+           SrpIdSize:?SRPC_ID_SIZE_BITS, 
+           Rest/binary>>} ->
+
+      io:format("~p CxINC Reg Code: ~p~n", [?MODULE, RegistrationCode]),
+
       <<SrpId:SrpIdSize/binary, RequestData/binary>> = Rest,
       SrpUserData = #{srpId    => SrpId
                      ,kdfSalt  => KdfSalt
