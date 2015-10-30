@@ -29,7 +29,7 @@ srp_data(KeyId, ClientPublicKey, ServerKeys, Verifier) ->
   Key     = crypto:hash(sha256, Secret),
   HmacKey = crypto:hash(sha256, <<KeyId/binary, Key/binary>>),
   #{keyId      => KeyId
-   ,entityId   => srpc_lib:lib_id()
+   ,entityId   => srpc_lib:srpc_id()
    ,clientKey  => ClientPublicKey
    ,serverKeys => ServerKeys
    ,key        => Key

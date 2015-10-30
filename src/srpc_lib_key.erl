@@ -32,10 +32,8 @@ process_exchange_request(<<SrpcIdSize:?SRPC_ID_SIZE_BITS, Packet/binary>>) ->
 create_exchange_response(ClientPublicKey, RespData) ->
   ServerKeys = srpc_srp:generate_emphemeral_keys(?SRPC_VERIFIER),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
-
   LibKeyId = srpc_util:rand_key_id(),
   SrpData = srpc_srp:srp_data(LibKeyId, ClientPublicKey, ServerKeys, ?SRPC_VERIFIER),
-
   LibKeyIdLen = byte_size(LibKeyId),
   LibRespData = <<LibKeyIdLen, LibKeyId/binary, ServerPublicKey/binary, RespData/binary>>,
   {ok, {SrpData, LibRespData}}.
