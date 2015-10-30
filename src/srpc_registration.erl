@@ -17,23 +17,18 @@ process_registration_request(KeyInfo, RegistrationRequest) ->
            Verifier:?SRPC_SRP_VALUE_SIZE/binary, 
            SrpIdSize:?SRPC_ID_SIZE_BITS, 
            Rest/binary>>} ->
-
-      io:format("~p CxINC Reg Code: ~p~n", [?MODULE, RegistrationCode]),
-
       <<SrpId:SrpIdSize/binary, RequestData/binary>> = Rest,
       SrpUserData = #{srpId    => SrpId
                      ,kdfSalt  => KdfSalt
                      ,srpSalt  => SrpSalt
                      ,verifier => Verifier
                      },
-      {ok, {SrpUserData, RequestData}};
+      {ok, {RegistrationCode, SrpUserData, RequestData}};
     Error ->
       Error
   end.
 
-create_registration_response(Result, KeyInfo, undefined) ->
-  create_registration_response(Result, KeyInfo, <<>>);
-create_registration_response(ok, KeyInfo, RespData) ->
-  srpc_encryptor:encrypt(KeyInfo, <<?SRPC_REGISTRATION_OK,  RespData/binary>>);
-create_registration_response(duplicate, KeyInfo, RespData) ->
-  srpc_encryptor:encrypt(KeyInfo, <<?SRPC_REGISTRATION_DUP, RespData/binary>>).
+create_registration_response(KeyInfo, RegistrationCode, undefined) ->
+  create_registration_response(KeyInfo, RegistrationCode, <<>>);
+create_registration_response(KeyInfo,  RegistrationCode, RespData) ->
+  srpc_encryptor:encrypt(KeyInfo, <<RegistrationCode:8,  RespData/binary>>).

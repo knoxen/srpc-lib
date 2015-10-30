@@ -84,16 +84,6 @@
 -define(SRPC_KEY_ID_LEN, 12).
 
 %%
-%% Registration Codes
-%%
--define(SRPC_REGISTRATION_NONE,    0).
--define(SRPC_REGISTRATION_INIT,    1).
--define(SRPC_REGISTRATION_UPDATE,  2).
--define(SRPC_REGISTRATION_OK,     10).
--define(SRPC_REGISTRATION_DUP,    11).
--define(SRPC_REGISTRATION_ERROR,  99).
-
-%%
 %% User Key Codes
 %%
 -define(SRPC_USER_KEY_OK,                 1).
