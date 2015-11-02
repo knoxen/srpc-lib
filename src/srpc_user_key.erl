@@ -10,23 +10,40 @@
         ,create_validation_response/4
         ]).
 
+%% ==============================================================================================
+%%
+%%  User Key Exchange Request
+%%    L | UserId | Client Pub Key | <Exchange Data>
+%%
+%% ==============================================================================================
 process_exchange_request(KeyInfo, ExchangeRequest) ->
+  io:format("~p process_exchange_request~n", [?MODULE]),
+
   case srpc_encryptor:decrypt(KeyInfo, ExchangeRequest) of
-    {ok, <<ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, SrpcIdSize:?SRPC_ID_SIZE_BITS, 
-           Rest/binary>>} ->
-      case srpc_srp:validate_public_key(ClientPublicKey) of
-        ok ->
-          <<SrpcId:SrpcIdSize/binary, ReqData/binary>> = Rest,
-          {ok, {SrpcId, ClientPublicKey, ReqData}};
-        Error ->
-          Error
+    {ok, <<IdSize:?SRPC_ID_SIZE_BITS, ExchangeData/binary>>} ->
+      case ExchangeData of
+        <<UserId:IdSize/binary, ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ReqData/binary>> ->
+          case srpc_srp:validate_public_key(ClientPublicKey) of
+            ok ->
+              {ok, {UserId, ClientPublicKey, ReqData}};
+            Error ->
+              Error
+          end;
+        _ExchangeData ->
+          {error, <<"Invalid user key exchange data">>}
       end;
-    {ok, _InvalidUserKeyInfo} ->
-      {error, <<"Invalid User Key data">>};
+    {ok, <<>>} ->
+      {error, <<"Invalid user key exchange data">>};
     Error ->
       Error
   end.
 
+%% ==============================================================================================
+%%
+%%  User Key Exchange Response
+%%    User Code | L | KeyId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
+%%
+%% ==============================================================================================
 create_exchange_response(KeyInfo, invalid, _ClientPublicKey, RespData) ->
   case encrypt_packet(KeyInfo, ?SRPC_USER_KEY_INVALID_IDENTITY,
                       crypto:rand_bytes(?SRPC_KDF_SALT_SIZE),
@@ -52,6 +69,12 @@ create_exchange_response(KeyInfo, SrpUserData, ClientPublicKey, RespData) ->
       Error
   end.
 
+%% ==============================================================================================
+%%
+%%  User Key Validation Request
+%%    Client Challenge | <Validation Data>
+%%
+%% ==============================================================================================
 process_validation_request(KeyInfo, ValidationRequest) ->
   case srpc_encryptor:decrypt(KeyInfo, ValidationRequest) of
     {ok,
@@ -69,6 +92,12 @@ process_validation_request(KeyInfo, ValidationRequest) ->
       Error
   end.
 
+%% ==============================================================================================
+%%
+%%  User Key Validation Response
+%%    Server Challenge | <Validation Data>
+%%
+%% ==============================================================================================
 create_validation_response(LibKeyInfo, invalid, _ClientChallenge, RespData) ->
   ServerChallenge = crypto:rand_bytes(?SRPC_CHALLENGE_SIZE),
   LibRespData = <<ServerChallenge/binary, RespData/binary>>,
@@ -92,13 +121,13 @@ create_validation_response(LibKeyInfo, SrpData, ClientChallenge, RespData) ->
       Error
   end.
 
-encrypt_packet(KeyInfo, Result, KdfSalt, SrpSalt, ServerPublicKey, RespData) ->
-  UserKeyId = srpc_util:rand_key_id(),
-  UserKeyIdLen = byte_size(UserKeyId),
-  LibRespData = <<Result, 
-                  KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary,
-                  UserKeyIdLen, UserKeyId/binary,
-                  RespData/binary>>,
+encrypt_packet(KeyInfo, UserKeyCode, KdfSalt, SrpSalt, ServerPublicKey, RespData) ->
+  UserKeyId = srpc_util:rand_id(?SRPC_USER_KEY_ID_SIZE),
+
+  io:format("~p~n  User Key Id: ~p~n", [?MODULE, UserKeyId]),
+
+  LibRespData = <<UserKeyCode, UserKeyId/binary,
+                  KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, RespData/binary>>,
   case srpc_encryptor:encrypt(KeyInfo, LibRespData) of
     {ok, Packet} ->
       {ok, {UserKeyId, Packet}};
