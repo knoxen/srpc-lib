@@ -15,7 +15,7 @@
 -export([lib_key_process_exchange_request/1
         ,lib_key_create_exchange_response/2
         ,lib_key_process_validation_request/2
-        ,lib_key_create_validation_response/4
+        ,lib_key_create_validation_response/3
         ]).
 
 %% User Registration
@@ -61,17 +61,17 @@ srpc_info() ->
 lib_key_process_exchange_request(ExchangeRequest) ->
   srpc_lib_key:process_exchange_request(ExchangeRequest).
 
-lib_key_create_exchange_response(ClientPublicKey, RespData) ->
-  srpc_lib_key:create_exchange_response(ClientPublicKey, RespData).
+lib_key_create_exchange_response(ClientPublicKey, ExchangeData) ->
+  srpc_lib_key:create_exchange_response(ClientPublicKey, ExchangeData).
 
-lib_key_process_validation_request(KeyInfo, ValidationRequest) ->
-  srpc_lib_key:process_validation_request(KeyInfo, ValidationRequest).
+lib_key_process_validation_request(ExchangeMap, ValidationRequest) ->
+  srpc_lib_key:process_validation_request(ExchangeMap, ValidationRequest).
 
-lib_key_create_validation_response(SrpData, KeyInfo, ClientChallenge, RespData) ->
-  srpc_lib_key:create_validation_response(SrpData, KeyInfo, ClientChallenge, RespData).
+lib_key_create_validation_response(ExchangeMap, ClientChallenge, ValidationData) ->
+  srpc_lib_key:create_validation_response(ExchangeMap, ClientChallenge, ValidationData).
 
-process_registration_request(LibKey, RegistrationPacket) ->
-  srpc_registration:process_registration_request(LibKey, RegistrationPacket).
+process_registration_request(LibKey, RegistrationRequest) ->
+  srpc_registration:process_registration_request(LibKey, RegistrationRequest).
 
 create_registration_response(LibKey, RegistrationResult, ResponseData) ->
   srpc_registration:create_registration_response(LibKey, RegistrationResult, ResponseData).
@@ -88,9 +88,9 @@ user_key_process_validation_request(LibKey, ValidationRequest) ->
 user_key_create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
   srpc_user_key:create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData).
 
-encrypt(KeyInfo, Data) ->
-  srpc_encryptor:encrypt(KeyInfo, Data).
+encrypt(KeyMap, Data) ->
+  srpc_encryptor:encrypt(KeyMap, Data).
 
-decrypt(KeyInfo, Data) ->
-  srpc_encryptor:decrypt(KeyInfo, Data).
+decrypt(KeyMap, Data) ->
+  srpc_encryptor:decrypt(KeyMap, Data).
 

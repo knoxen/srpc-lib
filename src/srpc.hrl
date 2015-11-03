@@ -2,7 +2,6 @@
 %% Srpc Id
 %%
 -define(SRPC_ID, <<"C4GPqj6eVWV4">>).
--define(SRPC_ID_SIZE_BITS, 8).
 
 %%
 %% Version Format
@@ -76,13 +75,7 @@
 %%
 %% Sizes
 %%
-%% CxTBD How are these being used?
-%%
--define(SRPC_KEY_ID_SIZE_BITS, 8).
--define(SRPC_KEY_ID_LEN, 12).
-
--define(SRPC_LIB_KEY_ID_SIZE,  16).
--define(SRPC_USER_KEY_ID_SIZE, 16).
+-define(SRPC_KEY_ID_LEN,  16).
 
 %%
 %% User Key Codes

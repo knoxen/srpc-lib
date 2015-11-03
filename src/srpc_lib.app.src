@@ -10,8 +10,7 @@
    ,crypto
    ]}
  ,{env
-  ,[{pbkdf2_rounds,  100000}
-   ,{lib_key_id_len,     16}
-   ,{user_key_id_len,    24}
+  ,[{pbkdf2_rounds, 100000}
+   ,{key_id_len,        12}
    ]}
  ]}.

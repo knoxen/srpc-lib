@@ -33,71 +33,71 @@
 %%--------------------------------------------------------------------------------------
 %% @doc Encrypt data using key information
 %%
--spec encrypt(KeyInfo, Data) -> {ok, Packet} | {error, Reason} when
-    KeyInfo :: map(),
-    Data    :: binary(),
-    Packet  :: binary(),
-    Reason  :: string().
+-spec encrypt(KeyMap, Data) -> {ok, Packet} | {error, Reason} when
+    KeyMap :: map(),
+    Data   :: binary(),
+    Packet :: binary(),
+    Reason :: string().
 %%--------------------------------------------------------------------------------------
-encrypt(#{keyId   := KeyId
-         ,key     := Key
-         ,hmacKey := HmacKey}, Data) ->
+encrypt(#{keyId    := KeyId
+         ,cryptKey := CryptKey
+         ,hmacKey  := HmacKey}, Data) ->
   SrpcDataHdr = srpc_data_hdr(KeyId),
   LibData = <<SrpcDataHdr/binary, Data/binary>>,
-  case encrypt_data(Key, HmacKey, LibData) of
+  case encrypt_data(CryptKey, HmacKey, LibData) of
     {error, Reason} ->
       {error, list_to_binary(Reason)};
     Packet ->
       {ok, Packet}
   end;
 encrypt(_Map, _Packet) ->
-  {error, <<"Invalid Key Info for encryption">>}.
+  {error, <<"Invalid encrypt key map">>}.
 
 %%--------------------------------------------------------------------------------------
 %% @doc Encrypt data with key and sign with hmac key.
 %% @private
 %%
--spec encrypt_data(Key, HmacKey, Data) -> Packet | {error, Reason} when
-    Key     :: aes_key(),
-    HmacKey :: hmac_key(),
-    Data    :: binary(),
-    Packet  :: packet(),
-    Reason  :: string().
+-spec encrypt_data(CryptKey, HmacKey, Data) -> Packet | {error, Reason} when
+    CryptKey :: aes_key(),
+    HmacKey  :: hmac_key(),
+    Data     :: binary(),
+    Packet   :: packet(),
+    Reason   :: string().
 %%--------------------------------------------------------------------------------------
-encrypt_data(<<Key/binary>>, <<HmacKey/binary>>, <<Data/binary>>) ->
+encrypt_data(CryptKey, HmacKey, Data) ->
   IV = crypto:rand_bytes(?SRPC_AES_BLOCK_SIZE),
-  encrypt_data(Key, IV, HmacKey, Data).
+  encrypt_data(CryptKey, IV, HmacKey, Data).
 
 %%--------------------------------------------------------------------------------------
 %% @doc Encrypt data with key using iv, and sign with hmac key.
 %% @private
 %%
--spec encrypt_data(Key, IV, HmacKey, Data) -> Packet | {error, Reason} when
-    Key     :: aes_key(),
-    IV      :: aes_block(),
-    HmacKey :: hmac_key(),
-    Data    :: binary(),
-    Packet  :: packet(),
-    Reason  :: string().
+-spec encrypt_data(CryptKey, IV, HmacKey, Data) -> Packet | {error, Reason} when
+    CryptKey :: aes_key(),
+    IV       :: aes_block(),
+    HmacKey  :: hmac_key(),
+    Data     :: binary(),
+    Packet   :: packet(),
+    Reason   :: string().
 %%--------------------------------------------------------------------------------------
-encrypt_data(<<Key/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>, <<Data/binary>>)
-  when byte_size(Key) =:= ?SRPC_AES_128_KEY_SIZE;
-       byte_size(Key) =:= ?SRPC_AES_256_KEY_SIZE ->
-  CipherText = crypto:block_encrypt(aes_cbc256, Key, IV, enpad(Data)),
+encrypt_data(<<CryptKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>, <<Data/binary>>)
+  when byte_size(CryptKey) =:= ?SRPC_AES_128_KEY_SIZE;
+       byte_size(CryptKey) =:= ?SRPC_AES_256_KEY_SIZE ->
+  CipherText = crypto:block_encrypt(aes_cbc256, CryptKey, IV, enpad(Data)),
   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
   Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
   <<CryptorText/binary, Hmac/binary>>;
-encrypt_data(<<_Key/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
+encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
   {error, "Invalid key size"};
-encrypt_data(_Key, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
+encrypt_data(_CryptKey, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
   {error, "Invalid key: Not binary"};
-encrypt_data(<<_Key/binary>>, _IV, <<_HmacKey/binary>>, <<_Data/binary>>) ->
+encrypt_data(<<_CryptKey/binary>>, _IV, <<_HmacKey/binary>>, <<_Data/binary>>) ->
   {error, "Invalid iv: Not binary"};
-encrypt_data(<<_Key/binary>>, <<_IV/binary>>, _HmacKey, <<_Data/binary>>) ->
+encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, _HmacKey, <<_Data/binary>>) ->
   {error, "Invalid hmac key: Not binary"};
-encrypt_data(<<_Key/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, _Data) ->
+encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, _Data) ->
   {error, "Invalid data: Not binary"};
-encrypt_data(_Key, _IV, _HmacKey, _PlainText) ->
+encrypt_data(_CryptKey, _IV, _HmacKey, _PlainText) ->
   {error, "Invalid args"}.
 
 %%======================================================================================
@@ -108,18 +108,18 @@ encrypt_data(_Key, _IV, _HmacKey, _PlainText) ->
 %%--------------------------------------------------------------------------------------
 %% @doc Decrypt packet using key information
 %%
--spec decrypt(KeyInfo, Packet) -> {ok, Data} | {error, Reason} when
-    KeyInfo :: map(),
-    Packet  :: packet(),
-    Data    :: binary(),
-    Reason  :: string().
+-spec decrypt(KeyMap, Packet) -> {ok, Data} | {error, Reason} when
+    KeyMap :: map(),
+    Packet :: packet(),
+    Data   :: binary(),
+    Reason :: string().
 %%--------------------------------------------------------------------------------------
-decrypt(#{keyId   := KeyId
-         ,key     := Key
-         ,hmacKey := HmacKey}, Packet) ->
+decrypt(#{keyId    := KeyId
+         ,cryptKey := CryptKey
+         ,hmacKey  := HmacKey}, Packet) ->
   case parse_packet(HmacKey, Packet) of
     {ok, IV, CipherText} ->
-      PaddedData = crypto:block_decrypt(aes_cbc256, Key, IV, CipherText),
+      PaddedData = crypto:block_decrypt(aes_cbc256, CryptKey, IV, CipherText),
       case depad(PaddedData) of
         {ok, Cryptor} ->
           SrpcDataHdr = srpc_data_hdr(KeyId),
@@ -136,8 +136,10 @@ decrypt(#{keyId   := KeyId
     Error ->
       Error
   end;
-decrypt(_KeyInfo, _Packet) ->
-  {error, <<"Invalid key info">>}.
+decrypt(_KeyMap, _Packet) ->
+  io:format("CxDebug ~p~n  Invalid KeyMap~n~p~n", [?MODULE, _KeyMap]),
+
+  {error, <<"Invalid decrypt key map">>}.
 
 %%--------------------------------------------------------------------------------------
 %% @private Validate Hmac signing and parse packet
