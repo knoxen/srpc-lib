@@ -43,11 +43,11 @@ process_exchange_request(_) ->
 create_exchange_response(ClientPublicKey, ExchangeData) ->
   KeyId = srpc_util:rand_key_id(),
   KeyIdLen = byte_size(KeyId),
-  ServerKeys = srpc_srp:generate_emphemeral_keys(?SRPC_VERIFIER),
+  ServerKeys = srpc_srp:generate_emphemeral_keys(?SRPC_SRP_VALUE),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
   ExchangeResponse = <<KeyIdLen, KeyId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  ExchangeMap = maps:merge(srpc_srp:key_map(KeyId, ClientPublicKey, ServerKeys, ?SRPC_VERIFIER),
+  ExchangeMap = maps:merge(srpc_srp:key_map(KeyId, ClientPublicKey, ServerKeys, ?SRPC_SRP_VALUE),
                            #{keyId    => KeyId
                             ,keyType  => libKey
                             ,entityId => srpc_lib:srpc_id()}),

@@ -58,12 +58,12 @@ create_exchange_response(KeyMap, invalid, _ClientPublicKey, RespData) ->
 create_exchange_response(KeyMap, SrpUserData, ClientPublicKey, RespData) ->
   #{kdfSalt  := KdfSalt
    ,srpSalt  := SrpSalt
-   ,verifier := Verifier} = SrpUserData,
-  ServerKeys =  srpc_srp:generate_emphemeral_keys(Verifier),
+   ,srpValue := SrpValue} = SrpUserData,
+  ServerKeys =  srpc_srp:generate_emphemeral_keys(SrpValue),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
   case encrypt_packet(KeyMap, ?SRPC_USER_KEY_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
     {ok, {UserKeyId, RespPacket}} ->
-      SrpData = srpc_srp:srp_data(UserKeyId, ClientPublicKey, ServerKeys, Verifier),
+      SrpData = srpc_srp:srp_data(UserKeyId, ClientPublicKey, ServerKeys, SrpValue),
       {ok, {SrpData, RespPacket}};
     Error ->
       Error

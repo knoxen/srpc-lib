@@ -19,13 +19,13 @@ validate_public_key(PublicKey) when byte_size(PublicKey) =:= ?SRPC_PUBLIC_KEY_SI
 validate_public_key(_PublicKey) ->
   {error, <<"Invalid public key size">>}.
 
-generate_emphemeral_keys(Verifier) ->
-  SrpParams = [Verifier, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
+generate_emphemeral_keys(SrpValue) ->
+  SrpParams = [SrpValue, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
   crypto:generate_key(srp, {host, SrpParams}).
 
-key_map(KeyId, ClientPublicKey, ServerKeys, Verifier) ->
+key_map(KeyId, ClientPublicKey, ServerKeys, SrpValue) ->
   Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
-                              {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
+                              {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
   CryptKey = crypto:hash(sha256, Secret),
   HmacKey  = crypto:hash(sha256, <<KeyId/binary, CryptKey/binary>>),
   #{clientKey  => ClientPublicKey
