@@ -16,20 +16,18 @@
 %%    L | UserId | Client Pub Key | <Exchange Data>
 %%
 %% ==============================================================================================
-process_exchange_request(KeyMap, ExchangeRequest) ->
-  io:format("~p process_exchange_request~n", [?MODULE]),
-
-  case srpc_encryptor:decrypt(KeyMap, ExchangeRequest) of
-    {ok, <<IdSize:8, ExchangeData/binary>>} ->
-      case ExchangeData of
-        <<UserId:IdSize/binary, ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ReqData/binary>> ->
-          case srpc_srp:validate_public_key(ClientPublicKey) of
+process_exchange_request(CryptKeyMap, ExchangeRequest) ->
+  case srpc_encryptor:decrypt(CryptKeyMap, ExchangeRequest) of
+    {ok, <<IdSize:8, RequestData/binary>>} ->
+      case RequestData of
+        <<UserId:IdSize/binary, PublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ExchangeData/binary>> ->
+          case srpc_srp:validate_public_key(PublicKey) of
             ok ->
-              {ok, {UserId, ClientPublicKey, ReqData}};
+              {ok, {UserId, PublicKey, ExchangeData}};
             Error ->
               Error
           end;
-        _ExchangeData ->
+        _RequestData ->
           {error, <<"Invalid user key exchange data">>}
       end;
     {ok, <<>>} ->
@@ -44,27 +42,31 @@ process_exchange_request(KeyMap, ExchangeRequest) ->
 %%    User Code | L | KeyId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
 %%
 %% ==============================================================================================
-create_exchange_response(KeyMap, invalid, _ClientPublicKey, RespData) ->
-  case encrypt_packet(KeyMap, ?SRPC_USER_KEY_INVALID_IDENTITY,
-                      crypto:rand_bytes(?SRPC_KDF_SALT_SIZE),
-                      crypto:rand_bytes(?SRPC_SRP_SALT_SIZE),
-                      crypto:rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
-                      RespData) of
-    {ok, {_UserKeyReqId, Packet}} ->
+create_exchange_response(CryptKeyMap, invalid, _ClientPublicKey, ExchangeData) ->
+  case encrypt_response_data(CryptKeyMap, ?SRPC_USER_INVALID_IDENTITY,
+                             crypto:rand_bytes(?SRPC_KDF_SALT_SIZE),
+                             crypto:rand_bytes(?SRPC_SRP_SALT_SIZE),
+                             crypto:rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
+                             ExchangeData) of
+    {ok, {_KeyId, Packet}} ->
       {ok, Packet};
     Error ->
       Error
   end;
-create_exchange_response(KeyMap, SrpUserData, ClientPublicKey, RespData) ->
-  #{kdfSalt  := KdfSalt
+create_exchange_response(CryptKeyMap, SrpcUserData, ClientPublicKey, ExchangeData) ->
+  #{userId   := UserId
+   ,kdfSalt  := KdfSalt
    ,srpSalt  := SrpSalt
-   ,srpValue := SrpValue} = SrpUserData,
+   ,srpValue := SrpValue} = SrpcUserData,
   ServerKeys =  srpc_srp:generate_emphemeral_keys(SrpValue),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
-  case encrypt_packet(KeyMap, ?SRPC_USER_KEY_OK, KdfSalt, SrpSalt, ServerPublicKey, RespData) of
-    {ok, {UserKeyId, RespPacket}} ->
-      SrpData = srpc_srp:srp_data(UserKeyId, ClientPublicKey, ServerKeys, SrpValue),
-      {ok, {SrpData, RespPacket}};
+  case encrypt_response_data(CryptKeyMap, ?SRPC_USER_OK, 
+                             KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
+    {ok, {KeyId, ExchangeResponse}} ->
+      ExchangeMap = maps:merge(srpc_srp:key_map(KeyId, ClientPublicKey, ServerKeys, SrpValue),
+                               #{keyType  => userKey
+                                ,entityId => UserId}),
+      {ok, {ExchangeMap, ExchangeResponse}};
     Error ->
       Error
   end.
@@ -115,17 +117,14 @@ create_validation_response(LibKeyMap, SrpData, ClientChallenge, RespData) ->
       Error
   end.
 
-encrypt_packet(KeyMap, UserKeyCode, KdfSalt, SrpSalt, ServerPublicKey, RespData) ->
-  io:format("~p~n encrypt_packet: CxInc~n", [?MODULE]),
-  CxInc = 4,
-  UserKeyId = srpc_util:rand_id(CxInc),
-
-
-  LibRespData = <<UserKeyCode, UserKeyId/binary,
-                  KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, RespData/binary>>,
-  case srpc_encryptor:encrypt(KeyMap, LibRespData) of
-    {ok, Packet} ->
-      {ok, {UserKeyId, Packet}};
+encrypt_response_data(CryptKeyMap, UserCode, KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
+  KeyIdLen = byte_size(maps:get(keyId, CryptKeyMap)),
+  KeyId = srpc_util:rand_id(KeyIdLen),
+  ResponseData = <<UserCode, KeyId/binary,
+                  KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, ExchangeData/binary>>,
+  case srpc_encryptor:encrypt(CryptKeyMap, ResponseData) of
+    {ok, ResponsePacket} ->
+      {ok, {KeyId, ResponsePacket}};
     Error ->
       Error
   end.

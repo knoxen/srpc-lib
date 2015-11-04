@@ -28,7 +28,8 @@ key_map(KeyId, ClientPublicKey, ServerKeys, SrpValue) ->
                               {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
   CryptKey = crypto:hash(sha256, Secret),
   HmacKey  = crypto:hash(sha256, <<KeyId/binary, CryptKey/binary>>),
-  #{clientKey  => ClientPublicKey
+  #{keyId      => KeyId
+   ,clientKey  => ClientPublicKey
    ,serverKeys => ServerKeys
    ,cryptKey   => CryptKey
    ,hmacKey    => HmacKey

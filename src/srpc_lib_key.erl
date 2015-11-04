@@ -12,7 +12,7 @@
 
 %% ==============================================================================================
 %%
-%%  Lib Key Exchange Request
+%%  Process Lib Key Exchange Request
 %%    L | SrpcId | Client Pub Key | <Exchange Data>
 %%
 %% ==============================================================================================
@@ -36,7 +36,7 @@ process_exchange_request(_) ->
 
 %% ==============================================================================================
 %%
-%%  Lib Key Exchange Response
+%%  Create Lib Key Exchange Response
 %%    L | KeyId | Server Pub Key | <Exchange Data>
 %%
 %% ==============================================================================================
@@ -48,8 +48,7 @@ create_exchange_response(ClientPublicKey, ExchangeData) ->
   ExchangeResponse = <<KeyIdLen, KeyId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
   ExchangeMap = maps:merge(srpc_srp:key_map(KeyId, ClientPublicKey, ServerKeys, ?SRPC_SRP_VALUE),
-                           #{keyId    => KeyId
-                            ,keyType  => libKey
+                           #{keyType  => libKey
                             ,entityId => srpc_lib:srpc_id()}),
   
   {ok, {ExchangeMap, ExchangeResponse}}.

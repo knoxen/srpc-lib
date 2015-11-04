@@ -78,9 +78,9 @@
 -define(SRPC_KEY_ID_LEN,  16).
 
 %%
-%% User Key Codes
+%% User Codes
 %%
--define(SRPC_USER_KEY_OK,                 1).
--define(SRPC_USER_KEY_INVALID_IDENTITY,   2).
--define(SRPC_USER_KEY_INVALID_PASSWORD,   3).
--define(SRPC_USER_KEY_ERROR,             99).
+-define(SRPC_USER_OK,                 1).
+-define(SRPC_USER_INVALID_IDENTITY,   2).
+-define(SRPC_USER_INVALID_PASSWORD,   3).
+-define(SRPC_USER_ERROR,             99).
