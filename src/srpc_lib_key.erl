@@ -10,12 +10,17 @@
         ,create_validation_response/3
         ]).
 
-%% ==============================================================================================
+%%================================================================================================
+%%
+%%  Key Exchange
+%%
+%%================================================================================================
+%%------------------------------------------------------------------------------------------------
 %%
 %%  Process Lib Key Exchange Request
 %%    L | SrpcId | Client Pub Key | <Exchange Data>
 %%
-%% ==============================================================================================
+%%------------------------------------------------------------------------------------------------
 process_exchange_request(<<IdSize:8, ExchangeRequest/binary>>) ->
   SrpcId = srpc_lib:srpc_id(),
   case ExchangeRequest of
@@ -34,12 +39,12 @@ process_exchange_request(<<IdSize:8, ExchangeRequest/binary>>) ->
 process_exchange_request(_) ->
   {error, <<"Invalid exchange request">>}.
 
-%% ==============================================================================================
+%%------------------------------------------------------------------------------------------------
 %%
 %%  Create Lib Key Exchange Response
 %%    L | KeyId | Server Pub Key | <Exchange Data>
 %%
-%% ==============================================================================================
+%%------------------------------------------------------------------------------------------------
 create_exchange_response(ClientPublicKey, ExchangeData) ->
   KeyId = srpc_util:rand_key_id(),
   KeyIdLen = byte_size(KeyId),
@@ -53,28 +58,38 @@ create_exchange_response(ClientPublicKey, ExchangeData) ->
   
   {ok, {ExchangeMap, ExchangeResponse}}.
 
-%% ==============================================================================================
+%%================================================================================================
 %%
-%%  Lib Key Validation Request
-%%    Client Challenge | <Validation Data>
+%%  Key Validation
 %%
-%% ==============================================================================================
+%%================================================================================================
+%%------------------------------------------------------------------------------------------------
+%%
+%%  Process Lib Key Validation Request
+%%    L | KeyId | Client Challenge | <Validation Data>
+%%
+%%------------------------------------------------------------------------------------------------
 process_validation_request(ExchangeMap, ValidationRequest) ->
   case srpc_encryptor:decrypt(ExchangeMap, ValidationRequest) of
-    {ok, <<ClientChallenge:?SRPC_CHALLENGE_SIZE/binary, ReqData/binary>>} ->
-      {ok, {ClientChallenge, ReqData}};
-    {ok, _InvalidPacket} ->
-      {error, <<"Invalid Lib Key validate packet">>};
+    {ok, <<KeyIdSize:8, RequestData/binary>>} ->
+      case RequestData of
+        <<KeyId:KeyIdSize/binary, Challenge:?SRPC_CHALLENGE_SIZE/binary, ValidationData/binary>> ->
+          {ok, {KeyId, Challenge, ValidationData}};
+        _ ->
+          {error, <<"Invalid Lib Key validate packet: incorrect format">>}
+      end;
+    {ok, _} ->
+      {error, <<"Invalid Lib Key validate packet: Can't parse">>};
     Error ->
       Error
   end.
 
-%% ==============================================================================================
+%%------------------------------------------------------------------------------------------------
 %%
-%%  Lib Key Validation Response
+%%  Create Lib Key Validation Response
 %%    Server Challenge | <Validation Data>
 %%
-%% ==============================================================================================
+%%------------------------------------------------------------------------------------------------
 create_validation_response(ExchangeMap, ClientChallenge, RespValidationData) ->
   case srpc_srp:validate_challenge(ExchangeMap, ClientChallenge) of
     {error, Reason} ->
@@ -82,9 +97,9 @@ create_validation_response(ExchangeMap, ClientChallenge, RespValidationData) ->
     {IsValid, ServerChallenge} ->
       ValidationResponse = <<ServerChallenge/binary, RespValidationData/binary>>,
       case srpc_encryptor:encrypt(ExchangeMap, ValidationResponse) of
-        {ok, Packet} ->
+        {ok, ValidationPacket} ->
           KeyMap = maps:remove(clientKey, maps:remove(serverKeys, ExchangeMap)),
-          {IsValid, KeyMap, Packet};
+          {IsValid, KeyMap, ValidationPacket};
         Error ->
           Error
       end
