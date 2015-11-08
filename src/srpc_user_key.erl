@@ -141,7 +141,7 @@ create_validation_response(CryptMap, ExchangeMap, ClientChallenge, ValidationDat
 %%------------------------------------------------------------------------------------------------
 encrypt_response_data(CryptKeyMap, UserCode, KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
   KeyIdLen = byte_size(maps:get(keyId, CryptKeyMap)),
-  KeyId = srpc_util:rand_id(KeyIdLen),
+  KeyId = srpc_util:gen_id(KeyIdLen),
   ResponseData = <<UserCode, KeyIdLen, KeyId/binary,
                    KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, ExchangeData/binary>>,
   case srpc_encryptor:encrypt(CryptKeyMap, ResponseData) of

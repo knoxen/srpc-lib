@@ -1,6 +1,6 @@
 {application, srpc_lib,
- [{description, "Srp Cryptor Lib"}
- ,{vsn, "0.9.1"}
+ [{description, "Srpc Lib"}
+ ,{vsn, "0.9.5"}
  ,{registered, []}
  ,{modules, []}
  ,{applications,

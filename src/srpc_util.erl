@@ -5,8 +5,8 @@
 -include("srpc.hrl").
 
 -export(
-   [rand_id/1
-   ,rand_key_id/0
+   [gen_id/1
+   ,gen_key_id/0
    ,const_compare/2
    ,bin_to_hex/1
    ,hex_to_bin/1
@@ -14,17 +14,17 @@
 
 %%======================================================================================
 %%
-%% Random IDs from union of char sets a-z, A-Z, 0-9
+%% Generate random IDs from union of char sets a-z, A-Z, 0-9
 %%
 %%======================================================================================
 %%--------------------------------------------------------------------------------------
 %% @doc Generate random id of length N
 %%
--spec rand_id(N) -> ID when
+-spec gen_id(N) -> ID when
     N  :: number(),
     ID :: string().
 %%--------------------------------------------------------------------------------------
-rand_id(N) ->
+gen_id(N) ->
   %% Seed PRNG
   <<A:32, B:32, C:32>> = crypto:rand_bytes(12),
   random:seed(A,B,C),
@@ -34,11 +34,11 @@ rand_id(N) ->
 %% @doc Generate random key id
 %%
 %%
--spec rand_key_id() -> KeyId when
+-spec gen_key_id() -> KeyId when
     KeyId :: string().
 %%--------------------------------------------------------------------------------------
-rand_key_id() ->
-  rand_id(?SRPC_KEY_ID_LEN).
+gen_key_id() ->
+  gen_id(?SRPC_KEY_ID_SIZE).
 
 %%--------------------------------------------------------------------------------------
 %% @private

@@ -46,7 +46,7 @@ process_exchange_request(_) ->
 %%
 %%------------------------------------------------------------------------------------------------
 create_exchange_response(ClientPublicKey, ExchangeData) ->
-  KeyId = srpc_util:rand_key_id(),
+  KeyId = srpc_util:gen_key_id(),
   KeyIdLen = byte_size(KeyId),
   ServerKeys = srpc_srp:generate_emphemeral_keys(?SRPC_SRP_VALUE),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
