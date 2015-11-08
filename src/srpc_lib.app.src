@@ -10,7 +10,5 @@
    ,crypto
    ]}
  ,{env
-  ,[{pbkdf2_rounds, 100000}
-   ,{key_id_len,        12}
-   ]}
+  ,[]}
  ]}.

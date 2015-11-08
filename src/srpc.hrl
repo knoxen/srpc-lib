@@ -1,6 +1,11 @@
 -include("srpc_params.hrl").
 
 %%
+%% Default values
+%%
+-define(SRPC_KEY_ID_LEN, 16).
+
+%%
 %% Lib Options Choices
 %%
 -define(SRPC_OPT_G2048_AES_CBC_256_HMAC_SHA256,  1).

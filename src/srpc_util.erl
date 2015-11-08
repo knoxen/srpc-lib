@@ -14,7 +14,7 @@
 
 %%======================================================================================
 %%
-%% Generate random IDs from union of char sets a-z, A-Z, 0-9
+%% Generate random id
 %%
 %%======================================================================================
 %%--------------------------------------------------------------------------------------
@@ -33,16 +33,22 @@ gen_id(N) ->
 %%--------------------------------------------------------------------------------------
 %% @doc Generate random key id
 %%
-%%
 -spec gen_key_id() -> KeyId when
     KeyId :: string().
 %%--------------------------------------------------------------------------------------
 gen_key_id() ->
-  gen_id(?SRPC_KEY_ID_SIZE).
+  KeyIdLen = 
+    case application:get_env(key_id_len) of
+      {ok, Len} ->
+        Len;
+      undefined ->
+        ?SRPC_KEY_ID_LEN
+    end,
+  gen_id(KeyIdLen).
 
 %%--------------------------------------------------------------------------------------
 %% @private
-%% @doc Random string from accumulating random chars from union of a-z, A-Z, 0-9
+%% @doc Generate random string of chars from set (a-z + A-Z + 0-9)
 %%
 rand_str(0, Acc) ->
    Acc;
@@ -50,6 +56,10 @@ rand_str(N, Acc) ->
   Next = random:uniform(62),
   rand_str(N - 1, [rand_char(Next) | Acc]).
 
+%%--------------------------------------------------------------------------------------
+%% @private
+%% @doc Generate random char from either a-z, A-Z, or 0-9
+%%
 rand_char(N) when N =< 26 ->
   random:uniform(26) + 64;
 rand_char(N) when N =< 52 ->
