@@ -6,7 +6,7 @@
 
 -export([validate_public_key/1
         ,generate_emphemeral_keys/1
-        ,key_map/4
+        ,client_map/4
         ,validate_challenge/2]).
 
 validate_public_key(PublicKey) when byte_size(PublicKey) =:= ?SRPC_PUBLIC_KEY_SIZE ->
@@ -23,12 +23,12 @@ generate_emphemeral_keys(SrpValue) ->
   SrpParams = [SrpValue, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
   crypto:generate_key(srp, {host, SrpParams}).
 
-key_map(KeyId, ClientPublicKey, ServerKeys, SrpValue) ->
+client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue) ->
   Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
                               {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
   CryptKey = crypto:hash(sha256, Secret),
-  HmacKey  = crypto:hash(sha256, <<KeyId/binary, CryptKey/binary>>),
-  #{keyId      => KeyId
+  HmacKey  = crypto:hash(sha256, <<ClientId/binary, CryptKey/binary>>),
+  #{clientId   => ClientId
    ,clientKey  => ClientPublicKey
    ,serverKeys => ServerKeys
    ,cryptKey   => CryptKey

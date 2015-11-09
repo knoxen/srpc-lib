@@ -12,17 +12,17 @@
 
 %%================================================================================================
 %%
-%%  User Key Exchange
+%%  User Client Key Exchange
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Process User Key Exchange Request
+%%  Process Key Exchange Request
 %%    L | UserId | Client Pub Key | <Exchange Data>
 %%
 %%------------------------------------------------------------------------------------------------
-process_exchange_request(CryptKeyMap, ExchangeRequest) ->
-  case srpc_encryptor:decrypt(CryptKeyMap, ExchangeRequest) of
+process_exchange_request(CryptClientMap, ExchangeRequest) ->
+  case srpc_encryptor:decrypt(CryptClientMap, ExchangeRequest) of
     {ok, <<IdSize:8, RequestData/binary>>} ->
       case RequestData of
         <<UserId:IdSize/binary, PublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ExchangeData/binary>> ->
@@ -43,34 +43,34 @@ process_exchange_request(CryptKeyMap, ExchangeRequest) ->
 
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Create User Key Exchange Response
-%%    User Code | L | KeyId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
+%%  Create Key Exchange Response
+%%    User Code | L | ClientId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
 %%
 %%------------------------------------------------------------------------------------------------
-create_exchange_response(CryptKeyMap, invalid, _ClientPublicKey, ExchangeData) ->
-  case encrypt_response_data(CryptKeyMap, ?SRPC_USER_INVALID_IDENTITY,
+create_exchange_response(CryptClientMap, invalid, _ClientPublicKey, ExchangeData) ->
+  case encrypt_response_data(CryptClientMap, ?SRPC_USER_INVALID_IDENTITY,
                              crypto:rand_bytes(?SRPC_KDF_SALT_SIZE),
                              crypto:rand_bytes(?SRPC_SRP_SALT_SIZE),
                              crypto:rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
                              ExchangeData) of
-    {ok, {_KeyId, Packet}} ->
+    {ok, {_ClientId, Packet}} ->
       {ok, Packet};
     Error ->
       Error
   end;
-create_exchange_response(CryptKeyMap, SrpcUserData, ClientPublicKey, ExchangeData) ->
+create_exchange_response(CryptClientMap, SrpcUserData, ClientPublicKey, ExchangeData) ->
   #{userId   := UserId
    ,kdfSalt  := KdfSalt
    ,srpSalt  := SrpSalt
    ,srpValue := SrpValue} = SrpcUserData,
   ServerKeys =  srpc_srp:generate_emphemeral_keys(SrpValue),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
-  case encrypt_response_data(CryptKeyMap, ?SRPC_USER_OK, 
+  case encrypt_response_data(CryptClientMap, ?SRPC_USER_OK, 
                              KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
-    {ok, {KeyId, ExchangeResponse}} ->
-      ExchangeMap = maps:merge(srpc_srp:key_map(KeyId, ClientPublicKey, ServerKeys, SrpValue),
-                               #{keyType  => user_key
-                                ,entityId => UserId}),
+    {ok, {ClientId, ExchangeResponse}} ->
+      ClientMap = srpc_srp:client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue),
+      ExchangeMap = maps:merge(ClientMap, #{clientType => user_client
+                                           ,entityId   => UserId}),
       {ok, {ExchangeMap, ExchangeResponse}};
     Error ->
       Error
@@ -78,21 +78,21 @@ create_exchange_response(CryptKeyMap, SrpcUserData, ClientPublicKey, ExchangeDat
 
 %%================================================================================================
 %%
-%%  User Key Validation
+%%  User Client Key Validation
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Processs User Key Validation Request
-%%    L | KeyId | Client Challenge | <Validation Data>
+%%  Processs Key Validation Request
+%%    L | ClientId | Client Challenge | <Validation Data>
 %%
 %%------------------------------------------------------------------------------------------------
 process_validation_request(CryptMap, ValidationRequest) ->
   case srpc_encryptor:decrypt(CryptMap, ValidationRequest) of
-    {ok, <<KeyIdSize:8, RequestData/binary>>} ->
+    {ok, <<ClientIdSize:8, RequestData/binary>>} ->
       case RequestData of
-        <<KeyId:KeyIdSize/binary, Challenge:?SRPC_CHALLENGE_SIZE/binary, ValidationData/binary>> ->
-          {ok, {KeyId, Challenge, ValidationData}};
+        <<ClientId:ClientIdSize/binary, Challenge:?SRPC_CHALLENGE_SIZE/binary, ValidationData/binary>> ->
+          {ok, {ClientId, Challenge, ValidationData}};
         _ ->
           {error, <<"Invalid Lib Key validate packet: incorrect format">>}
       end;
@@ -104,7 +104,7 @@ process_validation_request(CryptMap, ValidationRequest) ->
 
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Create User Key Validation Response
+%%  Create Key Validation Response
 %%    Server Challenge | <Validation Data>
 %%
 %%------------------------------------------------------------------------------------------------
@@ -122,8 +122,8 @@ create_validation_response(CryptMap, ExchangeMap, ClientChallenge, ValidationDat
   ValidationResponse = <<ServerChallenge/binary, ValidationData/binary>>,
   case srpc_encryptor:encrypt(CryptMap, ValidationResponse) of
     {ok, ValidationPacket} ->
-      KeyMap = maps:remove(clientKey, maps:remove(serverKeys, ExchangeMap)),
-      {Result, KeyMap, ValidationPacket};
+      ClientMap = maps:remove(clientKey, maps:remove(serverKeys, ExchangeMap)),
+      {Result, ClientMap, ValidationPacket};
     Error ->
       Error
   end.
@@ -135,18 +135,18 @@ create_validation_response(CryptMap, ExchangeMap, ClientChallenge, ValidationDat
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Create User Key Exchange Response
-%%    User Code | L | KeyId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
+%%  Create Key Exchange Response
+%%    User Code | L | ClientId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
 %%
 %%------------------------------------------------------------------------------------------------
-encrypt_response_data(CryptKeyMap, UserCode, KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
-  KeyIdLen = byte_size(maps:get(keyId, CryptKeyMap)),
-  KeyId = srpc_util:gen_id(KeyIdLen),
-  ResponseData = <<UserCode, KeyIdLen, KeyId/binary,
+encrypt_response_data(CryptClientMap, UserCode, KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
+  ClientIdLen = byte_size(maps:get(clientId, CryptClientMap)),
+  ClientId = srpc_util:gen_id(ClientIdLen),
+  ResponseData = <<UserCode, ClientIdLen, ClientId/binary,
                    KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, ExchangeData/binary>>,
-  case srpc_encryptor:encrypt(CryptKeyMap, ResponseData) of
+  case srpc_encryptor:encrypt(CryptClientMap, ResponseData) of
     {ok, ResponsePacket} ->
-      {ok, {KeyId, ResponsePacket}};
+      {ok, {ClientId, ResponsePacket}};
     Error ->
       Error
   end.

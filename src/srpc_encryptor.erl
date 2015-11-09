@@ -31,18 +31,18 @@
 %%======================================================================================
 
 %%--------------------------------------------------------------------------------------
-%% @doc Encrypt data using key information
+%% @doc Encrypt data using client information
 %%
--spec encrypt(KeyMap, Data) -> {ok, Packet} | {error, Reason} when
-    KeyMap :: map(),
-    Data   :: binary(),
-    Packet :: binary(),
-    Reason :: string().
+-spec encrypt(ClientMap, Data) -> {ok, Packet} | {error, Reason} when
+    ClientMap :: map(),
+    Data      :: binary(),
+    Packet    :: binary(),
+    Reason    :: string().
 %%--------------------------------------------------------------------------------------
-encrypt(#{keyId    := KeyId
+encrypt(#{clientId := ClientId
          ,cryptKey := CryptKey
          ,hmacKey  := HmacKey}, Data) ->
-  SrpcDataHdr = srpc_data_hdr(KeyId),
+  SrpcDataHdr = srpc_data_hdr(ClientId),
   LibData = <<SrpcDataHdr/binary, Data/binary>>,
   case encrypt_data(CryptKey, HmacKey, LibData) of
     {error, Reason} ->
@@ -51,10 +51,10 @@ encrypt(#{keyId    := KeyId
       {ok, Packet}
   end;
 encrypt(_Map, _Packet) ->
-  {error, <<"Invalid encrypt key map">>}.
+  {error, <<"Invalid encrypt client map">>}.
 
 %%--------------------------------------------------------------------------------------
-%% @doc Encrypt data with key and sign with hmac key.
+%% @doc Encrypt data with crypt key and sign with hmac key.
 %% @private
 %%
 -spec encrypt_data(CryptKey, HmacKey, Data) -> Packet | {error, Reason} when
@@ -69,7 +69,7 @@ encrypt_data(CryptKey, HmacKey, Data) ->
   encrypt_data(CryptKey, IV, HmacKey, Data).
 
 %%--------------------------------------------------------------------------------------
-%% @doc Encrypt data with key using iv, and sign with hmac key.
+%% @doc Encrypt data with crypt key using iv, and sign with hmac key.
 %% @private
 %%
 -spec encrypt_data(CryptKey, IV, HmacKey, Data) -> Packet | {error, Reason} when
@@ -106,15 +106,15 @@ encrypt_data(_CryptKey, _IV, _HmacKey, _PlainText) ->
 %%
 %%======================================================================================
 %%--------------------------------------------------------------------------------------
-%% @doc Decrypt packet using key information
+%% @doc Decrypt packet using client information
 %%
--spec decrypt(KeyMap, Packet) -> {ok, Data} | {error, Reason} when
-    KeyMap :: map(),
-    Packet :: packet(),
-    Data   :: binary(),
-    Reason :: string().
+-spec decrypt(ClientMap, Packet) -> {ok, Data} | {error, Reason} when
+    ClientMap :: map(),
+    Packet    :: packet(),
+    Data      :: binary(),
+    Reason    :: string().
 %%--------------------------------------------------------------------------------------
-decrypt(#{keyId    := KeyId
+decrypt(#{clientId := ClientId
          ,cryptKey := CryptKey
          ,hmacKey  := HmacKey}, Packet) ->
   case parse_packet(HmacKey, Packet) of
@@ -122,7 +122,7 @@ decrypt(#{keyId    := KeyId
       PaddedData = crypto:block_decrypt(aes_cbc256, CryptKey, IV, CipherText),
       case depad(PaddedData) of
         {ok, Cryptor} ->
-          SrpcDataHdr = srpc_data_hdr(KeyId),
+          SrpcDataHdr = srpc_data_hdr(ClientId),
           HdrLen = byte_size(SrpcDataHdr),
           case Cryptor of
             <<SrpcDataHdr:HdrLen/binary, Data/binary>> ->
@@ -136,10 +136,10 @@ decrypt(#{keyId    := KeyId
     Error ->
       Error
   end;
-decrypt(_KeyMap, _Packet) ->
-  io:format("CxDebug ~p~n  Invalid KeyMap~n~p~n", [?MODULE, _KeyMap]),
+decrypt(_ClientMap, _Packet) ->
+  io:format("CxDebug ~p~n  Invalid ClientMap~n~p~n", [?MODULE, _ClientMap]),
 
-  {error, <<"Invalid decrypt key map">>}.
+  {error, <<"Invalid decrypt client map">>}.
 
 %%--------------------------------------------------------------------------------------
 %% @private Validate Hmac signing and parse packet
@@ -174,16 +174,16 @@ srpc_data_hdr() ->
     ?SRPC_OPTIONS:16, SrpcId/binary>>.
 
 %%--------------------------------------------------------------------------------------
-%% @doc Header for lib data with KeyId
+%% @doc Header for lib data with ClientId
 %%
--spec srpc_data_hdr(KeyId) -> Header when
-    KeyId  :: string(),
-    Header :: binary().
+-spec srpc_data_hdr(ClientId) -> Header when
+    ClientId :: string(),
+    Header   :: binary().
 %%--------------------------------------------------------------------------------------
-srpc_data_hdr(KeyId) ->
+srpc_data_hdr(ClientId) ->
   DataHdr = srpc_data_hdr(),
-  KeyIdLen = byte_size(KeyId),
-  <<DataHdr/binary, KeyIdLen, KeyId/binary>>.
+  ClientIdLen = byte_size(ClientId),
+  <<DataHdr/binary, ClientIdLen, ClientId/binary>>.
 
 %%======================================================================================
 %%

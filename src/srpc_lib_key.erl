@@ -12,12 +12,12 @@
 
 %%================================================================================================
 %%
-%%  Key Exchange
+%%  Lib Client Key Exchange
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Process Lib Key Exchange Request
+%%  Process Key Exchange Request
 %%    L | SrpcId | Client Pub Key | <Exchange Data>
 %%
 %%------------------------------------------------------------------------------------------------
@@ -41,40 +41,39 @@ process_exchange_request(_) ->
 
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Create Lib Key Exchange Response
-%%    L | KeyId | Server Pub Key | <Exchange Data>
+%%  Create Key Exchange Response
+%%    L | ClientId | Server Pub Key | <Exchange Data>
 %%
 %%------------------------------------------------------------------------------------------------
 create_exchange_response(ClientPublicKey, ExchangeData) ->
-  KeyId = srpc_util:gen_key_id(),
-  KeyIdLen = byte_size(KeyId),
+  ClientId = srpc_util:gen_client_id(),
+  ClientIdLen = byte_size(ClientId),
   ServerKeys = srpc_srp:generate_emphemeral_keys(?SRPC_SRP_VALUE),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
-  ExchangeResponse = <<KeyIdLen, KeyId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
+  ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  ExchangeMap = maps:merge(srpc_srp:key_map(KeyId, ClientPublicKey, ServerKeys, ?SRPC_SRP_VALUE),
-                           #{keyType  => lib_key
-                            ,entityId => srpc_lib:srpc_id()}),
-  
+  ClientMap = srpc_srp:client_map(ClientId, ClientPublicKey, ServerKeys, ?SRPC_SRP_VALUE),
+  ExchangeMap = maps:merge(ClientMap, #{clientType => lib_client
+                                       ,entityId   => srpc_lib:srpc_id()}),
   {ok, {ExchangeMap, ExchangeResponse}}.
 
 %%================================================================================================
 %%
-%%  Key Validation
+%%  Lib Client Key Validation
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Process Lib Key Validation Request
-%%    L | KeyId | Client Challenge | <Validation Data>
+%%  Process Key Validation Request
+%%    L | ClientId | Client Challenge | <Validation Data>
 %%
 %%------------------------------------------------------------------------------------------------
 process_validation_request(ExchangeMap, ValidationRequest) ->
   case srpc_encryptor:decrypt(ExchangeMap, ValidationRequest) of
-    {ok, <<KeyIdSize:8, RequestData/binary>>} ->
+    {ok, <<ClientIdSize:8, RequestData/binary>>} ->
       case RequestData of
-        <<KeyId:KeyIdSize/binary, Challenge:?SRPC_CHALLENGE_SIZE/binary, ValidationData/binary>> ->
-          {ok, {KeyId, Challenge, ValidationData}};
+        <<ClientId:ClientIdSize/binary, Challenge:?SRPC_CHALLENGE_SIZE/binary, ValData/binary>> ->
+          {ok, {ClientId, Challenge, ValData}};
         _ ->
           {error, <<"Invalid Lib Key validate packet: incorrect format">>}
       end;
@@ -86,7 +85,7 @@ process_validation_request(ExchangeMap, ValidationRequest) ->
 
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Create Lib Key Validation Response
+%%  Create Key Validation Response
 %%    Server Challenge | <Validation Data>
 %%
 %%------------------------------------------------------------------------------------------------
@@ -98,8 +97,8 @@ create_validation_response(ExchangeMap, ClientChallenge, RespValidationData) ->
       ValidationResponse = <<ServerChallenge/binary, RespValidationData/binary>>,
       case srpc_encryptor:encrypt(ExchangeMap, ValidationResponse) of
         {ok, ValidationPacket} ->
-          KeyMap = maps:remove(clientKey, maps:remove(serverKeys, ExchangeMap)),
-          {IsValid, KeyMap, ValidationPacket};
+          ClientMap = maps:remove(clientKey, maps:remove(serverKeys, ExchangeMap)),
+          {IsValid, ClientMap, ValidationPacket};
         Error ->
           Error
       end

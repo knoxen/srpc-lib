@@ -11,12 +11,12 @@
 
 %% ==============================================================================================
 %%
-%%  Process User Key Exchange Request
+%%  Process User Registration Request
 %%    L | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Registration Data>
 %%
 %% ==============================================================================================
-process_registration_request(KeyMap, RegistrationRequest) ->
-  case srpc_encryptor:decrypt(KeyMap, RegistrationRequest) of
+process_registration_request(ClientMap, RegistrationRequest) ->
+  case srpc_encryptor:decrypt(ClientMap, RegistrationRequest) of
     {ok, <<UserIdLen:8, RequestData/binary>>} ->
       case RequestData of 
         <<UserId:UserIdLen/binary, 
@@ -43,11 +43,11 @@ process_registration_request(KeyMap, RegistrationRequest) ->
 
 %% ==============================================================================================
 %%
-%%  Process User Key Exchange Request
+%%  Create User Registration Response
 %%    Code | <Registration Data>
 %%
 %% ==============================================================================================
-create_registration_response(KeyMap, RegistrationCode, undefined) ->
-  create_registration_response(KeyMap, RegistrationCode, <<>>);
-create_registration_response(KeyMap,  RegistrationCode, RespData) ->
-  srpc_encryptor:encrypt(KeyMap, <<RegistrationCode:8,  RespData/binary>>).
+create_registration_response(ClientMap, RegistrationCode, undefined) ->
+  create_registration_response(ClientMap, RegistrationCode, <<>>);
+create_registration_response(ClientMap,  RegistrationCode, RespData) ->
+  srpc_encryptor:encrypt(ClientMap, <<RegistrationCode:8,  RespData/binary>>).

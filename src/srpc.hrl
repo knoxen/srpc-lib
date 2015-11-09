@@ -3,7 +3,7 @@
 %%
 %% Default values
 %%
--define(SRPC_KEY_ID_LEN, 16).
+-define(SRPC_CLIENT_ID_LEN, 24).
 
 %%
 %% Lib Options Choices

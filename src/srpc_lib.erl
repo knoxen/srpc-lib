@@ -11,7 +11,7 @@
         ,srpc_info/0
         ]).
 
-%% Lib Key
+%% Lib Client
 -export([lib_key_process_exchange_request/1
         ,lib_key_create_exchange_response/2
         ,lib_key_process_validation_request/2
@@ -23,7 +23,7 @@
         ,create_registration_response/3
         ]).
 
-%% User Key
+%% User Cliet
 -export([user_key_process_exchange_request/2
         ,user_key_create_exchange_response/4
         ,user_key_process_validation_request/2
@@ -88,9 +88,9 @@ user_key_process_validation_request(LibKey, ValidationRequest) ->
 user_key_create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
   srpc_user_key:create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData).
 
-encrypt(KeyMap, Data) ->
-  srpc_encryptor:encrypt(KeyMap, Data).
+encrypt(ClientMap, Data) ->
+  srpc_encryptor:encrypt(ClientMap, Data).
 
-decrypt(KeyMap, Data) ->
-  srpc_encryptor:decrypt(KeyMap, Data).
+decrypt(ClientMap, Data) ->
+  srpc_encryptor:decrypt(ClientMap, Data).
 

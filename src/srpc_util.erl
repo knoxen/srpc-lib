@@ -6,7 +6,7 @@
 
 -export(
    [gen_id/1
-   ,gen_key_id/0
+   ,gen_client_id/0
    ,const_compare/2
    ,bin_to_hex/1
    ,hex_to_bin/1
@@ -33,18 +33,18 @@ gen_id(N) ->
 %%--------------------------------------------------------------------------------------
 %% @doc Generate random key id
 %%
--spec gen_key_id() -> KeyId when
-    KeyId :: string().
+-spec gen_client_id() -> ClientId when
+    ClientId :: string().
 %%--------------------------------------------------------------------------------------
-gen_key_id() ->
-  KeyIdLen = 
-    case application:get_env(key_id_len) of
+gen_client_id() ->
+  ClientIdLen = 
+    case application:get_env(client_id_len) of
       {ok, Len} ->
         Len;
       undefined ->
-        ?SRPC_KEY_ID_LEN
+        ?SRPC_CLIENT_ID_LEN
     end,
-  gen_id(KeyIdLen).
+  gen_id(ClientIdLen).
 
 %%--------------------------------------------------------------------------------------
 %% @private
