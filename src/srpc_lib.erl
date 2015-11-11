@@ -56,7 +56,7 @@ srpc_info() ->
   Id = srpc_id(),
   Version = srpc_version(),
   Options = srpc_options(),
-  << Id/binary, " | ",  Version/binary, " | ", Options >>.
+  << Id/binary, " | ",  Version/binary, " | ", Options/binary >>.
 
 lib_key_process_exchange_request(ExchangeRequest) ->
   srpc_lib_key:process_exchange_request(ExchangeRequest).
