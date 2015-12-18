@@ -1,4 +1,4 @@
-src_lib
+srpc_lib
 =====
 
 An OTP library
