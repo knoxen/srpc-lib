@@ -1,4 +1,4 @@
-srpcryptor
+src_lib
 =====
 
 An OTP library
