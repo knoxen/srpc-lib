@@ -86,6 +86,7 @@ encrypt_data(<<CryptKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/
   CipherText = crypto:block_encrypt(aes_cbc256, CryptKey, IV, enpad(Data)),
   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
   Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
+
   <<CryptorText/binary, Hmac/binary>>;
 encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
   {error, "Invalid key size"};
@@ -117,50 +118,38 @@ encrypt_data(_CryptKey, _IV, _HmacKey, _PlainText) ->
 decrypt(#{clientId := ClientId
          ,cryptKey := CryptKey
          ,hmacKey  := HmacKey}, Packet) ->
-  case parse_packet(HmacKey, Packet) of
-    {ok, IV, CipherText} ->
-      PaddedData = crypto:block_decrypt(aes_cbc256, CryptKey, IV, CipherText),
-      case depad(PaddedData) of
-        {ok, Cryptor} ->
-          SrpcDataHdr = srpc_data_hdr(ClientId),
-          HdrLen = byte_size(SrpcDataHdr),
-          case Cryptor of
-            <<SrpcDataHdr:HdrLen/binary, Data/binary>> ->
-              {ok, Data};
-            <<_SrpcDataHdr:HdrLen/binary, _Data/binary>> ->
-              {error, <<"Invalid Srpc data header">>}
-          end;
-        Error ->
-          Error
-      end;
-    Error ->
-      Error
-  end;
-decrypt(_ClientMap, _Packet) ->
-  io:format("CxDebug ~p~n  Invalid ClientMap~n~p~n", [?MODULE, _ClientMap]),
-
-  {error, <<"Invalid decrypt client map">>}.
-
-%%--------------------------------------------------------------------------------------
-%% @private Validate Hmac signing and parse packet
-%%--------------------------------------------------------------------------------------
-parse_packet(HmacKey, Packet) ->
   PacketSize = byte_size(Packet),
   CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_SHA256_SIZE}),
-  Hmac        = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),
-  Challenge = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
+  Challenge   = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),
+  Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
 
-  case srpc_util:const_compare(Hmac, Challenge) of
+  case srpc_util:const_compare(Challenge, Hmac) of
     true ->
       case CryptorText of 
         <<?SRPC_DATA_VERSION, IV:?SRPC_AES_BLOCK_SIZE/binary, CipherText/binary>> ->
-          {ok, IV, CipherText};
+          PaddedData = crypto:block_decrypt(aes_cbc256, CryptKey, IV, CipherText),
+          case depad(PaddedData) of
+            {ok, Cryptor} ->
+              SrpcDataHdr = srpc_data_hdr(ClientId),
+              HdrLen = byte_size(SrpcDataHdr),
+              case Cryptor of
+                <<SrpcDataHdr:HdrLen/binary, Data/binary>> ->
+                  {ok, Data};
+                <<_SrpcDataHdr:HdrLen/binary, _Data/binary>> ->
+                  {error, <<"Invalid Srpc data header">>}
+              end;
+            Error ->
+              Error
+          end;
         _ ->
           {error, <<"Invalid cryptor text">>}
       end;
     false ->
       {error, <<"Invalid hmac">>}
-  end.
+  end;
+
+decrypt(_ClientMap, _Packet) ->
+  {error, <<"Invalid decrypt client map">>}.
 
 %%--------------------------------------------------------------------------------------
 %% @doc Header for lib data
