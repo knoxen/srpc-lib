@@ -24,10 +24,21 @@ generate_emphemeral_keys(SrpValue) ->
   crypto:generate_key(srp, {host, SrpParams}).
 
 client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue) ->
-  Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
-                              {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
+  ComputedKey = crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
+                                   {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
+
+  %% Prepend computed key (secret) with 0's to ensure SRP value size length
+  Secret =
+    case byte_size(ComputedKey) of
+      ?SRPC_SRP_VALUE_SIZE ->
+        ComputedKey;
+      ByteSize ->
+        LeadZeros = (?SRPC_SRP_VALUE_SIZE - ByteSize) * 8,
+        << 0:LeadZeros, ComputedKey/binary >>
+    end,
   CryptKey = crypto:hash(sha256, Secret),
   HmacKey  = crypto:hash(sha256, <<ClientId/binary, CryptKey/binary>>),
+
   #{clientId   => ClientId
    ,clientKey  => ClientPublicKey
    ,serverKeys => ServerKeys

@@ -1,6 +1,6 @@
 {application, srpc_lib,
  [{description, "Srpc Lib"}
- ,{vsn, "0.9.5"}
+ ,{vsn, "0.9.6"}
  ,{registered, []}
  ,{modules, []}
  ,{applications,
