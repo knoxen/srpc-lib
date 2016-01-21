@@ -21,13 +21,26 @@ validate_public_key(_PublicKey) ->
 
 generate_emphemeral_keys(SrpValue) ->
   SrpParams = [SrpValue, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
-  crypto:generate_key(srp, {host, SrpParams}).
+  {GeneratedPublicKey, PrivateKey} = crypto:generate_key(srp, {host, SrpParams}),
+
+  %% Prepend generated public key with 0's to ensure SRP public key size length. Necessary 
+  %% because this value is transmitted.
+  PublicKey = 
+    case byte_size(GeneratedPublicKey) of
+      ?SRPC_PUBLIC_KEY_SIZE ->
+        GeneratedPublicKey;
+      ByteSize ->
+        LeadZeros = (?SRPC_PUBLIC_KEY_SIZE - ByteSize) * 8,
+        << 0:LeadZeros, GeneratedPublicKey/binary >>
+    end,
+  {PublicKey, PrivateKey}.
 
 client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue) ->
   ComputedKey = crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
                                    {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
 
-  %% Prepend computed key (secret) with 0's to ensure SRP value size length
+  %% Prepend computed key (secret) with 0's to ensure SRP value size length. Necessary because
+  %% the hash of this value is transmitted.
   Secret =
     case byte_size(ComputedKey) of
       ?SRPC_SRP_VALUE_SIZE ->

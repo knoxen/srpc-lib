@@ -44,8 +44,9 @@
 %%
 %% SRPC
 %%
--define(SRPC_PUBLIC_KEY_SIZE, 256).
--define(SRPC_CHALLENGE_SIZE,   32).
+-define(SRPC_PUBLIC_KEY_SIZE,  256).
+-define(SRPC_PRIVATE_KEY_SIZE,  32).
+-define(SRPC_CHALLENGE_SIZE,    32).
 
 %%
 %% AES
