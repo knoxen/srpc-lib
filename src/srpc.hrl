@@ -1,4 +1,4 @@
--include("srpc_params.hrl").
+-include("srpc_config.hrl").
 
 %%
 %% Default values
