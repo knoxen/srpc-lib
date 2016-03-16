@@ -39,9 +39,9 @@
     Packet    :: binary(),
     Reason    :: string().
 %%--------------------------------------------------------------------------------------
-encrypt(#{clientId := ClientId
-         ,cryptKey := CryptKey
-         ,hmacKey  := HmacKey}, Data) ->
+encrypt(#{client_id := ClientId
+         ,crypt_key := CryptKey
+         ,hmac_key  := HmacKey}, Data) ->
   SrpcDataHdr = srpc_data_hdr(ClientId),
   LibData = <<SrpcDataHdr/binary, Data/binary>>,
   case encrypt_data(CryptKey, HmacKey, LibData) of
@@ -115,9 +115,9 @@ encrypt_data(_CryptKey, _IV, _HmacKey, _PlainText) ->
     Data      :: binary(),
     Reason    :: string().
 %%--------------------------------------------------------------------------------------
-decrypt(#{clientId := ClientId
-         ,cryptKey := CryptKey
-         ,hmacKey  := HmacKey}, Packet) ->
+decrypt(#{client_id := ClientId
+         ,crypt_key := CryptKey
+         ,hmac_key  := HmacKey}, Packet) ->
   PacketSize = byte_size(Packet),
   CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_SHA256_SIZE}),
   Challenge   = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),

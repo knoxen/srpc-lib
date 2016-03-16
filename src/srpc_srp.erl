@@ -52,16 +52,16 @@ client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue) ->
   CryptKey = crypto:hash(sha256, Secret),
   HmacKey  = crypto:hash(sha256, <<ClientId/binary, CryptKey/binary>>),
 
-  #{clientId   => ClientId
-   ,clientKey  => ClientPublicKey
-   ,serverKeys => ServerKeys
-   ,cryptKey   => CryptKey
-   ,hmacKey    => HmacKey
+  #{client_id   => ClientId
+   ,client_key  => ClientPublicKey
+   ,server_keys => ServerKeys
+   ,crypt_key   => CryptKey
+   ,hmac_key    => HmacKey
    }.
 
-validate_challenge(#{clientKey  := ClientPublicKey
-                    ,serverKeys := ServerKeys
-                    ,cryptKey   := CryptKey
+validate_challenge(#{client_key  := ClientPublicKey
+                    ,server_keys := ServerKeys
+                    ,crypt_key   := CryptKey
                     }, ClientChallenge) ->
   {ServerPublicKey, _PrivateKey} = ServerKeys,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, CryptKey/binary>>,

@@ -69,8 +69,8 @@ create_exchange_response(CryptClientMap, SrpcUserData, ClientPublicKey, Exchange
                              KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
     {ok, {ClientId, ExchangeResponse}} ->
       ClientMap = srpc_srp:client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue),
-      ExchangeMap = maps:merge(ClientMap, #{clientType => user_client
-                                           ,entityId   => UserId}),
+      ExchangeMap = maps:merge(ClientMap, #{client_type => user_client
+                                           ,entity_id   => UserId}),
       {ok, {ExchangeMap, ExchangeResponse}};
     Error ->
       Error
@@ -122,7 +122,7 @@ create_validation_response(CryptMap, ExchangeMap, ClientChallenge, ValidationDat
   ValidationResponse = <<ServerChallenge/binary, ValidationData/binary>>,
   case srpc_encryptor:encrypt(CryptMap, ValidationResponse) of
     {ok, ValidationPacket} ->
-      ClientMap = maps:remove(clientKey, maps:remove(serverKeys, ExchangeMap)),
+      ClientMap = maps:remove(client_key, maps:remove(server_keys, ExchangeMap)),
       {Result, ClientMap, ValidationPacket};
     Error ->
       Error
@@ -140,7 +140,7 @@ create_validation_response(CryptMap, ExchangeMap, ClientChallenge, ValidationDat
 %%
 %%------------------------------------------------------------------------------------------------
 encrypt_response_data(CryptClientMap, UserCode, KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
-  ClientIdLen = byte_size(maps:get(clientId, CryptClientMap)),
+  ClientIdLen = byte_size(maps:get(client_id, CryptClientMap)),
   ClientId = srpc_util:gen_id(ClientIdLen),
   ResponseData = <<UserCode, ClientIdLen, ClientId/binary,
                    KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, ExchangeData/binary>>,

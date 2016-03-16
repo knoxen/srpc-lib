@@ -53,8 +53,8 @@ create_exchange_response(ClientPublicKey, ExchangeData) ->
   ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
   ClientMap = srpc_srp:client_map(ClientId, ClientPublicKey, ServerKeys, ?SRPC_SRP_VALUE),
-  ExchangeMap = maps:merge(ClientMap, #{clientType => lib_client
-                                       ,entityId   => srpc_lib:srpc_id()}),
+  ExchangeMap = maps:merge(ClientMap, #{client_type => lib_client
+                                       ,entity_id   => srpc_lib:srpc_id()}),
   {ok, {ExchangeMap, ExchangeResponse}}.
 
 %%================================================================================================
@@ -97,7 +97,7 @@ create_validation_response(ExchangeMap, ClientChallenge, RespValidationData) ->
       ValidationResponse = <<ServerChallenge/binary, RespValidationData/binary>>,
       case srpc_encryptor:encrypt(ExchangeMap, ValidationResponse) of
         {ok, ValidationPacket} ->
-          ClientMap = maps:remove(clientKey, maps:remove(serverKeys, ExchangeMap)),
+          ClientMap = maps:remove(client_key, maps:remove(server_keys, ExchangeMap)),
           {IsValid, ClientMap, ValidationPacket};
         Error ->
           Error
