@@ -26,10 +26,10 @@ process_registration_request(ClientMap, RegistrationRequest) ->
           SrpValue:?SRPC_SRP_VALUE_SIZE/binary,
           RegistrationData/binary>> ->
           
-          SrpcUserMap = #{userId   => UserId
-                         ,kdfSalt  => KdfSalt
-                         ,srpSalt  => SrpSalt
-                         ,srpValue => SrpValue
+          SrpcUserMap = #{user_id   => UserId
+                         ,kdf_salt  => KdfSalt
+                         ,srp_salt  => SrpSalt
+                         ,srp_value => SrpValue
                         },
           {ok, {RegistrationCode, SrpcUserMap, RegistrationData}};
         _RegData ->

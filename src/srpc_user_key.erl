@@ -59,10 +59,10 @@ create_exchange_response(CryptClientMap, invalid, _ClientPublicKey, ExchangeData
       Error
   end;
 create_exchange_response(CryptClientMap, SrpcUserData, ClientPublicKey, ExchangeData) ->
-  #{userId   := UserId
-   ,kdfSalt  := KdfSalt
-   ,srpSalt  := SrpSalt
-   ,srpValue := SrpValue} = SrpcUserData,
+  #{user_id   := UserId
+   ,kdf_salt  := KdfSalt
+   ,srp_salt  := SrpSalt
+   ,srp_value := SrpValue} = SrpcUserData,
   ServerKeys =  srpc_srp:generate_emphemeral_keys(SrpValue),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
   case encrypt_response_data(CryptClientMap, ?SRPC_USER_OK, 
