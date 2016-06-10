@@ -53,7 +53,7 @@ create_exchange_response(ClientPublicKey, ExchangeData) ->
   ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
   ClientMap = srpc_srp:client_map(ClientId, ClientPublicKey, ServerKeys, ?SRPC_SRP_VALUE),
-  ExchangeMap = maps:merge(ClientMap, #{client_type => lib_client
+  ExchangeMap = maps:merge(ClientMap, #{client_type => lib
                                        ,entity_id   => srpc_lib:srpc_id()}),
   {ok, {ExchangeMap, ExchangeResponse}}.
 

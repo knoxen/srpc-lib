@@ -69,7 +69,7 @@ create_exchange_response(CryptClientMap, SrpcUserData, ClientPublicKey, Exchange
                              KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
     {ok, {ClientId, ExchangeResponse}} ->
       ClientMap = srpc_srp:client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue),
-      ExchangeMap = maps:merge(ClientMap, #{client_type => user_client
+      ExchangeMap = maps:merge(ClientMap, #{client_type => user
                                            ,entity_id   => UserId}),
       {ok, {ExchangeMap, ExchangeResponse}};
     Error ->
