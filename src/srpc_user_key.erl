@@ -49,9 +49,9 @@ process_exchange_request(CryptClientMap, ExchangeRequest) ->
 %%------------------------------------------------------------------------------------------------
 create_exchange_response(CryptClientMap, invalid, _ClientPublicKey, ExchangeData) ->
   case encrypt_response_data(CryptClientMap, ?SRPC_USER_INVALID_IDENTITY,
-                             crypto:rand_bytes(?SRPC_KDF_SALT_SIZE),
-                             crypto:rand_bytes(?SRPC_SRP_SALT_SIZE),
-                             crypto:rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
+                             crypto:strong_rand_bytes(?SRPC_KDF_SALT_SIZE),
+                             crypto:strong_rand_bytes(?SRPC_SRP_SALT_SIZE),
+                             crypto:strong_rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
                              ExchangeData) of
     {ok, {_ClientId, Packet}} ->
       {ok, Packet};
@@ -109,7 +109,7 @@ process_validation_request(CryptMap, ValidationRequest) ->
 %%
 %%------------------------------------------------------------------------------------------------
 create_validation_response(CryptMap, invalid, _ClientChallenge, ValidationData) ->
-  ServerChallenge = crypto:rand_bytes(?SRPC_CHALLENGE_SIZE),
+  ServerChallenge = crypto:strong_rand_bytes(?SRPC_CHALLENGE_SIZE),
   ValidationResponse = <<ServerChallenge/binary, ValidationData/binary>>,
   case srpc_encryptor:encrypt(CryptMap, ValidationResponse) of
     {ok, ValidationPacket} ->

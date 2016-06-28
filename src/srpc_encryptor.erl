@@ -65,7 +65,7 @@ encrypt(_Map, _Packet) ->
     Reason   :: string().
 %%--------------------------------------------------------------------------------------
 encrypt_data(CryptKey, HmacKey, Data) ->
-  IV = crypto:rand_bytes(?SRPC_AES_BLOCK_SIZE),
+  IV = crypto:strong_rand_bytes(?SRPC_AES_BLOCK_SIZE),
   encrypt_data(CryptKey, IV, HmacKey, Data).
 
 %%--------------------------------------------------------------------------------------

@@ -26,7 +26,7 @@
 %%--------------------------------------------------------------------------------------
 gen_id(N) ->
   %% Seed PRNG
-  <<A:32, B:32, C:32>> = crypto:rand_bytes(12),
+  <<A:32, B:32, C:32>> = crypto:strong_rand_bytes(12),
   random:seed(A,B,C),
   list_to_binary(rand_str(N, [])).
 

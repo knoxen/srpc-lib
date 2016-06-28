@@ -73,7 +73,7 @@ validate_challenge(#{client_key  := ClientPublicKey
       ServerChallenge = crypto:hash(sha256, ServerChallengeData),
       {ok, ServerChallenge};
     false ->
-      {invalid, crypto:rand_bytes(?SRPC_CHALLENGE_SIZE)}
+      {invalid, crypto:strong_rand_bytes(?SRPC_CHALLENGE_SIZE)}
   end;
 validate_challenge(_ExchangeMap, _ClientChallenge) ->
   {error, <<"Validate challenge with invalid exchange map">>}.
