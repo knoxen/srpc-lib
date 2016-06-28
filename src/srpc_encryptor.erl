@@ -82,6 +82,7 @@ encrypt_data(CryptKey, HmacKey, Data) ->
 %%--------------------------------------------------------------------------------------
 encrypt_data(<<CryptKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>, <<Data/binary>>)
   when byte_size(CryptKey) =:= ?SRPC_AES_128_KEY_SIZE;
+       byte_size(CryptKey) =:= ?SRPC_AES_192_KEY_SIZE;
        byte_size(CryptKey) =:= ?SRPC_AES_256_KEY_SIZE ->
   CipherText = crypto:block_encrypt(aes_cbc256, CryptKey, IV, enpad(Data)),
   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,

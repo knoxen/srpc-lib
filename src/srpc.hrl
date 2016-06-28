@@ -53,6 +53,7 @@
 %%
 -define(SRPC_AES_BLOCK_SIZE,   16).
 -define(SRPC_AES_128_KEY_SIZE, 16).
+-define(SRPC_AES_192_KEY_SIZE, 24).
 -define(SRPC_AES_256_KEY_SIZE, 32).
 
 %%
