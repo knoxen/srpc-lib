@@ -11,11 +11,11 @@
 -define(SRPC_OPT_G2048_AES_CBC_256_HMAC_SHA256,  1).
 
 %%
-%% Version
+%% Srpc Version
 %%
 -define(SRPC_VERSION_MAJOR, 0).
 -define(SRPC_VERSION_MINOR, 9).
--define(SRPC_VERSION_PATCH, 5).
+-define(SRPC_VERSION_PATCH, 6).
 
 %%
 %% SRP Version
