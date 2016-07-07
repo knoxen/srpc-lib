@@ -49,8 +49,11 @@ client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue) ->
         LeadZeros = (?SRPC_SRP_VALUE_SIZE - ByteSize) * 8,
         << 0:LeadZeros, ComputedKey/binary >>
     end,
-  CryptKey = crypto:hash(sha256, Secret),
-  HmacKey  = crypto:hash(sha256, <<ClientId/binary, CryptKey/binary>>),
+
+  HalfLen = byte_size(Secret),
+  <<CryptKeyData:HalfLen/binary, HmacKeyData:HalfLen/binary>> = Secret,
+  CryptKey = crypto:hash(sha256, CryptKeyData),
+  HmacKey  = crypto:hash(sha256, HmacKeyData),
 
   #{client_id   => ClientId
    ,client_key  => ClientPublicKey
