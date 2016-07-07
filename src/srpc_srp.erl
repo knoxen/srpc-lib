@@ -39,8 +39,7 @@ client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue) ->
   ComputedKey = crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
                                    {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
 
-  %% Prepend computed key (secret) with 0's to ensure SRP value size length. Necessary because
-  %% the hash of this value is transmitted.
+  %% Prepend computed key (secret) with 0's to ensure SRP value size length.
   Secret =
     case byte_size(ComputedKey) of
       ?SRPC_SRP_VALUE_SIZE ->
@@ -50,7 +49,7 @@ client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue) ->
         << 0:LeadZeros, ComputedKey/binary >>
     end,
 
-  HalfLen = byte_size(Secret),
+  HalfLen = byte_size(Secret) div 2,
   <<CryptKeyData:HalfLen/binary, HmacKeyData:HalfLen/binary>> = Secret,
   CryptKey = crypto:hash(sha256, CryptKeyData),
   HmacKey  = crypto:hash(sha256, HmacKeyData),
