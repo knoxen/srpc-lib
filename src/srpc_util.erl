@@ -7,6 +7,7 @@
 -export(
    [gen_id/1
    ,gen_client_id/0
+   ,gen_client_id/1
    ,const_compare/2
    ,bin_to_hex/1
    ,hex_to_bin/1
@@ -14,27 +15,72 @@
 
 %%======================================================================================
 %%
-%% Generate random id
+%% Generate random id from URL and filename safe alphabet (RFC3548)
 %%
 %%======================================================================================
 %%--------------------------------------------------------------------------------------
-%% @doc Generate random id of length N
+%% @doc Generate strong random id of Len > 0 from characters A-Z | a-z | 0-9 | -_
 %%
--spec gen_id(N) -> ID when
-    N  :: number(),
-    ID :: string().
+-spec gen_id(Len) -> ID when
+    Len :: number(),
+    ID  :: string().
 %%--------------------------------------------------------------------------------------
-gen_id(N) ->
-  %% Seed PRNG
-  <<A:32, B:32, C:32>> = crypto:strong_rand_bytes(12),
-  random:seed(A,B,C),
-  list_to_binary(rand_str(N, [])).
+gen_id(Len) ->
+  %% Permissible chars
+  Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
+  %% Calc number of bytes needed
+  Trunc = trunc(Len * 0.7499999),
+  NumBytes = case Len - Trunc == 0 of
+               true ->
+                 Trunc;
+               false ->
+                 Trunc + 1
+               end,
+  %% Generate bytes
+  RandBytes = crypto:strong_rand_bytes(NumBytes),
+  %% Generate int list of length Len with 0 <= int < 64
+  IntList = case (Len - 3) rem 4 == 0 of
+              true -> [_ | T] = six_bit_int_list(RandBytes, []), T;
+              false -> six_bit_int_list(RandBytes, [])
+            end,
+  
+  %% Build the ID (from right to left for efficiency)
+  lists:foldl(
+    fun(N, Acc) ->
+        [lists:nth(N+1, Alphabet)] ++ Acc
+    end,
+    [],
+    IntList).
+
+%% @private
+%%
+%% Create list of 6-bit integers (0..63) from bytes, wasting at most 2, 4, or 6  total bits of
+%% the specified bytes
+%%
+six_bit_int_list(<<A:6, _:2>>, Acc) ->
+  [A] ++ Acc;
+six_bit_int_list(<<A:6, B:6, _:4>>, Acc) ->
+  [A, B] ++ Acc;
+six_bit_int_list(<<A:6, B:6, C:6, D:6>>, Acc) ->
+  [A, B, C, D] ++ Acc;
+six_bit_int_list(<<A:6, B:6, C:6, D:6, More/binary>>, Acc) ->
+  six_bit_int_list(More, [A, B, C, D] ++ Acc).
 
 %%--------------------------------------------------------------------------------------
-%% @doc Generate random key id
+%% @doc Generate random binary client id of length Len
+%%
+-spec gen_client_id(Len) -> ClientId when
+    Len :: number(),
+    ClientId :: binary().
+%%--------------------------------------------------------------------------------------
+gen_client_id(Len) ->
+  list_to_binary(gen_id(Len)).
+
+%%--------------------------------------------------------------------------------------
+%% @doc Generate random binary client id of length specified in env
 %%
 -spec gen_client_id() -> ClientId when
-    ClientId :: string().
+    ClientId :: binary().
 %%--------------------------------------------------------------------------------------
 gen_client_id() ->
   ClientIdLen = 
@@ -44,28 +90,7 @@ gen_client_id() ->
       undefined ->
         ?SRPC_CLIENT_ID_LEN
     end,
-  gen_id(ClientIdLen).
-
-%%--------------------------------------------------------------------------------------
-%% @private
-%% @doc Generate random string of chars from set (a-z + A-Z + 0-9)
-%%
-rand_str(0, Acc) ->
-   Acc;
-rand_str(N, Acc) ->
-  Next = random:uniform(62),
-  rand_str(N - 1, [rand_char(Next) | Acc]).
-
-%%--------------------------------------------------------------------------------------
-%% @private
-%% @doc Generate random char from either a-z, A-Z, or 0-9
-%%
-rand_char(N) when N =< 26 ->
-  random:uniform(26) + 64;
-rand_char(N) when N =< 52 ->
-  random:uniform(26) + 96;
-rand_char(_N) ->
-  random:uniform(10) + 47.
+  gen_client_id(ClientIdLen).
 
 %%======================================================================================
 %%
