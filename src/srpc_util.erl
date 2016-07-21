@@ -2,7 +2,7 @@
 
 -author("paul@knoxen.com").
 
--include("srpc.hrl").
+-include("srpc_lib.hrl").
 
 -export(
    [gen_id/1
@@ -83,13 +83,7 @@ gen_client_id(Len) ->
     ClientId :: binary().
 %%--------------------------------------------------------------------------------------
 gen_client_id() ->
-  ClientIdLen = 
-    case application:get_env(client_id_len) of
-      {ok, Len} ->
-        Len;
-      undefined ->
-        ?SRPC_CLIENT_ID_LEN
-    end,
+  {ok, ClientIdLen} = application:get_env(srpc_lib, client_id_len),
   gen_client_id(ClientIdLen).
 
 %%======================================================================================

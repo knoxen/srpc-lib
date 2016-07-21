@@ -2,7 +2,7 @@
 
 -author("paul@knoxen.com").
 
--include("srpc.hrl").
+-include("srpc_lib.hrl").
 
 -export(
    [encrypt/2

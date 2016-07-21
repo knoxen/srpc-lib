@@ -1,11 +1,6 @@
 -include("srpc_config.hrl").
 
 %%
-%% Default values
-%%
--define(SRPC_CLIENT_ID_LEN, 24).
-
-%%
 %% Lib Options Choices
 %%
 -define(SRPC_OPT_G2048_AES_CBC_256_HMAC_SHA256,  1).
@@ -15,7 +10,7 @@
 %%
 -define(SRPC_VERSION_MAJOR, 0).
 -define(SRPC_VERSION_MINOR, 9).
--define(SRPC_VERSION_PATCH, 6).
+-define(SRPC_VERSION_PATCH, 14).
 
 %%
 %% SRP Version

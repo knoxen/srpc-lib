@@ -2,7 +2,7 @@
 
 -author("paul@knoxen.com").
 
--include("srpc.hrl").
+-include("srpc_lib.hrl").
 
 -export([process_exchange_request/1
         ,create_exchange_response/2

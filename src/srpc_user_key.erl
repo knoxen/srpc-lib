@@ -2,7 +2,7 @@
 
 -author("paul@knoxen.com").
 
--include("srpc.hrl").
+-include("srpc_lib.hrl").
 
 -export([process_exchange_request/2
         ,create_exchange_response/4
@@ -140,8 +140,8 @@ create_validation_response(CryptMap, ExchangeMap, ClientChallenge, ValidationDat
 %%
 %%------------------------------------------------------------------------------------------------
 encrypt_response_data(CryptClientMap, UserCode, KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
-  ClientIdLen = byte_size(maps:get(client_id, CryptClientMap)),
-  ClientId = srpc_util:gen_client_id(ClientIdLen),
+  ClientId = srpc_util:gen_client_id(),
+  ClientIdLen = byte_size(ClientId),
   ResponseData = <<UserCode, ClientIdLen, ClientId/binary,
                    KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, ExchangeData/binary>>,
   case srpc_encryptor:encrypt(CryptClientMap, ResponseData) of
