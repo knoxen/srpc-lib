@@ -160,8 +160,18 @@ decrypt(_ClientMap, _Packet) ->
 %%--------------------------------------------------------------------------------------
 srpc_data_hdr() ->
   SrpcId = srpc_lib:srpc_id(),
-  <<?SRPC_VERSION_MAJOR:8, ?SRPC_VERSION_MINOR:8, ?SRPC_VERSION_PATCH:16,
-    ?SRPC_OPTIONS:16, SrpcId/binary>>.
+  <<?SRPC_VERSION_MAJOR:8,
+    ?SRPC_VERSION_MINOR:8,
+    ?SRPC_VERSION_PATCH:8,
+    ?SRPC_OPT_VSN:4,
+    ?SRPC_OPT_R1:4,
+    ?SRPC_OPT_R2:4,
+    ?SRPC_OPT_GROUP:4,
+    ?SRPC_OPT_CIPHER:4,
+    ?SRPC_OPT_KEYLEN:4,
+    ?SRPC_OPT_MODE:4,
+    ?SRPC_OPT_HMAC:4,
+    SrpcId/binary>>.
 
 %%--------------------------------------------------------------------------------------
 %% @doc Header for lib data with ClientId
