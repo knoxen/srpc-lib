@@ -44,10 +44,10 @@ srpc_id() ->
   ?SRPC_ID.
 
 srpc_version() ->
-  Major = ?SRPC_VERSION_MAJOR + 48,
-  Minor = ?SRPC_VERSION_MINOR + 48,
-  Patch = ?SRPC_VERSION_PATCH + 48,
-  <<Major, ".", Minor, ".", Patch>>.
+  Major = integer_to_list(?SRPC_VERSION_MAJOR),
+  Minor = integer_to_list(?SRPC_VERSION_MINOR),
+  Patch = integer_to_list(?SRPC_VERSION_PATCH),
+  list_to_binary(Major ++ "." ++ Minor ++ "." ++ Patch).
 
 srpc_options() ->
   <<"G2048 : AES-CBC-256 : HMAC SHA256">>.
