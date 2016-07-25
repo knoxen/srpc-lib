@@ -31,8 +31,8 @@ process_exchange_request(<<IdSize:8, ExchangeRequest/binary>>) ->
         Error ->
           Error
       end;
-    <<_SrpcId:IdSize/binary, _Rest/binary>> ->
-      {error, <<"Invalid SrpcId: ", _SrpcId/binary>>};
+    <<InvalidId:IdSize/binary, _:?SRPC_PUBLIC_KEY_SIZE/binary, _/binary>> ->
+      {invalid, <<"Invalid SrpcId: ", InvalidId/binary>>};
     _ExchangeRequest ->
       {error, <<"Invalid exchange request">>}
   end;
