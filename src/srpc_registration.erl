@@ -9,6 +9,9 @@
    ,create_registration_response/3
    ]).
 
+-define(USER_ID_LEN_BITS, 8).
+-define(REG_CODE_BITS,    8).
+
 %% ==============================================================================================
 %%
 %%  Process User Registration Request
@@ -17,10 +20,10 @@
 %% ==============================================================================================
 process_registration_request(ClientMap, RegistrationRequest) ->
   case srpc_encryptor:decrypt(ClientMap, RegistrationRequest) of
-    {ok, <<UserIdLen:8, RequestData/binary>>} ->
+    {ok, <<UserIdLen:?USER_ID_LEN_BITS, RequestData/binary>>} ->
       case RequestData of 
         <<UserId:UserIdLen/binary, 
-          RegistrationCode:8, 
+          RegistrationCode:?REG_CODE_BITS,
           KdfSalt:?SRPC_KDF_SALT_SIZE/binary, 
           SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
           SrpValue:?SRPC_SRP_VALUE_SIZE/binary,
@@ -50,4 +53,4 @@ process_registration_request(ClientMap, RegistrationRequest) ->
 create_registration_response(ClientMap, RegistrationCode, undefined) ->
   create_registration_response(ClientMap, RegistrationCode, <<>>);
 create_registration_response(ClientMap,  RegistrationCode, RespData) ->
-  srpc_encryptor:encrypt(ClientMap, <<RegistrationCode:8,  RespData/binary>>).
+  srpc_encryptor:encrypt(ClientMap, <<RegistrationCode:?REG_CODE_BITS,  RespData/binary>>).
