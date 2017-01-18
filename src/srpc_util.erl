@@ -13,6 +13,8 @@
    ,hex_to_bin/1
    ]).
 
+-define(DEFAULT_CLIENT_ID_LEN, 22).
+
 %%======================================================================================
 %%
 %% Generate random id from URL and filename safe alphabet (RFC3548)
@@ -54,7 +56,7 @@ gen_id(Len) ->
 
 %% @private
 %%
-%% Create list of 6-bit integers (0..63) from bytes, wasting at most 2, 4, or 6  total bits of
+%% Create list of 6-bit integers (0..63) from bytes, wasting at most 2, 4, or 6 total bits of
 %% the specified bytes
 %%
 six_bit_int_list(<<A:6, _:2>>, Acc) ->
@@ -83,7 +85,18 @@ gen_client_id(Len) ->
     ClientId :: binary().
 %%--------------------------------------------------------------------------------------
 gen_client_id() ->
-  {ok, ClientIdLen} = application:get_env(srpc_lib, client_id_len),
+  ClientIdLen = 
+    case erlang:function_exported(app_srpc_handler, client_id_len, 0) of
+      true ->
+        case app_srpc_handler:client_id_len() of
+          Len when 0 < Len ->
+            Len;
+          _ ->
+            ?DEFAULT_CLIENT_ID_LEN
+        end;
+      false ->
+        ?DEFAULT_CLIENT_ID_LEN
+    end,
   gen_client_id(ClientIdLen).
 
 %%======================================================================================

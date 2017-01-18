@@ -8,7 +8,5 @@
    ,stdlib
    ,crypto
    ]}
- ,{env
-  ,[{client_id_len, 22}
-   ]}
+ ,{env ,[]}
  ]}.
