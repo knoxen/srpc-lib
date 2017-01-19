@@ -85,6 +85,7 @@ gen_client_id(Len) ->
     ClientId :: binary().
 %%--------------------------------------------------------------------------------------
 gen_client_id() ->
+  code:ensure_loaded(app_srpc_handler),
   ClientIdLen = 
     case erlang:function_exported(app_srpc_handler, client_id_len, 0) of
       true ->
