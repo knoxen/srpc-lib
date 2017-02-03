@@ -8,18 +8,18 @@
 -define(SRPC_VERSION_PATCH, 0).
 
 %%
-%% Srpc Lib Options
-%%                                 32 Bits
--define(SRPC_OPT_VSN,     0).   %%  4
--define(SRPC_OPT_R1,      0).   %%  4
--define(SRPC_OPT_R2,      0).   %%  4
--define(SRPC_OPT_GROUP,   2).   %%  4
--define(SRPC_OPT_CIPHER,  1).   %%  4
--define(SRPC_OPT_KEYLEN,  3).   %%  4
--define(SRPC_OPT_MODE,    1).   %%  4
--define(SRPC_OPT_HMAC,    1).   %%  4
-
--define(SRPC_OPT_G2048_AES_256_CBC_HMAC256,  <<16#00021311:32>>).
+%% Srpc Lib Option Suites
+%%  32 Bits - Each field is 4 bits
+%%    Option Format Version  0
+%%    Reserved               0
+%%    KDF                    1  PBKDF2-SHA256
+%%    Srp Group              2  G-2048
+%%    Cipher                 1  AES
+%%    Key Length             3  256
+%%    Mode                   1  CBC
+%%    HMAC                   1  SHA256
+%%    
+-define(SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256, <<16#00121311:32>>).
 
 %%
 %% SRP Version

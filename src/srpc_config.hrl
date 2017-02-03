@@ -27,5 +27,5 @@
 %% Srpc Options Setting
 %%
 %%----------------------------------------------------------------------------------------------
--define(SRPC_OPTIONS, ?SRPC_OPT_G2048_AES_CBC_256_HMAC_SHA256).
+-define(SRPC_OPTIONS, ?SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256).
 

@@ -50,18 +50,10 @@ srpc_version() ->
   list_to_binary(Major ++ "." ++ Minor ++ "." ++ Patch).
 
 srpc_options() ->
-  SrpcOpt = <<?SRPC_OPT_VSN:4,
-              ?SRPC_OPT_R1:4,
-              ?SRPC_OPT_R2:4,
-              ?SRPC_OPT_GROUP:4,
-              ?SRPC_OPT_CIPHER:4,
-              ?SRPC_OPT_KEYLEN:4,
-              ?SRPC_OPT_MODE:4,
-              ?SRPC_OPT_HMAC:4>>,
-  case SrpcOpt of
-    ?SRPC_OPT_G2048_AES_256_CBC_HMAC256 ->
-      <<"G2048 : AES-256-CBC : HMAC256">>;
-    _WTF ->
+  case ?SRPC_OPTIONS of
+    ?SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256 ->
+      <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>;
+    _Invalid ->
       <<"Invalid Srpc Option">>
   end.
 
