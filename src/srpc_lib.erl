@@ -4,7 +4,7 @@
 
 -include("srpc_lib.hrl").
 
-%% Scpr info
+%% Srpc info
 -export([srpc_id/0
         ,srpc_version/0
         ,srpc_options/0
@@ -23,7 +23,7 @@
         ,create_registration_response/3
         ]).
 
-%% User Cliet
+%% User Client
 -export([user_key_process_exchange_request/2
         ,user_key_create_exchange_response/4
         ,user_key_process_validation_request/2
@@ -34,6 +34,9 @@
 -export([decrypt/2
         ,encrypt/2
         ]).
+
+%% Refresh Keys
+-export([refresh_keys/2]).
 
 -define(APP_NAME, srpc_lib).
 
@@ -64,16 +67,16 @@ srpc_info() ->
   << Id/binary, " | ",  Version/binary, " | ", Options/binary >>.
 
 lib_key_process_exchange_request(ExchangeRequest) ->
-  srpc_lib_key:process_exchange_request(ExchangeRequest).
+  srpc_lib_key_agreement:process_exchange_request(ExchangeRequest).
 
 lib_key_create_exchange_response(ClientPublicKey, ExchangeData) ->
-  srpc_lib_key:create_exchange_response(ClientPublicKey, ExchangeData).
+  srpc_lib_key_agreement:create_exchange_response(ClientPublicKey, ExchangeData).
 
 lib_key_process_validation_request(ExchangeMap, ValidationRequest) ->
-  srpc_lib_key:process_validation_request(ExchangeMap, ValidationRequest).
+  srpc_lib_key_agreement:process_validation_request(ExchangeMap, ValidationRequest).
 
 lib_key_create_validation_response(ExchangeMap, ClientChallenge, ValidationData) ->
-  srpc_lib_key:create_validation_response(ExchangeMap, ClientChallenge, ValidationData).
+  srpc_lib_key_agreement:create_validation_response(ExchangeMap, ClientChallenge, ValidationData).
 
 process_registration_request(LibKey, RegistrationRequest) ->
   srpc_registration:process_registration_request(LibKey, RegistrationRequest).
@@ -82,16 +85,16 @@ create_registration_response(LibKey, RegistrationResult, ResponseData) ->
   srpc_registration:create_registration_response(LibKey, RegistrationResult, ResponseData).
 
 user_key_process_exchange_request(LibKey, ExchangeRequest) ->
-  srpc_user_key:process_exchange_request(LibKey, ExchangeRequest).
+  srpc_user_key_agreement:process_exchange_request(LibKey, ExchangeRequest).
 
 user_key_create_exchange_response(LibKey, Reg, ClientKey, ResponseData) ->
-  srpc_user_key:create_exchange_response(LibKey, Reg, ClientKey, ResponseData).
+  srpc_user_key_agreement:create_exchange_response(LibKey, Reg, ClientKey, ResponseData).
 
 user_key_process_validation_request(LibKey, ValidationRequest) ->
-  srpc_user_key:process_validation_request(LibKey, ValidationRequest).
+  srpc_user_key_agreement:process_validation_request(LibKey, ValidationRequest).
 
 user_key_create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
-  srpc_user_key:create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData).
+  srpc_user_key_agreement:create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData).
 
 encrypt(ClientMap, Data) ->
   srpc_encryptor:encrypt(ClientMap, Data).
@@ -99,3 +102,5 @@ encrypt(ClientMap, Data) ->
 decrypt(ClientMap, Data) ->
   srpc_encryptor:decrypt(ClientMap, Data).
 
+refresh_keys(ClientMap, Data) ->
+  srpc_encryptor:refresh_keys(ClientMap, Data).

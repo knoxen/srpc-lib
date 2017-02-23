@@ -1,4 +1,4 @@
--module(srpc_lib_key).
+-module(srpc_lib_key_agreement).
 
 -author("paul@knoxen.com").
 

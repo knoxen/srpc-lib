@@ -4,16 +4,22 @@
 
 -include("srpc_lib.hrl").
 
+%%================================================================================================
+%%
+%% API exports
+%%
+%%================================================================================================
 -export(
    [encrypt/2
    ,decrypt/2
+   ,refresh_keys/2
    ]).
 
 -define(SRPC_DATA_VERSION, 1).
 
-%%======================================================================================
+%%================================================================================================
 %% Defined types
-%%======================================================================================
+%%================================================================================================
 -type aes_block() :: <<_:16>>.
 -type key128()    :: <<_:16>>.
 -type key256()    :: <<_:32>>.
@@ -24,13 +30,16 @@
 -type cryptor()   :: [version() | aes_block() | binary() | hmac_sig()].
 -type packet()    :: [hmac_key() | cryptor()].
 
-%%======================================================================================
+%%================================================================================================
 %%
-%% Encrypt data
+%% Public API
 %%
-%%======================================================================================
-
-%%--------------------------------------------------------------------------------------
+%%================================================================================================
+%%------------------------------------------------------------------------------------------------
+%%
+%% Encrypt
+%%
+%%------------------------------------------------------------------------------------------------
 %% @doc Encrypt data using client information
 %%
 -spec encrypt(ClientMap, Data) -> {ok, Packet} | {error, Reason} when
@@ -38,76 +47,30 @@
     Data      :: binary(),
     Packet    :: binary(),
     Reason    :: string().
-%%--------------------------------------------------------------------------------------
+%%------------------------------------------------------------------------------------------------
 encrypt(#{client_id := ClientId
          ,crypt_key := CryptKey
          ,hmac_key  := HmacKey}, Data) ->
   SrpcDataHdr = srpc_data_hdr(ClientId),
   LibData = <<SrpcDataHdr/binary, Data/binary>>,
+
+  %% io:format("~p encrypt ~n  HmacKey = ~p~n", [?MODULE, srpc_util:bin_to_hex(HmacKey)]),
+
   case encrypt_data(CryptKey, HmacKey, LibData) of
     {error, Reason} ->
       {error, list_to_binary(Reason)};
     Packet ->
       {ok, Packet}
   end;
+
 encrypt(_Map, _Packet) ->
   {error, <<"Invalid encrypt client map">>}.
 
-%%--------------------------------------------------------------------------------------
-%% @doc Encrypt data with crypt key and sign with hmac key.
-%% @private
+%%------------------------------------------------------------------------------------------------
 %%
--spec encrypt_data(CryptKey, HmacKey, Data) -> Packet | {error, Reason} when
-    CryptKey :: aes_key(),
-    HmacKey  :: hmac_key(),
-    Data     :: binary(),
-    Packet   :: packet(),
-    Reason   :: string().
-%%--------------------------------------------------------------------------------------
-encrypt_data(CryptKey, HmacKey, Data) ->
-  IV = crypto:strong_rand_bytes(?SRPC_AES_BLOCK_SIZE),
-  encrypt_data(CryptKey, IV, HmacKey, Data).
-
-%%--------------------------------------------------------------------------------------
-%% @doc Encrypt data with crypt key using iv, and sign with hmac key.
-%% @private
+%% Decrypt
 %%
--spec encrypt_data(CryptKey, IV, HmacKey, Data) -> Packet | {error, Reason} when
-    CryptKey :: aes_key(),
-    IV       :: aes_block(),
-    HmacKey  :: hmac_key(),
-    Data     :: binary(),
-    Packet   :: packet(),
-    Reason   :: string().
-%%--------------------------------------------------------------------------------------
-encrypt_data(<<CryptKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>, <<Data/binary>>)
-  when byte_size(CryptKey) =:= ?SRPC_AES_128_KEY_SIZE;
-       byte_size(CryptKey) =:= ?SRPC_AES_192_KEY_SIZE;
-       byte_size(CryptKey) =:= ?SRPC_AES_256_KEY_SIZE ->
-  CipherText = crypto:block_encrypt(aes_cbc256, CryptKey, IV, enpad(Data)),
-  CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
-  Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
-
-  <<CryptorText/binary, Hmac/binary>>;
-encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
-  {error, "Invalid key size"};
-encrypt_data(_CryptKey, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
-  {error, "Invalid key: Not binary"};
-encrypt_data(<<_CryptKey/binary>>, _IV, <<_HmacKey/binary>>, <<_Data/binary>>) ->
-  {error, "Invalid iv: Not binary"};
-encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, _HmacKey, <<_Data/binary>>) ->
-  {error, "Invalid hmac key: Not binary"};
-encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, _Data) ->
-  {error, "Invalid data: Not binary"};
-encrypt_data(_CryptKey, _IV, _HmacKey, _PlainText) ->
-  {error, "Invalid args"}.
-
-%%======================================================================================
-%%
-%% Decrypt packet
-%%
-%%======================================================================================
-%%--------------------------------------------------------------------------------------
+%%------------------------------------------------------------------------------------------------
 %% @doc Decrypt packet using client information
 %%
 -spec decrypt(ClientMap, Packet) -> {ok, Data} | {error, Reason} when
@@ -115,14 +78,14 @@ encrypt_data(_CryptKey, _IV, _HmacKey, _PlainText) ->
     Packet    :: packet(),
     Data      :: binary(),
     Reason    :: string().
-%%--------------------------------------------------------------------------------------
-decrypt(#{client_id := ClientId
-         ,crypt_key := CryptKey
-         ,hmac_key  := HmacKey}, Packet) ->
+%%------------------------------------------------------------------------------------------------
+decrypt(#{client_id := ClientId, crypt_key := CryptKey, hmac_key := HmacKey}, Packet) ->
   PacketSize = byte_size(Packet),
   CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_SHA256_SIZE}),
   Challenge   = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),
   Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
+
+  %% io:format("~p decrypt ~n  HmacKey = ~p~n", [?MODULE, srpc_util:bin_to_hex(HmacKey)]),
 
   case srpc_util:const_compare(Challenge, Hmac) of
     true ->
@@ -152,45 +115,119 @@ decrypt(#{client_id := ClientId
 decrypt(_ClientMap, _Packet) ->
   {error, <<"Invalid decrypt client map">>}.
 
-%%--------------------------------------------------------------------------------------
-%% @doc Header for lib data
+%%------------------------------------------------------------------------------------------------
 %%
--spec srpc_data_hdr() -> Header when
-    Header :: binary().
-%%--------------------------------------------------------------------------------------
-srpc_data_hdr() ->
-  SrpcId = srpc_lib:srpc_id(),
-  <<?SRPC_VERSION_MAJOR:8,
-    ?SRPC_VERSION_MINOR:8,
-    ?SRPC_VERSION_PATCH:8,
-    ?SRPC_OPTIONS/binary,
-    SrpcId/binary>>.
+%% Refresh Keys
+%%
+%%------------------------------------------------------------------------------------------------
+%% @doc Refresh client keys using data
+%%
+-spec refresh_keys(ClientMap, Data) -> {ok, NewClientMap} | {error, Reason} when
+    ClientMap    :: map(),
+    Data         :: binary(),
+    NewClientMap :: map(),
+    Reason       :: string().
+%%------------------------------------------------------------------------------------------------
+refresh_keys(ClientMap, Data) ->
+  CryptKey = maps:get(crypt_key, ClientMap),
+  HmacKey = maps:get(hmac_key, ClientMap),
 
-%%--------------------------------------------------------------------------------------
+  NewCryptKey = crypto:hmac(sha256, CryptKey, Data, ?SRPC_SHA256_SIZE),
+  NewHmacKey  = crypto:hmac(sha256, HmacKey,  Data, ?SRPC_SHA256_SIZE),
+
+  maps:put(crypt_key, NewCryptKey, maps:put(hmac_key, NewHmacKey, ClientMap)).
+
+%%================================================================================================
+%%
+%% Private API
+%%
+%%================================================================================================
+%%------------------------------------------------------------------------------------------------
+%%
+%% Encrypt Data
+%%
+%%------------------------------------------------------------------------------------------------
+%% @doc Encrypt data with crypt key and sign with hmac key.
+%% @private
+%%
+-spec encrypt_data(CryptKey, HmacKey, Data) -> Packet | {error, Reason} when
+    CryptKey :: aes_key(),
+    HmacKey  :: hmac_key(),
+    Data     :: binary(),
+    Packet   :: packet(),
+    Reason   :: string().
+%%------------------------------------------------------------------------------------------------
+encrypt_data(CryptKey, HmacKey, Data) ->
+  IV = crypto:strong_rand_bytes(?SRPC_AES_BLOCK_SIZE),
+  encrypt_data(CryptKey, IV, HmacKey, Data).
+
+%%------------------------------------------------------------------------------------------------
+%% @doc Encrypt data with crypt key using iv, and sign with hmac key.
+%% @private
+%%
+-spec encrypt_data(CryptKey, IV, HmacKey, Data) -> Packet | {error, Reason} when
+    CryptKey :: aes_key(),
+    IV       :: aes_block(),
+    HmacKey  :: hmac_key(),
+    Data     :: binary(),
+    Packet   :: packet(),
+    Reason   :: string().
+%%------------------------------------------------------------------------------------------------
+encrypt_data(<<CryptKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>,
+             <<Data/binary>>)
+  when byte_size(CryptKey) =:= ?SRPC_AES_128_KEY_SIZE;
+       byte_size(CryptKey) =:= ?SRPC_AES_192_KEY_SIZE;
+       byte_size(CryptKey) =:= ?SRPC_AES_256_KEY_SIZE ->
+  CipherText = crypto:block_encrypt(aes_cbc256, CryptKey, IV, enpad(Data)),
+  CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
+  Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
+
+  <<CryptorText/binary, Hmac/binary>>;
+encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
+  {error, "Invalid key size"};
+encrypt_data(_CryptKey, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
+  {error, "Invalid key: Not binary"};
+encrypt_data(<<_CryptKey/binary>>, _IV, <<_HmacKey/binary>>, <<_Data/binary>>) ->
+  {error, "Invalid iv: Not binary"};
+encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, _HmacKey, <<_Data/binary>>) ->
+  {error, "Invalid hmac key: Not binary"};
+encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, _Data) ->
+  {error, "Invalid data: Not binary"};
+encrypt_data(_CryptKey, _IV, _HmacKey, _PlainText) ->
+  {error, "Invalid args"}.
+
+%%------------------------------------------------------------------------------------------------
+%%
+%% Data Header
+%%
+%%------------------------------------------------------------------------------------------------
 %% @doc Header for lib data with ClientId
 %%
 -spec srpc_data_hdr(ClientId) -> Header when
     ClientId :: string(),
     Header   :: binary().
-%%--------------------------------------------------------------------------------------
+%%------------------------------------------------------------------------------------------------
 srpc_data_hdr(ClientId) ->
-  DataHdr = srpc_data_hdr(),
+  SrpcId = srpc_lib:srpc_id(),
+  DataHdr = <<?SRPC_VERSION_MAJOR:8,
+              ?SRPC_VERSION_MINOR:8,
+              ?SRPC_VERSION_PATCH:8,
+              ?SRPC_OPTIONS/binary,
+              SrpcId/binary>>,
   ClientIdLen = byte_size(ClientId),
   <<DataHdr/binary, ClientIdLen, ClientId/binary>>.
 
-%%======================================================================================
+%%------------------------------------------------------------------------------------------------
 %%
-%% PKCS7 padding
+%% PKCS7 add padding
 %%
-%%======================================================================================
-
-%%--------------------------------------------------------------------------------------
+%%------------------------------------------------------------------------------------------------
 %% @doc Pad binary input using PKCS7 scheme.
 %%
 -spec enpad(Bin) -> Padded when
     Bin    :: binary(),
     Padded :: binary().
-%%--------------------------------------------------------------------------------------
+%%------------------------------------------------------------------------------------------------
 enpad(Bin) ->
   enpad(Bin, ?SRPC_AES_BLOCK_SIZE-(byte_size(Bin) rem ?SRPC_AES_BLOCK_SIZE)).
 
@@ -199,7 +236,11 @@ enpad(Bin, Len) ->
   Pad = list_to_binary(lists:duplicate(Len,Len)),
   <<Bin/binary, Pad/binary>>.
 
-%%--------------------------------------------------------------------------------------
+%%------------------------------------------------------------------------------------------------
+%%
+%% PKCS7 remove padding
+%%
+%%------------------------------------------------------------------------------------------------
 %% @doc Remove padding from binary input using PKCS7 scheme.
 %%
 %% The last byte of the binary is the pad hex digit. Per <a
@@ -217,7 +258,7 @@ enpad(Bin, Len) ->
 -spec depad(Padded :: binary()) -> Bin | {error, Reason} when
     Bin    :: binary(),
     Reason :: string().
-%%--------------------------------------------------------------------------------------
+%%------------------------------------------------------------------------------------------------
 depad(Bin) ->
   Len = byte_size(Bin),
   Pad = binary:last(Bin),
@@ -237,3 +278,5 @@ depad(Bin) ->
       %% The last byte is greater than our block size; we interpret as no padding
       {ok, Bin}
   end.
+
+

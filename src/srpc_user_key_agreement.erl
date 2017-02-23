@@ -1,4 +1,4 @@
--module(srpc_user_key).
+-module(srpc_user_key_agreement).
 
 -author("paul@knoxen.com").
 
