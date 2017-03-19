@@ -68,6 +68,7 @@ validate_challenge(#{client_key  := ClientPublicKey
   {ServerPublicKey, _PrivateKey} = ServerKeys,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, CryptKey/binary>>,
   ChallengeCheck = crypto:hash(sha256, ChallengeData),
+
   case srpc_util:const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =

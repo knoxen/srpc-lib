@@ -29,12 +29,12 @@ process_registration_request(ClientMap, RegistrationRequest) ->
           SrpValue:?SRPC_SRP_VALUE_SIZE/binary,
           RegistrationData/binary>> ->
           
-          SrpcUserMap = #{user_id   => UserId
-                         ,kdf_salt  => KdfSalt
-                         ,srp_salt  => SrpSalt
-                         ,srp_value => SrpValue
+          SrpcRegMap = #{user_id   => UserId
+                        ,kdf_salt  => KdfSalt
+                        ,srp_salt  => SrpSalt
+                        ,srp_value => SrpValue
                         },
-          {ok, {RegistrationCode, SrpcUserMap, RegistrationData}};
+          {ok, {RegistrationCode, SrpcRegMap, RegistrationData}};
         _RegData ->
           {error, <<"Process invalid registration data">>}
       end;
