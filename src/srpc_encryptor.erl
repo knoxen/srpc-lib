@@ -20,15 +20,18 @@
 %%================================================================================================
 %% Defined types
 %%================================================================================================
--type aes_block() :: <<_:16>>.
--type key128()    :: <<_:16>>.
--type key256()    :: <<_:32>>.
--type aes_key()   :: key128() | key256().
--type hmac_key()  :: key256().
--type hmac_sig()  :: <<_:32>>.
--type version()   :: <<_:1>>.
--type cryptor()   :: [version() | aes_block() | binary() | hmac_sig()].
--type packet()    :: [hmac_key() | cryptor()].
+-type aes_block()  :: <<_:16>>.
+-type key_128()    :: <<_:16>>.
+-type key_192()    :: <<_:24>>.
+-type key_256()    :: <<_:32>>.
+-type aes_key()    :: key_128() | key_192() |key_256().
+-type hmac_key()   :: key_256().
+-type hmac_256()   :: <<_:32>>.
+-type version()    :: <<_:1>>.
+-type iv()         :: aes_block().
+-type ciphertext() :: binary().
+-type cryptor()    :: [version() | iv() | ciphertext()].
+-type packet()     :: [cryptor() | hmac_256()].
 
 %%================================================================================================
 %%
@@ -53,9 +56,6 @@ encrypt(#{client_id := ClientId
          ,hmac_key  := HmacKey}, Data) ->
   SrpcDataHdr = srpc_data_hdr(ClientId),
   LibData = <<SrpcDataHdr/binary, Data/binary>>,
-
-  %% io:format("~p encrypt ~n  HmacKey = ~p~n", [?MODULE, srpc_util:bin_to_hex(HmacKey)]),
-
   case encrypt_data(CryptKey, HmacKey, LibData) of
     {error, Reason} ->
       {error, list_to_binary(Reason)};
@@ -81,12 +81,9 @@ encrypt(_Map, _Packet) ->
 %%------------------------------------------------------------------------------------------------
 decrypt(#{client_id := ClientId, crypt_key := CryptKey, hmac_key := HmacKey}, Packet) ->
   PacketSize = byte_size(Packet),
-  CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_SHA256_SIZE}),
-  Challenge   = binary_part(Packet, {PacketSize, -?SRPC_SHA256_SIZE}),
-  Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
-
-  %% io:format("~p decrypt ~n  HmacKey = ~p~n", [?MODULE, srpc_util:bin_to_hex(HmacKey)]),
-
+  CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_HMAC_256_SIZE}),
+  Challenge   = binary_part(Packet, {PacketSize, -?SRPC_HMAC_256_SIZE}),
+  Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
   case srpc_util:const_compare(Challenge, Hmac) of
     true ->
       case CryptorText of 
@@ -132,8 +129,8 @@ refresh_keys(ClientMap, Data) ->
   CryptKey = maps:get(crypt_key, ClientMap),
   HmacKey = maps:get(hmac_key, ClientMap),
 
-  NewCryptKey = crypto:hmac(sha256, CryptKey, Data, ?SRPC_SHA256_SIZE),
-  NewHmacKey  = crypto:hmac(sha256, HmacKey,  Data, ?SRPC_SHA256_SIZE),
+  NewCryptKey = crypto:hmac(sha256, CryptKey, Data, ?SRPC_HMAC_256_SIZE),
+  NewHmacKey  = crypto:hmac(sha256, HmacKey,  Data, ?SRPC_HMAC_256_SIZE),
 
   maps:put(crypt_key, NewCryptKey, maps:put(hmac_key, NewHmacKey, ClientMap)).
 
@@ -180,7 +177,7 @@ encrypt_data(<<CryptKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/
        byte_size(CryptKey) =:= ?SRPC_AES_256_KEY_SIZE ->
   CipherText = crypto:block_encrypt(aes_cbc256, CryptKey, IV, enpad(Data)),
   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
-  Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_SHA256_SIZE),
+  Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
 
   <<CryptorText/binary, Hmac/binary>>;
 encrypt_data(<<_CryptKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->

@@ -63,7 +63,7 @@
 %%
 %% Hmac
 %%
--define(SRPC_SHA256_SIZE, 32).
+-define(SRPC_HMAC_256_SIZE, 32).
 
 %%
 %% User Codes
