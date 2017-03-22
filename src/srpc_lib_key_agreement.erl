@@ -25,7 +25,7 @@ process_exchange_request(<<IdSize:8, ExchangeRequest/binary>>) ->
   SrpcId = srpc_lib:srpc_id(),
   case ExchangeRequest of
     <<SrpcId:IdSize/binary, ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ExchangeData/binary>> ->
-      case srpc_srp:validate_public_key(ClientPublicKey) of
+      case srpc_sec:validate_public_key(ClientPublicKey) of
         ok ->
           {ok, {ClientPublicKey, ExchangeData}};
         Error ->
@@ -48,11 +48,11 @@ process_exchange_request(_) ->
 create_exchange_response(ClientPublicKey, ExchangeData) ->
   ClientId = srpc_util:gen_client_id(),
   ClientIdLen = byte_size(ClientId),
-  ServerKeys = srpc_srp:generate_emphemeral_keys(?SRPC_SRP_VALUE),
+  ServerKeys = srpc_sec:generate_emphemeral_keys(?SRPC_SRP_VALUE),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
   ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  ClientMap = srpc_srp:client_map(ClientId, ClientPublicKey, ServerKeys, ?SRPC_SRP_VALUE),
+  ClientMap = srpc_sec:client_map(ClientId, ClientPublicKey, ServerKeys, ?SRPC_SRP_VALUE),
   ExchangeMap = maps:merge(ClientMap, #{client_type => lib
                                        ,entity_id   => srpc_lib:srpc_id()}),
   {ok, {ExchangeMap, ExchangeResponse}}.
@@ -90,7 +90,7 @@ process_validation_request(ExchangeMap, ValidationRequest) ->
 %%
 %%------------------------------------------------------------------------------------------------
 create_validation_response(ExchangeMap, ClientChallenge, RespValidationData) ->
-  case srpc_srp:validate_challenge(ExchangeMap, ClientChallenge) of
+  case srpc_sec:validate_challenge(ExchangeMap, ClientChallenge) of
     {error, Reason} ->
       {error, Reason};
     {IsValid, ServerChallenge} ->

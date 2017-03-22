@@ -26,7 +26,7 @@ process_exchange_request(CryptClientMap, ExchangeRequest) ->
     {ok, <<IdSize:8, RequestData/binary>>} ->
       case RequestData of
         <<UserId:IdSize/binary, PublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ExchangeData/binary>> ->
-          case srpc_srp:validate_public_key(PublicKey) of
+          case srpc_sec:validate_public_key(PublicKey) of
             ok ->
               {ok, {UserId, PublicKey, ExchangeData}};
             Error ->
@@ -63,12 +63,12 @@ create_exchange_response(CryptClientMap, SrpcUserData, ClientPublicKey, Exchange
    ,kdf_salt  := KdfSalt
    ,srp_salt  := SrpSalt
    ,srp_value := SrpValue} = SrpcUserData,
-  ServerKeys =  srpc_srp:generate_emphemeral_keys(SrpValue),
+  ServerKeys =  srpc_sec:generate_emphemeral_keys(SrpValue),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
   case encrypt_response_data(CryptClientMap, ?SRPC_USER_OK, 
                              KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
     {ok, {ClientId, ExchangeResponse}} ->
-      ClientMap = srpc_srp:client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue),
+      ClientMap = srpc_sec:client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue),
       ExchangeMap = maps:merge(ClientMap, #{client_type => user
                                            ,entity_id   => UserId}),
       {ok, {ExchangeMap, ExchangeResponse}};
@@ -118,7 +118,7 @@ create_validation_response(CryptMap, invalid, _ClientChallenge, ValidationData) 
       Error
   end;
 create_validation_response(CryptMap, ExchangeMap, ClientChallenge, ValidationData) ->
-  {Result, ServerChallenge} = srpc_srp:validate_challenge(ExchangeMap, ClientChallenge),
+  {Result, ServerChallenge} = srpc_sec:validate_challenge(ExchangeMap, ClientChallenge),
   ValidationResponse = <<ServerChallenge/binary, ValidationData/binary>>,
   case srpc_encryptor:encrypt(CryptMap, ValidationResponse) of
     {ok, ValidationPacket} ->

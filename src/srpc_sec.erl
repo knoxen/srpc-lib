@@ -1,4 +1,4 @@
--module(srpc_srp).
+-module(srpc_sec).
 
 -author("paul@knoxen.com").
 
