@@ -7,7 +7,8 @@
 -export([validate_public_key/1
         ,generate_emphemeral_keys/1
         ,client_map/4
-        ,validate_challenge/2]).
+        ,validate_challenge/2
+        ,hkdf/6]).
 
 validate_public_key(PublicKey) when byte_size(PublicKey) =:= ?SRPC_PUBLIC_KEY_SIZE ->
   case crypto:mod_pow(PublicKey, 1, ?SRPC_GROUP_MODULUS) of
@@ -35,8 +36,8 @@ generate_emphemeral_keys(SrpValue) ->
     end,
   {PublicKey, PrivateKey}.
 
-client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue) ->
-  ComputedKey = crypto:compute_key(srp, ClientPublicKey, ServerKeys, 
+client_map(ClientId, CPubKey, ServerKeys, SrpValue) ->
+  ComputedKey = crypto:compute_key(srp, CPubKey, ServerKeys, 
                                    {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
 
   %% Prepend computed key (secret) with 0's to ensure SRP value size length.
@@ -49,30 +50,33 @@ client_map(ClientId, ClientPublicKey, ServerKeys, SrpValue) ->
         << 0:LeadZeros, ComputedKey/binary >>
     end,
 
+  {SPubKey, _SPrivKey} = ServerKeys,
+  {ok, _OKM} = hkdf(sha256, CPubKey, SPubKey, ClientId, Secret, 32 + 32 + 32),
+
   HalfLen = byte_size(Secret) div 2,
   <<CryptKeyData:HalfLen/binary, HmacKeyData:HalfLen/binary>> = Secret,
   CryptKey = crypto:hash(sha256, CryptKeyData),
   HmacKey  = crypto:hash(sha256, HmacKeyData),
 
   #{client_id   => ClientId
-   ,client_key  => ClientPublicKey
+   ,client_key  => CPubKey
    ,server_keys => ServerKeys
    ,crypt_key   => CryptKey
    ,hmac_key    => HmacKey
    }.
 
-validate_challenge(#{client_key  := ClientPublicKey
+validate_challenge(#{client_key  := CPubKey
                     ,server_keys := ServerKeys
                     ,crypt_key   := CryptKey
                     }, ClientChallenge) ->
-  {ServerPublicKey, _PrivateKey} = ServerKeys,
-  ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, CryptKey/binary>>,
+  {SPubKey, _PrivateKey} = ServerKeys,
+  ChallengeData = <<CPubKey/binary, SPubKey/binary, CryptKey/binary>>,
   ChallengeCheck = crypto:hash(sha256, ChallengeData),
 
   case srpc_util:const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
-        <<ClientPublicKey/binary, ClientChallenge/binary, CryptKey/binary>>,
+        <<CPubKey/binary, ClientChallenge/binary, CryptKey/binary>>,
       ServerChallenge = crypto:hash(sha256, ServerChallengeData),
       {ok, ServerChallenge};
     false ->
@@ -80,3 +84,64 @@ validate_challenge(#{client_key  := ClientPublicKey
   end;
 validate_challenge(_ExchangeMap, _ClientChallenge) ->
   {error, <<"Validate challenge with invalid exchange map">>}.
+
+%%
+%% HMAC-based Key Derivation Function (RFC 5869)
+%%
+%% This is NOT a general implementation of HKDF.
+%%
+%% Supported HMACs: sha256, sha384, sha512
+%%
+%% Extract phase salt is H(A|B)
+%%
+%% Expand phase info is executing SRPC ID.
+%%
+
+hkdf(sha256, A, B, Info, IKM, Len) ->
+  PRK = extract(sha256, A, B, IKM),
+  expand(sha256, Info, PRK, Len);
+hkdf(sha384, A, B, Info, IKM, Len) ->
+  PRK = extract(sha384, A, B, IKM),
+  expand(sha384, Info, PRK, Len);
+hkdf(sha512, A, B, Info, IKM, Len) ->
+  PRK = extract(sha512, A, B, IKM),
+  expand(sha512, Info, PRK, Len).
+
+octets(sha256) ->
+  256 bsr 3;
+octets(sha384) ->
+  384 bsr 3;
+octets(512) ->
+  512 bsr 3.
+
+extract(ShaAlg, A, B, IKM) ->
+  Salt = <<A/binary, B/binary>>,
+  crypto:hmac(ShaAlg, Salt, IKM).
+
+expand(ShaAlg, Info, PRK, Len) ->
+  case {Len, octets(ShaAlg) * 255} of 
+    {Len, MaxLen} when Len =< MaxLen ->
+      OKM = expand(ShaAlg, PRK, Info, 1, numOctets(ShaAlg, Len), <<>>, <<>>),
+      {ok, <<OKM:Len/binary>>};
+    _ ->
+      {error, <<"Max length overflow">>}
+  end.
+
+expand(_ShaAlg, _PRK, _Info, I, N, _Tp, Acc) when I > N ->
+  Acc;
+expand(ShaAlg, PRK, Info, I, N, Tp, Acc) ->
+  Ti = crypto:hmac(ShaAlg, PRK, <<Tp/binary, Info/binary, I:8>>),
+  expand(ShaAlg, PRK, Info, I+1, N, Ti, <<Acc/binary, Ti/binary>>).
+ 
+numOctets(ShaAlg, Len) ->
+  Octets = octets(ShaAlg),
+  NumOctets = Len div Octets,
+  case (Len rem Octets) of
+    0 ->
+      NumOctets;
+    _ ->
+      NumOctets + 1
+  end.
+  
+         
+       
