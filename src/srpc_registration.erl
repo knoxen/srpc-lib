@@ -19,7 +19,7 @@
 %%
 %% ==============================================================================================
 process_registration_request(ClientMap, RegistrationRequest) ->
-  case srpc_encryptor:decrypt(ClientMap, RegistrationRequest) of
+  case srpc_encryptor:decrypt(origin_client, ClientMap, RegistrationRequest) of
     {ok, <<UserIdLen:?USER_ID_LEN_BITS, RequestData/binary>>} ->
       case RequestData of 
         <<UserId:UserIdLen/binary, 
@@ -53,4 +53,5 @@ process_registration_request(ClientMap, RegistrationRequest) ->
 create_registration_response(ClientMap, RegistrationCode, undefined) ->
   create_registration_response(ClientMap, RegistrationCode, <<>>);
 create_registration_response(ClientMap,  RegistrationCode, RespData) ->
-  srpc_encryptor:encrypt(ClientMap, <<RegistrationCode:?REG_CODE_BITS,  RespData/binary>>).
+  srpc_encryptor:encrypt(origin_server, ClientMap, 
+                         <<RegistrationCode:?REG_CODE_BITS,  RespData/binary>>).

@@ -31,8 +31,8 @@
         ]).
 
 %% Encryption
--export([decrypt/2
-        ,encrypt/2
+-export([decrypt/3
+        ,encrypt/3
         ]).
 
 %% Refresh Keys
@@ -87,8 +87,8 @@ create_registration_response(LibKey, RegistrationResult, ResponseData) ->
 user_key_process_exchange_request(LibKey, ExchangeRequest) ->
   srpc_user_key_agreement:process_exchange_request(LibKey, ExchangeRequest).
 
-user_key_create_exchange_response(LibKey, Reg, ClientKey, ResponseData) ->
-  srpc_user_key_agreement:create_exchange_response(LibKey, Reg, ClientKey, ResponseData).
+user_key_create_exchange_response(LibKey, Reg, UserKey, ResponseData) ->
+  srpc_user_key_agreement:create_exchange_response(LibKey, Reg, UserKey, ResponseData).
 
 user_key_process_validation_request(LibKey, ValidationRequest) ->
   srpc_user_key_agreement:process_validation_request(LibKey, ValidationRequest).
@@ -96,11 +96,11 @@ user_key_process_validation_request(LibKey, ValidationRequest) ->
 user_key_create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
   srpc_user_key_agreement:create_validation_response(LibKey, ClientChallenge, UserKeyReqData, RespData).
 
-encrypt(ClientMap, Data) ->
-  srpc_encryptor:encrypt(ClientMap, Data).
+encrypt(Origin, ClientMap, Data) ->
+  srpc_encryptor:encrypt(Origin, ClientMap, Data).
 
-decrypt(ClientMap, Data) ->
-  srpc_encryptor:decrypt(ClientMap, Data).
+decrypt(Origin, ClientMap, Data) ->
+  srpc_encryptor:decrypt(Origin, ClientMap, Data).
 
 refresh_keys(ClientMap, Data) ->
-  srpc_encryptor:refresh_keys(ClientMap, Data).
+  srpc_sec:refresh_keys(ClientMap, Data).

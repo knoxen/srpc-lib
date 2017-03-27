@@ -48,11 +48,11 @@ process_exchange_request(_) ->
 create_exchange_response(ClientPublicKey, ExchangeData) ->
   ClientId = srpc_util:gen_client_id(),
   ClientIdLen = byte_size(ClientId),
-  ServerKeys = srpc_sec:generate_emphemeral_keys(?SRPC_SRP_VALUE),
-  {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
+  SEphemeralKeys = srpc_sec:generate_ephemeral_keys(?SRPC_SRP_VALUE),
+  {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
   ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  ClientMap = srpc_sec:client_map(ClientId, ClientPublicKey, ServerKeys, ?SRPC_SRP_VALUE),
+  ClientMap = srpc_sec:client_map(ClientId, ClientPublicKey, SEphemeralKeys, ?SRPC_SRP_VALUE),
   ExchangeMap = maps:merge(ClientMap, #{client_type => lib
                                        ,entity_id   => srpc_lib:srpc_id()}),
   {ok, {ExchangeMap, ExchangeResponse}}.
@@ -69,7 +69,7 @@ create_exchange_response(ClientPublicKey, ExchangeData) ->
 %%
 %%------------------------------------------------------------------------------------------------
 process_validation_request(ExchangeMap, ValidationRequest) ->
-  case srpc_encryptor:decrypt(ExchangeMap, ValidationRequest) of
+  case srpc_encryptor:decrypt(origin_client, ExchangeMap, ValidationRequest) of
     {ok, <<ClientIdSize:8, RequestData/binary>>} ->
       case RequestData of
         <<ClientId:ClientIdSize/binary, Challenge:?SRPC_CHALLENGE_SIZE/binary, ValData/binary>> ->
@@ -90,14 +90,14 @@ process_validation_request(ExchangeMap, ValidationRequest) ->
 %%
 %%------------------------------------------------------------------------------------------------
 create_validation_response(ExchangeMap, ClientChallenge, RespValidationData) ->
-  case srpc_sec:validate_challenge(ExchangeMap, ClientChallenge) of
+  case srpc_sec:process_client_challenge(ExchangeMap, ClientChallenge) of
     {error, Reason} ->
       {error, Reason};
     {IsValid, ServerChallenge} ->
       ValidationResponse = <<ServerChallenge/binary, RespValidationData/binary>>,
-      case srpc_encryptor:encrypt(ExchangeMap, ValidationResponse) of
+      case srpc_encryptor:encrypt(origin_server, ExchangeMap, ValidationResponse) of
         {ok, ValidationPacket} ->
-          ClientMap = maps:remove(client_key, maps:remove(server_keys, ExchangeMap)),
+          ClientMap = maps:remove(c_pub_key, maps:remove(s_ephem_keys, ExchangeMap)),
           {IsValid, ClientMap, ValidationPacket};
         Error ->
           Error
