@@ -106,16 +106,16 @@ refresh_keys(#{client_id  := ClientId
               ,server_key := ServerKey
               ,hmac_key   := HmacKey} = ClientMap
             ,Data) ->
-
   Len = 2 * ?SRPC_AES_256_KEY_SIZE + ?SRPC_HMAC_256_SIZE,
   IKM = <<ClientKey/binary, ServerKey/binary, HmacKey/binary>>,
   {ok, KeyMaterial} = hkdf(sha256, Data, ClientId, IKM, Len),
-  <<NewClientKey:32/binary, NewServerKey:32/binary, NewHmacKey:32/binary>> = KeyMaterial,
-
-  maps:merge(#{client_key => NewClientKey
+  <<NewClientKey:?SRPC_AES_256_KEY_SIZE/binary, 
+    NewServerKey:?SRPC_AES_256_KEY_SIZE/binary, 
+    NewHmacKey:?SRPC_HMAC_256_SIZE/binary>> = KeyMaterial,
+  maps:merge(ClientMap, 
+             #{client_key => NewClientKey
               ,server_key => NewServerKey
-              ,hmac_key   => NewHmacKey}
-            ,ClientMap).
+              ,hmac_key   => NewHmacKey}).
 
 %%
 %% HMAC-based Key Derivation Function (RFC 5869)

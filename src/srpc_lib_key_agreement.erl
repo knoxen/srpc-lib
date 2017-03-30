@@ -75,7 +75,7 @@ process_validation_request(ExchangeMap, ValidationRequest) ->
         <<ClientId:ClientIdSize/binary, Challenge:?SRPC_CHALLENGE_SIZE/binary, ValData/binary>> ->
           {ok, {ClientId, Challenge, ValData}};
         _ ->
-          {error, <<"Invalid Lib Key validate packet: incorrect format">>}
+          {error, <<"Invalid Lib Key validate packet: Incorrect format">>}
       end;
     {ok, _} ->
       {error, <<"Invalid Lib Key validate packet: Can't parse">>};

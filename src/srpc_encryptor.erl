@@ -132,19 +132,18 @@ encrypt_data(SymKey, HmacKey, Data) ->
 %% @private
 %%
 -spec encrypt_data(SymKey, IV, HmacKey, Data) -> Packet | {error, Reason} when
-    SymKey :: aes_key(),
-    IV       :: aes_block(),
-    HmacKey  :: hmac_key(),
-    Data     :: binary(),
-    Packet   :: packet(),
-    Reason   :: string().
+    SymKey  :: aes_key(),
+    IV      :: aes_block(),
+    HmacKey :: hmac_key(),
+    Data    :: binary(),
+    Packet  :: packet(),
+    Reason  :: string().
 %%------------------------------------------------------------------------------------------------
 encrypt_data(<<SymKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>,
              <<Data/binary>>)
   when byte_size(SymKey) =:= ?SRPC_AES_128_KEY_SIZE;
        byte_size(SymKey) =:= ?SRPC_AES_192_KEY_SIZE;
        byte_size(SymKey) =:= ?SRPC_AES_256_KEY_SIZE ->
-
   CipherText = crypto:block_encrypt(aes_cbc256, SymKey, IV, enpad(Data)),
   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
   Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
