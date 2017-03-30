@@ -6,8 +6,8 @@
 
 -export([process_exchange_request/1
         ,create_exchange_response/2
-        ,process_validation_request/2
-        ,create_validation_response/3
+        ,process_confirm_request/2
+        ,create_confirm_response/3
         ]).
 
 %%================================================================================================
@@ -59,46 +59,46 @@ create_exchange_response(ClientPublicKey, ExchangeData) ->
 
 %%================================================================================================
 %%
-%%  Lib Client Key Validation
+%%  Lib Client Key Confirm
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Process Key Validation Request
-%%    L | ClientId | Client Challenge | <Validation Data>
+%%  Process Key Confirm Request
+%%    L | ClientId | Client Challenge | <Confirm Data>
 %%
 %%------------------------------------------------------------------------------------------------
-process_validation_request(ExchangeMap, ValidationRequest) ->
-  case srpc_encryptor:decrypt(origin_client, ExchangeMap, ValidationRequest) of
+process_confirm_request(ExchangeMap, ConfirmRequest) ->
+  case srpc_encryptor:decrypt(origin_client, ExchangeMap, ConfirmRequest) of
     {ok, <<ClientIdSize:8, RequestData/binary>>} ->
       case RequestData of
         <<ClientId:ClientIdSize/binary, Challenge:?SRPC_CHALLENGE_SIZE/binary, ValData/binary>> ->
           {ok, {ClientId, Challenge, ValData}};
         _ ->
-          {error, <<"Invalid Lib Key validate packet: Incorrect format">>}
+          {error, <<"Invalid Lib Key confirm packet: Incorrect format">>}
       end;
     {ok, _} ->
-      {error, <<"Invalid Lib Key validate packet: Can't parse">>};
+      {error, <<"Invalid Lib Key confirm packet: Can't parse">>};
     Error ->
       Error
   end.
 
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Create Key Validation Response
-%%    Server Challenge | <Validation Data>
+%%  Create Key Confirm Response
+%%    Server Challenge | <Confirm Data>
 %%
 %%------------------------------------------------------------------------------------------------
-create_validation_response(ExchangeMap, ClientChallenge, RespValidationData) ->
+create_confirm_response(ExchangeMap, ClientChallenge, RespConfirmData) ->
   case srpc_sec:process_client_challenge(ExchangeMap, ClientChallenge) of
     {error, Reason} ->
       {error, Reason};
     {IsValid, ServerChallenge} ->
-      ValidationResponse = <<ServerChallenge/binary, RespValidationData/binary>>,
-      case srpc_encryptor:encrypt(origin_server, ExchangeMap, ValidationResponse) of
-        {ok, ValidationPacket} ->
+      ConfirmResponse = <<ServerChallenge/binary, RespConfirmData/binary>>,
+      case srpc_encryptor:encrypt(origin_server, ExchangeMap, ConfirmResponse) of
+        {ok, ConfirmPacket} ->
           ClientMap = maps:remove(c_pub_key, maps:remove(s_ephem_keys, ExchangeMap)),
-          {IsValid, ClientMap, ValidationPacket};
+          {IsValid, ClientMap, ConfirmPacket};
         Error ->
           Error
       end

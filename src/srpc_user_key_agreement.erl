@@ -6,8 +6,8 @@
 
 -export([process_exchange_request/2
         ,create_exchange_response/4
-        ,process_validation_request/2
-        ,create_validation_response/4
+        ,process_confirm_request/2
+        ,create_confirm_response/4
         ]).
 
 %%================================================================================================
@@ -78,53 +78,53 @@ create_exchange_response(CryptClientMap, SrpcUserData, ClientPublicKey, Exchange
 
 %%================================================================================================
 %%
-%%  User Client Key Validation
+%%  User Client Key Confirm
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Processs Key Validation Request
-%%    L | ClientId | Client Challenge | <Validation Data>
+%%  Processs Key Confirm Request
+%%    L | ClientId | Client Challenge | <Confirm Data>
 %%
 %%------------------------------------------------------------------------------------------------
-process_validation_request(ExchangeMap, ValidationRequest) ->
-  case srpc_encryptor:decrypt(origin_client, ExchangeMap, ValidationRequest) of
+process_confirm_request(ExchangeMap, ConfirmRequest) ->
+  case srpc_encryptor:decrypt(origin_client, ExchangeMap, ConfirmRequest) of
     {ok, <<ClientIdSize:8, RequestData/binary>>} ->
       case RequestData of
         <<ClientId:ClientIdSize/binary,
-          Challenge:?SRPC_CHALLENGE_SIZE/binary, ValidationData/binary>> ->
-          {ok, {ClientId, Challenge, ValidationData}};
+          Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>> ->
+          {ok, {ClientId, Challenge, ConfirmData}};
         _ ->
-          {error, <<"Invalid Lib Key validate packet: incorrect format">>}
+          {error, <<"Invalid Lib Key confirm packet: incorrect format">>}
       end;
     {ok, _} ->
-      {error, <<"Invalid Lib Key validate packet: Can't parse">>};
+      {error, <<"Invalid Lib Key confirm packet: Can't parse">>};
     Error ->
       Error
   end.
 
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Create Key Validation Response
-%%    Server Challenge | <Validation Data>
+%%  Create Key Confirm Response
+%%    Server Challenge | <Confirm Data>
 %%
 %%------------------------------------------------------------------------------------------------
-create_validation_response(CryptMap, invalid, _ClientChallenge, ValidationData) ->
+create_confirm_response(CryptMap, invalid, _ClientChallenge, ConfirmData) ->
   ServerChallenge = crypto:strong_rand_bytes(?SRPC_CHALLENGE_SIZE),
-  ValidationResponse = <<ServerChallenge/binary, ValidationData/binary>>,
-  case srpc_encryptor:encrypt(origin_server, CryptMap, ValidationResponse) of
-    {ok, ValidationPacket} ->
-      {invalid, #{}, ValidationPacket};
+  ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
+  case srpc_encryptor:encrypt(origin_server, CryptMap, ConfirmResponse) of
+    {ok, ConfirmPacket} ->
+      {invalid, #{}, ConfirmPacket};
     Error ->
       Error
   end;
-create_validation_response(CryptMap, ExchangeMap, ClientChallenge, ValidationData) ->
+create_confirm_response(CryptMap, ExchangeMap, ClientChallenge, ConfirmData) ->
   {Result, ServerChallenge} = srpc_sec:process_client_challenge(ExchangeMap, ClientChallenge),
-  ValidationResponse = <<ServerChallenge/binary, ValidationData/binary>>,
-  case srpc_encryptor:encrypt(origin_server, CryptMap, ValidationResponse) of
-    {ok, ValidationPacket} ->
+  ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
+  case srpc_encryptor:encrypt(origin_server, CryptMap, ConfirmResponse) of
+    {ok, ConfirmPacket} ->
       ClientMap = maps:remove(c_pub_key, maps:remove(s_ephem_keys, ExchangeMap)),
-      {Result, ClientMap, ValidationPacket};
+      {Result, ClientMap, ConfirmPacket};
     Error ->
       Error
   end.
