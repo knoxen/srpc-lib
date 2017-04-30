@@ -5,7 +5,7 @@
 -include("srpc_lib.hrl").
 
 -export(
-   [random_b64_url_str/1
+   [random_b64_id/1
    ,gen_client_id/0
    ,gen_client_id/1
    ,const_compare/2
@@ -23,52 +23,55 @@
 %%------------------------------------------------------------------------------------------------
 %% @doc Generate strong random id of Len > 0 from characters A-Z | a-z | 0-9 | -_
 %%
--spec random_b64_url_str(Len) -> ID when
+-spec random_b64_id(Len) -> ID when
     Len :: number(),
     ID  :: string().
 %%------------------------------------------------------------------------------------------------
-random_b64_url_str(Len) ->
+random_b64_id(Len) ->
   %% Permissible chars
-  Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
+  CharSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
 
   %% Calc number of bytes needed
   Trunc = trunc(Len * 0.7499999),
   NumBytes = case Len - Trunc == 0 of
-               true ->
-                 Trunc;
-               false ->
-                 Trunc + 1
-               end,
+               true  -> Trunc;
+               false -> Trunc + 1
+             end,
 
   %% Generate bytes
   RandBytes = crypto:strong_rand_bytes(NumBytes),
 
-  %% Generate int list of length Len with 0 <= int < 64
-  IntList = case (Len - 3) rem 4 == 0 of
-              true -> [_ | T] = six_bit_int_list(RandBytes, []), T;
-              false -> six_bit_int_list(RandBytes, [])
-            end,
+  %% Generate int list with Len in [0,63]
+  IntList = 
+    case (Len - 3) rem 4 == 0 of
+      true ->
+        lists:droplast(six_bit_int_list(RandBytes, []));
+      false -> 
+        six_bit_int_list(RandBytes, [])
+    end,
+
+  io:format("IntList = ~p~n", [six_bit_int_list(RandBytes, [])]),
   
   %% Build the ID
   lists:foldl(
     fun(N, Acc) ->
-        [lists:nth(N+1, Alphabet)] ++ Acc
+        Acc ++ [lists:nth(N+1, CharSet)]
     end,
     [],
     IntList).
 
 %% @private
 %%
-%% Create list of 6-bit integers (0..63) from bytes, wasting a total of at most 2, 4, or 6 bits 
+%% Create list of 6-bit integers in [0,63] wasting a total of at most 6 bits of input binary
 %%
 six_bit_int_list(<<A:6, _:2>>, Acc) ->
-  [A] ++ Acc;
+  Acc ++ [A];
 six_bit_int_list(<<A:6, B:6, _:4>>, Acc) ->
-  [A, B] ++ Acc;
+  Acc ++ [A, B];
 six_bit_int_list(<<A:6, B:6, C:6, D:6>>, Acc) ->
-  [A, B, C, D] ++ Acc;
+  Acc ++ [A, B, C, D];
 six_bit_int_list(<<A:6, B:6, C:6, D:6, More/binary>>, Acc) ->
-  six_bit_int_list(More, [A, B, C, D] ++ Acc).
+  six_bit_int_list(More, Acc ++ [A, B, C, D]).
 
 %%------------------------------------------------------------------------------------------------
 %% @doc Generate random binary client id of length Len. Chars are from Base64Url char set
@@ -78,7 +81,7 @@ six_bit_int_list(<<A:6, B:6, C:6, D:6, More/binary>>, Acc) ->
     ClientId :: binary().
 %%------------------------------------------------------------------------------------------------
 gen_client_id(Len) ->
-  list_to_binary(random_b64_url_str(Len)).
+  list_to_binary(random_b64_id(Len)).
 
 %%------------------------------------------------------------------------------------------------
 %% @doc Generate random binary client id of length specified by app callback function
