@@ -50,8 +50,6 @@ random_b64_id(Len) ->
         six_bit_int_list(RandBytes, [])
     end,
 
-  io:format("IntList = ~p~n", [six_bit_int_list(RandBytes, [])]),
-  
   %% Build the ID
   lists:foldl(
     fun(N, Acc) ->
