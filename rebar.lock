@@ -1,1 +1,4 @@
-[].
+[{<<"entropy_string">>,
+  {git,"https://github.com/EntropyString/Erlang.git",
+       {ref,"39c3dc6c8457acaf4d913ab2b81920e1fc7f29b4"}},
+  0}].

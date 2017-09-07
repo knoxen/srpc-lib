@@ -5,103 +5,55 @@
 -include("srpc_lib.hrl").
 
 -export(
-   [random_b64_id/1
-   ,gen_client_id/0
-   ,gen_client_id/1
+   [client_id/0
+   ,client_id/2
    ,const_compare/2
    ,bin_to_hex/1
    ,hex_to_bin/1
    ]).
 
--define(DEFAULT_CLIENT_ID_LEN, 22).
-
-%%================================================================================================
-%%
-%% Generate random id from URL and filename safe alphabet (Ref: RFC-4648)
-%%
-%%================================================================================================
-%%------------------------------------------------------------------------------------------------
-%% @doc Generate strong random id of Len > 0 from characters A-Z | a-z | 0-9 | -_
-%%
--spec random_b64_id(Len) -> ID when
-    Len :: number(),
-    ID  :: string().
-%%------------------------------------------------------------------------------------------------
-random_b64_id(Len) ->
-  %% Permissible chars
-  CharSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
-
-  %% Calc number of bytes needed
-  Trunc = trunc(Len * 0.7499999),
-  NumBytes = case Len - Trunc == 0 of
-               true  -> Trunc;
-               false -> Trunc + 1
-             end,
-
-  %% Generate bytes
-  RandBytes = crypto:strong_rand_bytes(NumBytes),
-
-  %% Generate int list with Len in [0,63]
-  IntList = 
-    case (Len - 3) rem 4 == 0 of
-      true ->
-        lists:droplast(six_bit_int_list(RandBytes, []));
-      false -> 
-        six_bit_int_list(RandBytes, [])
-    end,
-
-  %% Build the ID
-  lists:foldl(
-    fun(N, Acc) ->
-        Acc ++ [lists:nth(N+1, CharSet)]
-    end,
-    [],
-    IntList).
-
-%% @private
-%%
-%% Create list of 6-bit integers in [0,63] wasting a total of at most 6 bits of input binary
-%%
-six_bit_int_list(<<A:6, _:2>>, Acc) ->
-  Acc ++ [A];
-six_bit_int_list(<<A:6, B:6, _:4>>, Acc) ->
-  Acc ++ [A, B];
-six_bit_int_list(<<A:6, B:6, C:6, D:6>>, Acc) ->
-  Acc ++ [A, B, C, D];
-six_bit_int_list(<<A:6, B:6, C:6, D:6, More/binary>>, Acc) ->
-  six_bit_int_list(More, Acc ++ [A, B, C, D]).
+-define(DEFAULT_CLIENT_ID_BITS, 128).
+-define(DEFAULT_CLIENT_ID_CHARSET, entropy_string:charset64()).
 
 %%------------------------------------------------------------------------------------------------
-%% @doc Generate random binary client id of length Len. Chars are from Base64Url char set
+%% @doc Random client id with entropy bigts specified by app callback
 %%
--spec gen_client_id(Len) -> ClientId when
-    Len :: number(),
+-spec client_id() -> ClientId when
     ClientId :: binary().
 %%------------------------------------------------------------------------------------------------
-gen_client_id(Len) ->
-  list_to_binary(random_b64_id(Len)).
-
-%%------------------------------------------------------------------------------------------------
-%% @doc Generate random binary client id of length specified by app callback function
-%%
--spec gen_client_id() -> ClientId when
-    ClientId :: binary().
-%%------------------------------------------------------------------------------------------------
-gen_client_id() ->
+client_id() ->
   code:ensure_loaded(app_srpc_handler),
-  ClientIdLen = 
-    case erlang:function_exported(app_srpc_handler, client_id_len, 0) of
+  Bits = 
+    case erlang:function_exported(app_srpc_handler, client_id_bits, 0) of
       true ->
-        case app_srpc_handler:client_id_len() of
-          Len when 0 < Len ->
-            Len;
-          _ ->
-            ?DEFAULT_CLIENT_ID_LEN
-        end;
+        app_srpc_handler:client_id_bits();
       false ->
-        ?DEFAULT_CLIENT_ID_LEN
+        ?DEFAULT_CLIENT_ID_BITS
     end,
-  gen_client_id(ClientIdLen).
+  CharSet = 
+    case erlang:function_exported(app_srpc_handler, client_id_charset, 0) of
+      true ->
+        app_srpc_handler:client_id_charset();
+      false ->
+        ?DEFAULT_CLIENT_ID_CHARSET
+    end,
+  client_id(Bits, CharSet).
+
+%%------------------------------------------------------------------------------------------------
+%% @doc Random client id with entropy bits. Chars are from Base64 URL and file system safe
+%% character set (RFC 4648).
+%%   <ul>
+%%     <li><b>Bits</b> - Minimum entropy bits</li>
+%%     <li><b>CharSet</b> - Character set to use</li>
+%%   </ul>
+%%
+-spec client_id(Bits, CharSet) -> ClientId when
+    Bits :: number(),
+    CharSet :: binary(),
+    ClientId :: binary().
+%%------------------------------------------------------------------------------------------------
+client_id(Bits, CharSet) ->
+  entropy_string:random_string(Bits, CharSet).
 
 %%================================================================================================
 %%

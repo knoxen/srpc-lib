@@ -141,7 +141,7 @@ create_confirm_response(CryptMap, ExchangeMap, ClientChallenge, ConfirmData) ->
 %%
 %%------------------------------------------------------------------------------------------------
 encrypt_response_data(ExchangeMap, UserCode, KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
-  ClientId = srpc_util:gen_client_id(),
+  ClientId = srpc_util:client_id(),
   ClientIdLen = byte_size(ClientId),
   ResponseData = <<UserCode, ClientIdLen, ClientId/binary,
                    KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, ExchangeData/binary>>,
