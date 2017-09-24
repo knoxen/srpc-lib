@@ -5,55 +5,10 @@
 -include("srpc_lib.hrl").
 
 -export(
-   [client_id/0
-   ,client_id/2
-   ,const_compare/2
+   [const_compare/2
    ,bin_to_hex/1
    ,hex_to_bin/1
    ]).
-
--define(DEFAULT_CLIENT_ID_BITS, 128).
--define(DEFAULT_CLIENT_ID_CHARSET, entropy_string:charset64()).
-
-%%------------------------------------------------------------------------------------------------
-%% @doc Random client id with entropy bigts specified by app callback
-%%
--spec client_id() -> ClientId when
-    ClientId :: binary().
-%%------------------------------------------------------------------------------------------------
-client_id() ->
-  code:ensure_loaded(app_srpc_handler),
-  Bits = 
-    case erlang:function_exported(app_srpc_handler, client_id_bits, 0) of
-      true ->
-        app_srpc_handler:client_id_bits();
-      false ->
-        ?DEFAULT_CLIENT_ID_BITS
-    end,
-  CharSet = 
-    case erlang:function_exported(app_srpc_handler, client_id_charset, 0) of
-      true ->
-        app_srpc_handler:client_id_charset();
-      false ->
-        ?DEFAULT_CLIENT_ID_CHARSET
-    end,
-  client_id(Bits, CharSet).
-
-%%------------------------------------------------------------------------------------------------
-%% @doc Random client id with entropy bits. Chars are from Base64 URL and file system safe
-%% character set (RFC 4648).
-%%   <ul>
-%%     <li><b>Bits</b> - Minimum entropy bits</li>
-%%     <li><b>CharSet</b> - Character set to use</li>
-%%   </ul>
-%%
--spec client_id(Bits, CharSet) -> ClientId when
-    Bits :: number(),
-    CharSet :: binary(),
-    ClientId :: binary().
-%%------------------------------------------------------------------------------------------------
-client_id(Bits, CharSet) ->
-  entropy_string:random_string(Bits, CharSet).
 
 %%================================================================================================
 %%

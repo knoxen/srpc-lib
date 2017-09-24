@@ -1,5 +1,5 @@
 {application, srpc_lib,
- [{description, "Srpc Lib"}
+ [{description, "Knoxen SRPC Lib"}
  ,{vsn, git}
  ,{registered, []}
  ,{modules, []}
@@ -7,7 +7,6 @@
    [kernel
    ,stdlib
    ,crypto
-   ,entropy_string
    ]}
  ,{env ,[]}
  ]}.

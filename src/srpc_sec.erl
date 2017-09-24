@@ -6,7 +6,7 @@
 
 -export([validate_public_key/1
         ,generate_ephemeral_keys/1
-        ,client_map/4
+        ,client_info/4
         ,process_client_challenge/2
         ,refresh_keys/2
         ]).
@@ -37,7 +37,7 @@ generate_ephemeral_keys(SrpValue) ->
     end,
   {PublicKey, PrivateKey}.
 
-client_map(ClientId, CPubKey, SEphemeralKeys, SrpValue) ->
+client_info(ClientId, CPubKey, SEphemeralKeys, SrpValue) ->
   ComputedKey = crypto:compute_key(srp, CPubKey, SEphemeralKeys, 
                                    {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
 
@@ -95,16 +95,16 @@ process_client_challenge(#{c_pub_key    := CPubKey
 %%------------------------------------------------------------------------------------------------
 %% @doc Refresh client keys using data
 %%
--spec refresh_keys(ClientMap, Data) -> {ok, NewClientMap} | {error, Reason} when
-    ClientMap    :: map(),
+-spec refresh_keys(ClientInfo, Data) -> {ok, NewClientInfo} | {error, Reason} when
+    ClientInfo    :: map(),
     Data         :: binary(),
-    NewClientMap :: map(),
+    NewClientInfo :: map(),
     Reason       :: string().
 %%------------------------------------------------------------------------------------------------
 refresh_keys(#{client_id  := ClientId
               ,client_key := ClientKey
               ,server_key := ServerKey
-              ,hmac_key   := HmacKey} = ClientMap
+              ,hmac_key   := HmacKey} = ClientInfo
             ,Data) ->
   Len = 2 * ?SRPC_AES_256_KEY_SIZE + ?SRPC_HMAC_256_SIZE,
   IKM = <<ClientKey/binary, ServerKey/binary, HmacKey/binary>>,
@@ -112,7 +112,7 @@ refresh_keys(#{client_id  := ClientId
   <<NewClientKey:?SRPC_AES_256_KEY_SIZE/binary, 
     NewServerKey:?SRPC_AES_256_KEY_SIZE/binary, 
     NewHmacKey:?SRPC_HMAC_256_SIZE/binary>> = KeyMaterial,
-  maps:merge(ClientMap, 
+  maps:merge(ClientInfo, 
              #{client_key => NewClientKey
               ,server_key => NewServerKey
               ,hmac_key   => NewHmacKey}).

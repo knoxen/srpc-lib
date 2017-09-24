@@ -5,7 +5,7 @@
 -include("srpc_lib.hrl").
 
 -export([process_exchange_request/1
-        ,create_exchange_response/2
+        ,create_exchange_response/3
         ,process_confirm_request/2
         ,create_confirm_response/3
         ]).
@@ -45,15 +45,14 @@ process_exchange_request(_) ->
 %%    L | ClientId | Server Pub Key | <Exchange Data>
 %%
 %%------------------------------------------------------------------------------------------------
-create_exchange_response(ClientPublicKey, ExchangeData) ->
-  ClientId = srpc_util:client_id(),
+create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
   ClientIdLen = byte_size(ClientId),
   SEphemeralKeys = srpc_sec:generate_ephemeral_keys(?SRPC_SRP_VALUE),
   {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
   ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  ClientMap = srpc_sec:client_map(ClientId, ClientPublicKey, SEphemeralKeys, ?SRPC_SRP_VALUE),
-  ExchangeMap = maps:merge(ClientMap, #{client_type => lib
+  ClientInfo = srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, ?SRPC_SRP_VALUE),
+  ExchangeMap = maps:merge(ClientInfo, #{client_type => lib
                                        ,entity_id   => srpc_lib:srpc_id()}),
   {ok, {ExchangeMap, ExchangeResponse}}.
 
@@ -97,8 +96,8 @@ create_confirm_response(ExchangeMap, ClientChallenge, RespConfirmData) ->
       ConfirmResponse = <<ServerChallenge/binary, RespConfirmData/binary>>,
       case srpc_encryptor:encrypt(origin_server, ExchangeMap, ConfirmResponse) of
         {ok, ConfirmPacket} ->
-          ClientMap = maps:remove(c_pub_key, maps:remove(s_ephem_keys, ExchangeMap)),
-          {IsValid, ClientMap, ConfirmPacket};
+          ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, ExchangeMap)),
+          {IsValid, ClientInfo, ConfirmPacket};
         Error ->
           Error
       end

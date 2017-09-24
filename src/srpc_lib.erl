@@ -13,7 +13,7 @@
 
 %% Lib Client
 -export([lib_key_process_exchange_request/1
-        ,lib_key_create_exchange_response/2
+        ,lib_key_create_exchange_response/3
         ,lib_key_process_confirm_request/2
         ,lib_key_create_confirm_response/3
         ]).
@@ -25,7 +25,7 @@
 
 %% User Client
 -export([user_key_process_exchange_request/2
-        ,user_key_create_exchange_response/4
+        ,user_key_create_exchange_response/5
         ,user_key_process_confirm_request/2
         ,user_key_create_confirm_response/4
         ]).
@@ -69,8 +69,8 @@ srpc_info() ->
 lib_key_process_exchange_request(ExchangeRequest) ->
   srpc_lib_key_agreement:process_exchange_request(ExchangeRequest).
 
-lib_key_create_exchange_response(ClientPublicKey, ExchangeData) ->
-  srpc_lib_key_agreement:create_exchange_response(ClientPublicKey, ExchangeData).
+lib_key_create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
+  srpc_lib_key_agreement:create_exchange_response(ClientId, ClientPublicKey, ExchangeData).
 
 lib_key_process_confirm_request(ExchangeMap, ConfirmRequest) ->
   srpc_lib_key_agreement:process_confirm_request(ExchangeMap, ConfirmRequest).
@@ -87,8 +87,8 @@ create_registration_response(LibKey, RegistrationResult, ResponseData) ->
 user_key_process_exchange_request(LibKey, ExchangeRequest) ->
   srpc_user_key_agreement:process_exchange_request(LibKey, ExchangeRequest).
 
-user_key_create_exchange_response(LibKey, Reg, UserKey, ResponseData) ->
-  srpc_user_key_agreement:create_exchange_response(LibKey, Reg, UserKey, ResponseData).
+user_key_create_exchange_response(ClientId, LibKey, Reg, UserKey, ResponseData) ->
+  srpc_user_key_agreement:create_exchange_response(ClientId, LibKey, Reg, UserKey, ResponseData).
 
 user_key_process_confirm_request(LibKey, ConfirmRequest) ->
   srpc_user_key_agreement:process_confirm_request(LibKey, ConfirmRequest).
@@ -96,11 +96,11 @@ user_key_process_confirm_request(LibKey, ConfirmRequest) ->
 user_key_create_confirm_response(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
   srpc_user_key_agreement:create_confirm_response(LibKey, ClientChallenge, UserKeyReqData, RespData).
 
-encrypt(Origin, ClientMap, Data) ->
-  srpc_encryptor:encrypt(Origin, ClientMap, Data).
+encrypt(Origin, ClientInfo, Data) ->
+  srpc_encryptor:encrypt(Origin, ClientInfo, Data).
 
-decrypt(Origin, ClientMap, Data) ->
-  srpc_encryptor:decrypt(Origin, ClientMap, Data).
+decrypt(Origin, ClientInfo, Data) ->
+  srpc_encryptor:decrypt(Origin, ClientInfo, Data).
 
-refresh_keys(ClientMap, Data) ->
-  srpc_sec:refresh_keys(ClientMap, Data).
+refresh_keys(ClientInfo, Data) ->
+  srpc_sec:refresh_keys(ClientInfo, Data).

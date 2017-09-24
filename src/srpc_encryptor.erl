@@ -45,18 +45,18 @@
 %%------------------------------------------------------------------------------------------------
 %% @doc Encrypt data using client information
 %%
--spec encrypt(Origin, ClientMap, Data) -> {ok, Packet} | {error, Reason} when
-    Origin    :: origin(),
-    ClientMap :: map(),
-    Data      :: binary(),
-    Packet    :: binary(),
-    Reason    :: string().
+-spec encrypt(Origin, ClientInfo, Data) -> {ok, Packet} | {error, Reason} when
+    Origin     :: origin(),
+    ClientInfo :: map(),
+    Data       :: binary(),
+    Packet     :: binary(),
+    Reason     :: string().
 %%------------------------------------------------------------------------------------------------
-encrypt(origin_client, #{client_key := SymKey} = ClientMap, Data) ->
-  encrypt_key(SymKey, ClientMap, Data);
-encrypt(origin_server, #{server_key := SymKey} = ClientMap, Data) ->
-  encrypt_key(SymKey, ClientMap, Data);
-encrypt(_Origin, _ClientMap, _Data) ->
+encrypt(origin_client, #{client_key := SymKey} = ClientInfo, Data) ->
+  encrypt_key(SymKey, ClientInfo, Data);
+encrypt(origin_server, #{server_key := SymKey} = ClientInfo, Data) ->
+  encrypt_key(SymKey, ClientInfo, Data);
+encrypt(_Origin, _ClientInfo, _Data) ->
   {error, <<"Mismatch origin and key for encrypt">>}.
 
 %%------------------------------------------------------------------------------------------------
@@ -66,18 +66,18 @@ encrypt(_Origin, _ClientMap, _Data) ->
 %%------------------------------------------------------------------------------------------------
 %% @doc Decrypt packet using client information
 %%
--spec decrypt(Origin, ClientMap, Packet) -> {ok, Data} | {error, Reason} when
-    Origin    :: origin(),
-    ClientMap :: map(),
-    Packet    :: packet(),
-    Data      :: binary(),
-    Reason    :: string().
+-spec decrypt(Origin, ClientInfo, Packet) -> {ok, Data} | {error, Reason} when
+    Origin     :: origin(),
+    ClientInfo :: map(),
+    Packet     :: packet(),
+    Data       :: binary(),
+    Reason     :: string().
 %%------------------------------------------------------------------------------------------------
-decrypt(origin_client, #{client_key := SymKey} = ClientMap, Packet) ->
-  decrypt_key(SymKey, ClientMap, Packet);
-decrypt(origin_server, #{server_key := SymKey} = ClientMap, Packet) ->
-  decrypt_key(SymKey, ClientMap, Packet);
-decrypt(_Origin, _ClientMap, _Packet) ->
+decrypt(origin_client, #{client_key := SymKey} = ClientInfo, Packet) ->
+  decrypt_key(SymKey, ClientInfo, Packet);
+decrypt(origin_server, #{server_key := SymKey} = ClientInfo, Packet) ->
+  decrypt_key(SymKey, ClientInfo, Packet);
+decrypt(_Origin, _ClientInfo, _Packet) ->
   {error, <<"Mismatch origin and key for decrypt">>}.
 
 %%================================================================================================
@@ -94,12 +94,12 @@ decrypt(_Origin, _ClientMap, _Packet) ->
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec encrypt_key(SymKey, ClientMap, Data) -> Packet | {error, Reason} when
-    SymKey    :: aes_key(),
-    ClientMap :: map(),
-    Data      :: binary(),
-    Packet    :: packet(),
-    Reason    :: string().
+-spec encrypt_key(SymKey, ClientInfo, Data) -> Packet | {error, Reason} when
+    SymKey     :: aes_key(),
+    ClientInfo :: map(),
+    Data       :: binary(),
+    Packet     :: packet(),
+    Reason     :: string().
 %%------------------------------------------------------------------------------------------------
 encrypt_key(SymKey, #{client_id := ClientId, hmac_key  := HmacKey}, Data) ->
   SrpcDataHdr = srpc_data_hdr(ClientId),
@@ -111,7 +111,7 @@ encrypt_key(SymKey, #{client_id := ClientId, hmac_key  := HmacKey}, Data) ->
       {ok, Packet}
   end;
 encrypt_key(_Key, _Map, _Data) ->
-  {error, <<"Invalid encrypt client map: Missing client_id or hmac_key">>}.
+  {error, <<"Invalid encrypt client info: Missing client_id or hmac_key">>}.
 
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
@@ -169,12 +169,12 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
 %% @doc Decrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec decrypt_key(SymKey, ClientMap, Packet) -> {ok, Data} | {error, Reason} when
-    SymKey    :: aes_key(),
-    ClientMap :: map(),
-    Packet    :: packet(),
-    Data      :: binary(),
-    Reason    :: string().
+-spec decrypt_key(SymKey, ClientInfo, Packet) -> {ok, Data} | {error, Reason} when
+    SymKey     :: aes_key(),
+    ClientInfo :: map(),
+    Packet     :: packet(),
+    Data       :: binary(),
+    Reason     :: string().
 %%------------------------------------------------------------------------------------------------
 decrypt_key(SymKey, #{client_id := ClientId, hmac_key := HmacKey} ,Packet) ->
   PacketSize = byte_size(Packet),
@@ -207,10 +207,8 @@ decrypt_key(SymKey, #{client_id := ClientId, hmac_key := HmacKey} ,Packet) ->
       {error, <<"Invalid hmac">>}
   end;
 
-decrypt_key(_SymKey, _ClientMap, _Packet) ->
-  {error, <<"Invalid decrypt client map">>}.
-
-
+decrypt_key(_SymKey, _ClientInfo, _Packet) ->
+  {error, <<"Invalid decrypt client info">>}.
 
 %%------------------------------------------------------------------------------------------------
 %%
