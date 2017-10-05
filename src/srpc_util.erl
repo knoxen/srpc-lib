@@ -10,6 +10,22 @@
    ,hex_to_bin/1
    ]).
 
+%% CxDebug
+%% -export([debug_info/2]).
+
+%% debug_info({Mod,Fun},
+%%            #{client_id := ClientId
+%%             ,client_type := ClientType
+%%             ,entity_id := EntityId
+%%             ,client_key := ClientKey
+%%             ,hmac_key := HmacKey
+%%             }) ->
+%%   io:format("~p:~p~n", [Mod,Fun]),
+%%   io:format("  Client Id = ~p, Type = ~p~n", [ClientId, ClientType]),
+%%   io:format("  EntityId = ~p~n", [EntityId]),
+%%   io:format("  ClientKey = ~p~n", [srpc_util:bin_to_hex(ClientKey)]),
+%%   io:format("  HmacKey =   ~p~n", [srpc_util:bin_to_hex(HmacKey)]).
+
 %%================================================================================================
 %%
 %% Compare binaries for equality
@@ -19,7 +35,7 @@
 %% @doc Compare two binaries for equality, bit-by-bit, without short-circuits
 %% to avoid timing differences. Note this function does short-circuit to
 %% <code>false</code> if the binaries are not of equal size.
-%% 
+%%
 -spec const_compare(Bin1, Bin2) -> boolean() when
     Bin1 :: binary(),
     Bin2 :: binary().
@@ -54,7 +70,7 @@ const_compare(<<>>, <<>>, Acc) ->
 %%------------------------------------------------------------------------------------------------
 bin_to_hex(Bin) ->
   lists:flatten([io_lib:format("~2.16.0B", [X]) ||
-    X <- binary_to_list(Bin)]).
+                  X <- binary_to_list(Bin)]).
 
 %%------------------------------------------------------------------------------------------------
 %% @doc Convert hex string to binary.

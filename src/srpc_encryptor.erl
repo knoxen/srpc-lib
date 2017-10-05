@@ -176,15 +176,14 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
     Data       :: binary(),
     Reason     :: string().
 %%------------------------------------------------------------------------------------------------
-decrypt_key(SymKey, #{client_id := ClientId, hmac_key := HmacKey} ,Packet) ->
+decrypt_key(SymKey, #{client_id := ClientId, hmac_key := HmacKey}, Packet) ->
   PacketSize = byte_size(Packet),
   CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_HMAC_256_SIZE}),
-  Challenge   = binary_part(Packet, {PacketSize, -?SRPC_HMAC_256_SIZE}),
+  PacketHmac   = binary_part(Packet, {PacketSize, -?SRPC_HMAC_256_SIZE}),
   Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
-
-  case srpc_util:const_compare(Challenge, Hmac) of
+  case srpc_util:const_compare(PacketHmac, Hmac) of
     true ->
-      case CryptorText of 
+      case CryptorText of
         <<?SRPC_DATA_VERSION, IV:?SRPC_AES_BLOCK_SIZE/binary, CipherText/binary>> ->
           PaddedData = crypto:block_decrypt(aes_cbc256, SymKey, IV, CipherText),
           case depad(PaddedData) of
@@ -268,7 +267,7 @@ enpad(Bin, Len) ->
 %% unambiguously interpreted as not a padding value.  Some implementations
 %% don't add padding in this case, i.e. if the last byte is greater than
 %% <strong>k</strong> we interpret as no padding.
-%% 
+%%
 -spec depad(Padded :: binary()) -> Bin | {error, Reason} when
     Bin    :: binary(),
     Reason :: string().
@@ -292,5 +291,3 @@ depad(Bin) ->
       %% The last byte is greater than our block size; we interpret as no padding
       {ok, Bin}
   end.
-
-

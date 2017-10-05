@@ -21,8 +21,10 @@
 %%    L | UserId | Client Pub Key | <Exchange Data>
 %%
 %%------------------------------------------------------------------------------------------------
-process_exchange_request(ExchangeMap, ExchangeRequest) ->
-  case srpc_encryptor:decrypt(origin_client, ExchangeMap, ExchangeRequest) of
+process_exchange_request(AgreementInfo, ExchangeRequest) ->
+  %% io:format("~p debug user exchange map~n", [?MODULE]),
+  %% srcp_util:debug_info(AgreementInfo),
+  case srpc_encryptor:decrypt(origin_client, AgreementInfo, ExchangeRequest) of
     {ok, <<IdSize:8, RequestData/binary>>} ->
       case RequestData of
         <<UserId:IdSize/binary, PublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ExchangeData/binary>> ->
@@ -60,13 +62,13 @@ create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKe
    ,srp_value := SrpValue} = SrpcUserData,
   SEphemeralKeys = srpc_sec:generate_ephemeral_keys(SrpValue),
   {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
-  case encrypt_response_data(ClientId, CryptClientInfo, ?SRPC_USER_OK, 
+  case encrypt_response_data(ClientId, CryptClientInfo, ?SRPC_USER_OK,
                              KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
     {ok, ExchangeResponse} ->
       ClientInfo = srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, SrpValue),
-      ExchangeMap = maps:merge(ClientInfo, #{client_type => user
-                                           ,entity_id   => UserId}),
-      {ok, {ExchangeMap, ExchangeResponse}};
+      AgreementInfo = maps:merge(ClientInfo, #{client_type => user
+                                              ,entity_id   => UserId}),
+      {ok, {AgreementInfo, ExchangeResponse}};
     Error ->
       Error
   end.
@@ -78,22 +80,18 @@ create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKe
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
 %%
-%%  Processs Key Confirm Request
-%%    L | ClientId | Client Challenge | <Confirm Data>
+%%  Process Key Confirm Request
+%%    Client Challenge | <Confirm Data>
 %%
 %%------------------------------------------------------------------------------------------------
-process_confirm_request(ExchangeMap, ConfirmRequest) ->
-  case srpc_encryptor:decrypt(origin_client, ExchangeMap, ConfirmRequest) of
-    {ok, <<ClientIdSize:8, RequestData/binary>>} ->
-      case RequestData of
-        <<ClientId:ClientIdSize/binary,
-          Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>> ->
-          {ok, {ClientId, Challenge, ConfirmData}};
-        _ ->
-          {error, <<"Invalid Lib Key confirm packet: incorrect format">>}
-      end;
+process_confirm_request(AgreementInfo, ConfirmRequest) ->
+  %% io:format("~p debug user confirm map~n", [?MODULE]),
+  %% srpc_util:debug_info(AgreementInfo),
+  case srpc_encryptor:decrypt(origin_client, AgreementInfo, ConfirmRequest) of
+    {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
+      {ok, {Challenge, ConfirmData}};
     {ok, _} ->
-      {error, <<"Invalid Lib Key confirm packet: Can't parse">>};
+      {error, <<"Invalid User Key confirm packet: Incorrect format">>};
     Error ->
       Error
   end.
@@ -113,12 +111,12 @@ create_confirm_response(CryptMap, invalid, _ClientChallenge, ConfirmData) ->
     Error ->
       Error
   end;
-create_confirm_response(CryptMap, ExchangeMap, ClientChallenge, ConfirmData) ->
-  {Result, ServerChallenge} = srpc_sec:process_client_challenge(ExchangeMap, ClientChallenge),
+create_confirm_response(CryptMap, AgreementInfo, ClientChallenge, ConfirmData) ->
+  {Result, ServerChallenge} = srpc_sec:process_client_challenge(AgreementInfo, ClientChallenge),
   ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
   case srpc_encryptor:encrypt(origin_server, CryptMap, ConfirmResponse) of
     {ok, ConfirmPacket} ->
-      ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, ExchangeMap)),
+      ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, AgreementInfo)),
       {Result, ClientInfo, ConfirmPacket};
     Error ->
       Error
@@ -135,9 +133,9 @@ create_confirm_response(CryptMap, ExchangeMap, ClientChallenge, ConfirmData) ->
 %%    User Code | L | ClientId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
 %%
 %%------------------------------------------------------------------------------------------------
-encrypt_response_data(ClientId, ExchangeMap, UserCode, 
+encrypt_response_data(ClientId, AgreementInfo, UserCode,
                       KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
   ClientIdLen = byte_size(ClientId),
   ResponseData = <<UserCode, ClientIdLen, ClientId/binary,
                    KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, ExchangeData/binary>>,
-  srpc_encryptor:encrypt(origin_server, ExchangeMap, ResponseData).
+  srpc_encryptor:encrypt(origin_server, AgreementInfo, ResponseData).

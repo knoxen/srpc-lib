@@ -52,9 +52,8 @@ create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
   ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
   ClientInfo = srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, ?SRPC_SRP_VALUE),
-  ExchangeMap = maps:merge(ClientInfo, #{client_type => lib
-                                       ,entity_id   => srpc_lib:srpc_id()}),
-  {ok, {ExchangeMap, ExchangeResponse}}.
+  AgreementInfo = maps:merge(ClientInfo, #{client_type => lib, entity_id => srpc_lib:srpc_id()}),
+  {ok, {AgreementInfo, ExchangeResponse}}.
 
 %%================================================================================================
 %%
@@ -64,20 +63,17 @@ create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
 %%------------------------------------------------------------------------------------------------
 %%
 %%  Process Key Confirm Request
-%%    L | ClientId | Client Challenge | <Confirm Data>
+%%    Client Challenge | <Confirm Data>
 %%
 %%------------------------------------------------------------------------------------------------
-process_confirm_request(ExchangeMap, ConfirmRequest) ->
-  case srpc_encryptor:decrypt(origin_client, ExchangeMap, ConfirmRequest) of
-    {ok, <<ClientIdSize:8, RequestData/binary>>} ->
-      case RequestData of
-        <<ClientId:ClientIdSize/binary, Challenge:?SRPC_CHALLENGE_SIZE/binary, ValData/binary>> ->
-          {ok, {ClientId, Challenge, ValData}};
-        _ ->
-          {error, <<"Invalid Lib Key confirm packet: Incorrect format">>}
-      end;
+process_confirm_request(AgreementInfo, ConfirmRequest) ->
+  %% io:format("~p debug lib confirm map~n", [?MODULE]),
+  %% srpc_util:debug_info(AgreementInfo),
+  case srpc_encryptor:decrypt(origin_client, AgreementInfo, ConfirmRequest) of
+    {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
+      {ok, {Challenge, ConfirmData}};
     {ok, _} ->
-      {error, <<"Invalid Lib Key confirm packet: Can't parse">>};
+      {error, <<"Invalid Lib Key confirm packet: Incorrect format">>};
     Error ->
       Error
   end.
@@ -88,18 +84,17 @@ process_confirm_request(ExchangeMap, ConfirmRequest) ->
 %%    Server Challenge | <Confirm Data>
 %%
 %%------------------------------------------------------------------------------------------------
-create_confirm_response(ExchangeMap, ClientChallenge, RespConfirmData) ->
-  case srpc_sec:process_client_challenge(ExchangeMap, ClientChallenge) of
+create_confirm_response(AgreementInfo, ClientChallenge, RespConfirmData) ->
+  case srpc_sec:process_client_challenge(AgreementInfo, ClientChallenge) of
     {error, Reason} ->
       {error, Reason};
     {IsValid, ServerChallenge} ->
       ConfirmResponse = <<ServerChallenge/binary, RespConfirmData/binary>>,
-      case srpc_encryptor:encrypt(origin_server, ExchangeMap, ConfirmResponse) of
+      case srpc_encryptor:encrypt(origin_server, AgreementInfo, ConfirmResponse) of
         {ok, ConfirmPacket} ->
-          ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, ExchangeMap)),
+          ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, AgreementInfo)),
           {IsValid, ClientInfo, ConfirmPacket};
         Error ->
           Error
       end
   end.
-
