@@ -85,8 +85,7 @@ create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKe
 %%
 %%------------------------------------------------------------------------------------------------
 process_confirm_request(AgreementInfo, ConfirmRequest) ->
-  %% io:format("~p debug user confirm map~n", [?MODULE]),
-  %% srpc_util:debug_info(AgreementInfo),
+  %% srpc_util:debug_info({?MODULE, process_confirm_request}, AgreementInfo),
   case srpc_encryptor:decrypt(origin_client, AgreementInfo, ConfirmRequest) of
     {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
       {ok, {Challenge, ConfirmData}};
