@@ -22,8 +22,6 @@
 %%
 %%------------------------------------------------------------------------------------------------
 process_exchange_request(AgreementInfo, ExchangeRequest) ->
-  %% io:format("~p debug user exchange map~n", [?MODULE]),
-  %% srcp_util:debug_info(AgreementInfo),
   case srpc_encryptor:decrypt(origin_client, AgreementInfo, ExchangeRequest) of
     {ok, <<IdSize:8, RequestData/binary>>} ->
       case RequestData of
@@ -62,13 +60,16 @@ create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKe
    ,srp_value := SrpValue} = SrpcUserData,
   SEphemeralKeys = srpc_sec:generate_ephemeral_keys(SrpValue),
   {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
+
+  ClientInfo = 
+    maps:merge(srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, SrpValue),
+               #{client_type => user
+                ,entity_id   => UserId}),
+
   case encrypt_response_data(ClientId, CryptClientInfo, ?SRPC_USER_OK,
                              KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
     {ok, ExchangeResponse} ->
-      ClientInfo = srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, SrpValue),
-      AgreementInfo = maps:merge(ClientInfo, #{client_type => user
-                                              ,entity_id   => UserId}),
-      {ok, {AgreementInfo, ExchangeResponse}};
+      {ok, {ClientInfo, ExchangeResponse}};
     Error ->
       Error
   end.

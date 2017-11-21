@@ -13,7 +13,7 @@
 %% CxDebug
 %% -export([debug_info/2]).
 
-%% debug_info({Mod,Fun},
+%% debug_info(Description,
 %%            #{client_id := ClientId
 %%             ,client_type := ClientType
 %%             ,entity_id := EntityId
@@ -21,7 +21,7 @@
 %%             ,server_key := ServerKey
 %%             ,hmac_key := HmacKey
 %%             }) ->
-%%   io:format("~p:~p~n", [Mod,Fun]),
+%%   io:format("~s~n", [Description]),
 %%   io:format("  Client Id = ~p, Type = ~p~n", [ClientId, ClientType]),
 %%   io:format("  EntityId = ~p~n", [EntityId]),
 %%   io:format("  ClientKey = ~p~n", [srpc_util:bin_to_hex(ClientKey)]),
