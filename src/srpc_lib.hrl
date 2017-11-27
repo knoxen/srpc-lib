@@ -43,7 +43,7 @@
 %% SRP
 %%
 -define(SRPC_SRP_SALT_SIZE,   20).
--define(SRPC_SRP_VALUE_SIZE, 256).
+-define(SRPC_VERIFIER_SIZE,  256).
 
 %%
 %% SRPC
@@ -64,6 +64,8 @@
 %% Hmac
 %%
 -define(SRPC_HMAC_256_SIZE, 32).
+-define(SRPC_HMAC_384_SIZE, 48).
+-define(SRPC_HMAC_512_SIZE, 64).
 
 %%
 %% User Codes

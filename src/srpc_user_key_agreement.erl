@@ -54,15 +54,15 @@ create_exchange_response(ClientId, CryptClientInfo, invalid, _ClientPublicKey, E
                         crypto:strong_rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
                         ExchangeData);
 create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKey, ExchangeData) ->
-  #{user_id   := UserId
-   ,kdf_salt  := KdfSalt
-   ,srp_salt  := SrpSalt
-   ,srp_value := SrpValue} = SrpcUserData,
-  SEphemeralKeys = srpc_sec:generate_ephemeral_keys(SrpValue),
+  #{user_id  := UserId
+   ,kdf_salt := KdfSalt
+   ,srp_salt := SrpSalt
+   ,verifier := Verifier} = SrpcUserData,
+  SEphemeralKeys = srpc_sec:generate_ephemeral_keys(Verifier),
   {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
 
   ClientInfo = 
-    maps:merge(srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, SrpValue),
+    maps:merge(srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, Verifier),
                #{client_type => user
                 ,entity_id   => UserId}),
 

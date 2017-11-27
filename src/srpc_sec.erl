@@ -16,18 +16,25 @@
 %%  Types
 %%
 %%==================================================================================================
--type reason() :: binary().
--type public_key() :: binary().
--type public_keys() :: {public_key(), public_key()}.
--type sym_key() :: binary().
--type client_info() :: #{client_id    => binary()
-                        ,c_pub_key    => public_key()
-                        ,s_ephem_keys => public_keys()
-                        ,client_key   => sym_key()
-                        ,server_key   => sym_key()
-                        ,hmac_key     => sym_key()
-                        }.
--type sha_alg() :: sha256 | sha384 | sha512.
+-type error_msg()    :: {error, binary()}.
+-type public_key()   :: binary().
+-type public_keys()  :: {public_key(), public_key()}.
+-type verifier()     :: binary().
+-type client_id()    :: binary().
+-type sym_key()      :: binary().
+-type hmac_key()     :: binary().
+-type keys()         :: {sym_key(), sym_key(), hmac_key()}.
+-type sym_alg()      :: aes128 | aes192 | aes256.
+-type sha_alg()      :: sha256 | sha384 | sha512.
+-type client_info()  :: #{client_id    => client_id()
+                         ,c_pub_key    => public_key()
+                         ,s_ephem_keys => public_keys()
+                         ,sym_alg      => sym_alg()
+                         ,client_key   => sym_key()
+                         ,server_key   => sym_key()
+                         ,sha_alg      => sha_alg()
+                         ,hmac_key     => sym_key()
+                         }.
 
 %%==================================================================================================
 %%
@@ -38,7 +45,7 @@
 %%  Validate public key
 %%    - Prevent K < N to ensure exponential "wrap" in cyclic group
 %%--------------------------------------------------------------------------------------------------
--spec validate_public_key(PublicKey) -> ok | {error, reason()} when
+-spec validate_public_key(PublicKey) -> ok | error_msg() when
     PublicKey :: binary().
 %%--------------------------------------------------------------------------------------------------
 validate_public_key(PublicKey) when is_binary(PublicKey),
@@ -57,12 +64,12 @@ validate_public_key(_PublicKey) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Generate ephmeral keys
 %%--------------------------------------------------------------------------------------------------
--spec generate_ephemeral_keys(SrpValue) -> PublicKeys when
-    SrpValue :: binary(),
+-spec generate_ephemeral_keys(Verifier) -> PublicKeys when
+    Verifier   :: verifier(),
     PublicKeys :: public_keys().
 %%--------------------------------------------------------------------------------------------------
-generate_ephemeral_keys(SrpValue) ->
-  SrpParams = [SrpValue, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
+generate_ephemeral_keys(Verifier) ->
+  SrpParams = [Verifier, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
   {GeneratedPublicKey, PrivateKey} = crypto:generate_key(srp, {host, SrpParams}),
 
   %% Prepend generated public key with 0's to ensure SRP public key size length. Necessary 
@@ -80,66 +87,75 @@ generate_ephemeral_keys(SrpValue) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Client Info
 %%--------------------------------------------------------------------------------------------------
--spec client_info(ClientId, CPubKey, SEphemeralKeys, SrpValue) -> ClientInfo when
-    ClientId :: binary(),
-    CPubKey :: public_key(),
+-spec client_info(ClientId, CPubKey, SEphemeralKeys, Verifier) -> client_info() | error_msg() when
+    ClientId       :: client_id(),
+    CPubKey        :: public_key(),
     SEphemeralKeys :: public_keys(),
-    SrpValue :: binary(),
-    ClientInfo :: client_info().
+    Verifier       :: verifier().
 %%--------------------------------------------------------------------------------------------------
-client_info(ClientId, CPubKey, SEphemeralKeys, SrpValue) ->
-  ComputedKey = crypto:compute_key(srp, CPubKey, SEphemeralKeys, 
-                                   {host, [SrpValue, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
+client_info(ClientId, CPubKey, SEphemeralKeys, Verifier) ->
+  client_info(ClientId, CPubKey, SEphemeralKeys, Verifier, {aes256, sha256}).
+
+client_info(ClientId, CPubKey, SEphemeralKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
+  SrpHostParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
+  ComputedKey = crypto:compute_key(srp, CPubKey, SEphemeralKeys, SrpHostParams),
+
   %% Prepend computed key (secret) with 0's to ensure SRP value size length.
+  VerifierSize = ?SRPC_VERIFIER_SIZE,
   Secret =
     case byte_size(ComputedKey) of
-      ?SRPC_SRP_VALUE_SIZE ->
+      VerifierSize ->
         ComputedKey;
       ByteSize ->
-        LeadZeros = (?SRPC_SRP_VALUE_SIZE - ByteSize) * 8,
+        LeadZeros = (VerifierSize - ByteSize) * 8,
         << 0:LeadZeros, ComputedKey/binary >>
     end,
 
   {SPubKey, _SPrivKey} = SEphemeralKeys,
-  Salt = hkdf_salt(sha256, CPubKey, SPubKey),
-  Len = 2 * ?SRPC_AES_256_KEY_SIZE + ?SRPC_HMAC_256_SIZE,
-  {ok, KeyMaterial} = hkdf(sha256, Salt, ClientId, Secret, Len),
 
-  <<ClientKey:32/binary, ServerKey:32/binary, HmacKey:32/binary>> = KeyMaterial,
-
-  #{client_id    => ClientId
-   ,c_pub_key    => CPubKey
-   ,s_ephem_keys => SEphemeralKeys
-   ,client_key   => ClientKey
-   ,server_key   => ServerKey
-   ,hmac_key     => HmacKey
-   }.
+  %% Salt is hash of A|B
+  Salt = crypto:hash(ShaAlg, <<CPubKey/binary, SPubKey/binary>>),
+  
+  case gen_keys(Algs, Salt, ClientId, Secret) of
+    {ClientKey, ServerKey, HmacKey} ->
+      #{client_id    => ClientId
+       ,c_pub_key    => CPubKey
+       ,s_ephem_keys => SEphemeralKeys
+       ,sym_alg      => SymAlg 
+       ,client_key   => ClientKey
+       ,server_key   => ServerKey
+       ,sha_alg      => ShaAlg
+       ,hmac_key     => HmacKey
+       };
+    Error ->
+      Error
+  end.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process client challenge
 %%--------------------------------------------------------------------------------------------------
 -spec process_client_challenge(ClientInfo, ClientChallenge) -> Result when
-    ClientInfo :: client_info(),
+    ClientInfo      :: client_info(),
     ClientChallenge :: binary(),
-    Result :: {ok, ServerChallenge} | {invalid, ServerChallenge},
-    ServerChallenge :: binary().
+    Result          :: {ok, binary()} | {invalid, binary()}.
 %%--------------------------------------------------------------------------------------------------
 process_client_challenge(#{c_pub_key    := CPubKey
                           ,s_ephem_keys := SEphemeralKeys
                           ,client_key   := ClientKey
                           ,server_key   := ServerKey
+                          ,sha_alg      := ShaAlg
                           }
                         ,ClientChallenge) ->
   
   {SPubKey, _PrivateKey} = SEphemeralKeys,
   ChallengeData = <<CPubKey/binary, SPubKey/binary, ServerKey/binary>>,
-  ChallengeCheck = crypto:hash(sha256, ChallengeData),
+  ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
 
   case srpc_util:const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
         <<CPubKey/binary, ClientChallenge/binary, ClientKey/binary>>,
-      ServerChallenge = crypto:hash(sha256, ServerChallengeData),
+      ServerChallenge = crypto:hash(ShaAlg, ServerChallengeData),
       {ok, ServerChallenge};
     false ->
       {invalid, crypto:strong_rand_bytes(?SRPC_CHALLENGE_SIZE)}
@@ -152,27 +168,73 @@ process_client_challenge(#{c_pub_key    := CPubKey
 %%------------------------------------------------------------------------------------------------
 %% @doc Refresh client keys using data
 %%
--spec refresh_keys(ClientInfo, Data) -> {ok, NewClientInfo} | {error, Reason} when
-    ClientInfo    :: client_info(),
-    Data          :: binary(),
-    NewClientInfo :: client_info(),
-    Reason        :: reason().
+-spec refresh_keys(ClientInfo, Data) -> {ok, client_info()} | error_msg() when
+    ClientInfo :: client_info(),
+    Data       :: binary().
 %%------------------------------------------------------------------------------------------------
 refresh_keys(#{client_id  := ClientId
+              ,sym_alg    := SymAlg
               ,client_key := ClientKey
               ,server_key := ServerKey
-              ,hmac_key   := HmacKey} = ClientInfo
+              ,sha_alg    := ShaAlg
+              ,hmac_key   := HmacKey
+              } = ClientInfo
             ,Data) ->
-  Len = 2 * ?SRPC_AES_256_KEY_SIZE + ?SRPC_HMAC_256_SIZE,
+
   IKM = <<ClientKey/binary, ServerKey/binary, HmacKey/binary>>,
-  {ok, KeyMaterial} = hkdf(sha256, Data, ClientId, IKM, Len),
-  <<NewClientKey:?SRPC_AES_256_KEY_SIZE/binary, 
-    NewServerKey:?SRPC_AES_256_KEY_SIZE/binary, 
-    NewHmacKey:?SRPC_HMAC_256_SIZE/binary>> = KeyMaterial,
-  maps:merge(ClientInfo, 
-             #{client_key => NewClientKey
-              ,server_key => NewServerKey
-              ,hmac_key   => NewHmacKey}).
+  case gen_keys({SymAlg, ShaAlg}, Data, ClientId, IKM) of
+    {NewClientKey, NewServerKey, NewHmacKey} ->
+      maps:merge(ClientInfo, 
+                 #{client_key => NewClientKey
+                  ,server_key => NewServerKey
+                  ,hmac_key   => NewHmacKey});
+    Error ->
+      Error
+  end.
+
+%%------------------------------------------------------------------------------------------------
+%%  Sym key size
+%%------------------------------------------------------------------------------------------------
+-spec sym_key_size(SymAlg) -> integer() when
+    SymAlg :: sym_alg().
+%%------------------------------------------------------------------------------------------------
+sym_key_size(aes128) -> ?SRPC_AES_128_KEY_SIZE;
+sym_key_size(aes192) -> ?SRPC_AES_192_KEY_SIZE;
+sym_key_size(aes256) -> ?SRPC_AES_256_KEY_SIZE.
+
+%%------------------------------------------------------------------------------------------------
+%%  HMAC size
+%%------------------------------------------------------------------------------------------------
+-spec sha_size(ShaAlg) -> integer() when
+    ShaAlg :: sha_alg().
+%%------------------------------------------------------------------------------------------------
+sha_size(sha256) -> ?SRPC_HMAC_256_SIZE;
+sha_size(sha384) -> ?SRPC_HMAC_384_SIZE;
+sha_size(sha512) -> ?SRPC_HMAC_512_SIZE.
+
+%%------------------------------------------------------------------------------------------------
+%%  Keys using HKDF
+%%------------------------------------------------------------------------------------------------
+-spec gen_keys({SymAlg, ShaAlg}, Salt, Info, IKM) -> keys() | error_msg() when
+    SymAlg :: sym_alg(),
+    ShaAlg :: sha_alg(),
+    Salt   :: binary(),
+    Info   :: binary(),
+    IKM    :: binary().
+%%------------------------------------------------------------------------------------------------
+gen_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
+  SymKeySize = sym_key_size(SymAlg),
+  HmacKeySize = sha_size(ShaAlg),
+  Len = 2 * SymKeySize + HmacKeySize,
+
+  case hkdf(ShaAlg, Salt, Info, IKM, Len) of
+    {ok, KeyingMaterial} ->
+      <<ClientKey:SymKeySize/binary, ServerKey:SymKeySize/binary, HmacKey:HmacKeySize/binary>>
+        = KeyingMaterial,
+      {ClientKey, ServerKey, HmacKey};
+    Error ->
+      Error
+  end.    
 
 %%------------------------------------------------------------------------------------------------
 %%
@@ -180,36 +242,30 @@ refresh_keys(#{client_id  := ClientId
 %%
 %% This is NOT a general implementation of HKDF.
 %%------------------------------------------------------------------------------------------------
--spec hkdf(ShaAlg, Salt, Info, IKM, Len) -> binary() when
+-spec hkdf(ShaAlg, Salt, Info, IKM, Len) -> {ok, binary()} | error_msg() when
     ShaAlg :: sha_alg(),
-    Salt :: binary(),
-    Info :: binary(),
-    IKM :: binary(),
-    Len :: integer().
+    Salt   :: binary(),
+    Info   :: binary(),
+    IKM    :: binary(),
+    Len    :: integer().
 %%------------------------------------------------------------------------------------------------
-hkdf(sha256, Salt, Info, IKM, Len) ->
-  PRK = crypto:hmac(sha256, Salt, IKM),
-  expand(sha256, Info, PRK, Len);
-hkdf(sha384, Salt, Info, IKM, Len) ->
-  PRK = crypto:hmac(sha384, Salt, IKM),
-  expand(sha384, Info, PRK, Len);
-hkdf(sha512, Salt, Info, IKM, Len) ->
-  PRK = crypto:hmac(sha512, Salt, IKM),
-  expand(sha512, Info, PRK, Len).
+hkdf(ShaAlg, Salt, Info, IKM, Len) ->
+  PRK = crypto:hmac(ShaAlg, Salt, IKM),
+  expand(ShaAlg, Info, PRK, Len).
 
 %%------------------------------------------------------------------------------------------------
 %% Expand phase
 %%------------------------------------------------------------------------------------------------
--spec expand(ShaAlg, Info, PRK, Len) -> binary() when
+-spec expand(ShaAlg, Info, PRK, Len) -> {ok, binary()} | error_msg() when
     ShaAlg :: sha_alg(),
-    Info :: binary(),
-    PRK :: binary(),
-    Len :: integer.
+    Info   :: binary(),
+    PRK    :: binary(),
+    Len    :: integer().
 %%------------------------------------------------------------------------------------------------
 expand(ShaAlg, Info, PRK, Len) ->
-  case {Len, octets(ShaAlg) * 255} of 
+  case {Len, sha_size(ShaAlg) * 255} of 
     {Len, MaxLen} when Len =< MaxLen ->
-      OKM = expand(ShaAlg, PRK, Info, 1, numOctets(ShaAlg, Len), <<>>, <<>>),
+      OKM = expand(ShaAlg, PRK, Info, 1, num_octets(ShaAlg, Len), <<>>, <<>>),
       {ok, <<OKM:Len/binary>>};
     _ ->
       {error, <<"Max length overflow">>}
@@ -222,46 +278,16 @@ expand(ShaAlg, PRK, Info, I, N, Tp, Acc) ->
   expand(ShaAlg, PRK, Info, I+1, N, Ti, <<Acc/binary, Ti/binary>>).
  
 %%------------------------------------------------------------------------------------------------
-%%  Octets
+%%  Number of octets
 %%------------------------------------------------------------------------------------------------
--spec octets(ShaAlg) -> binary() when
-    ShaAlg :: sha_alg().
-%%------------------------------------------------------------------------------------------------
-octets(sha256) ->
-  256 bsr 3;
-octets(sha384) ->
-  384 bsr 3;
-octets(512) ->
-  512 bsr 3.
-
-%%------------------------------------------------------------------------------------------------
-%%  Octets
-%%------------------------------------------------------------------------------------------------
--spec numOctets(ShaAlg, Len) -> integer() when
+-spec num_octets(ShaAlg, Len) -> integer() when
     ShaAlg :: sha_alg(),
-    Len :: integer().
+    Len    :: integer().
 %%------------------------------------------------------------------------------------------------
-numOctets(ShaAlg, Len) ->
-  Octets = octets(ShaAlg),
+num_octets(ShaAlg, Len) ->
+  Octets = sha_size(ShaAlg),
   NumOctets = Len div Octets,
   case (Len rem Octets) of
-    0 ->
-      NumOctets;
-    _ ->
-      NumOctets + 1
+    0 -> NumOctets;
+    _ -> NumOctets + 1
   end.
-
-%%------------------------------------------------------------------------------------------------
-%%  Salt for HDKF
-%%    - Salt is hash of A|B
-%%------------------------------------------------------------------------------------------------
--spec hkdf_salt(ShaAlg, A, B) -> binary() when
-    ShaAlg :: sha_alg(),
-    A :: binary(),
-    B :: binary().
-%%------------------------------------------------------------------------------------------------
-hkdf_salt(ShaAlg, A, B) ->
-  crypto:hash(ShaAlg, <<A/binary, B/binary>>).
-
-         
-       

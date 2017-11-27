@@ -47,11 +47,11 @@ process_exchange_request(_) ->
 %%------------------------------------------------------------------------------------------------
 create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
   ClientIdLen = byte_size(ClientId),
-  SEphemeralKeys = srpc_sec:generate_ephemeral_keys(?SRPC_SRP_VALUE),
+  SEphemeralKeys = srpc_sec:generate_ephemeral_keys(?SRPC_VERIFIER),
   {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
   ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  ClientInfo = srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, ?SRPC_SRP_VALUE),
+  ClientInfo = srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, ?SRPC_VERIFIER),
   AgreementInfo = maps:merge(ClientInfo, #{client_type => lib, entity_id => srpc_lib:srpc_id()}),
   {ok, {AgreementInfo, ExchangeResponse}}.
 
@@ -86,15 +86,15 @@ process_confirm_request(AgreementInfo, ConfirmRequest) ->
 %%------------------------------------------------------------------------------------------------
 create_confirm_response(AgreementInfo, ClientChallenge, RespConfirmData) ->
   case srpc_sec:process_client_challenge(AgreementInfo, ClientChallenge) of
-    {error, Reason} ->
-      {error, Reason};
-    {IsValid, ServerChallenge} ->
+    {ok, ServerChallenge} ->
       ConfirmResponse = <<ServerChallenge/binary, RespConfirmData/binary>>,
       case srpc_encryptor:encrypt(origin_server, AgreementInfo, ConfirmResponse) of
         {ok, ConfirmPacket} ->
           ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, AgreementInfo)),
-          {IsValid, ClientInfo, ConfirmPacket};
+          {ok, ClientInfo, ConfirmPacket};
         Error ->
           Error
-      end
+      end;
+    Invalid ->
+      Invalid
   end.

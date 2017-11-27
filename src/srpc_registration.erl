@@ -26,14 +26,15 @@ process_registration_request(ClientInfo, RegistrationRequest) ->
           RegistrationCode:?REG_CODE_BITS,
           KdfSalt:?SRPC_KDF_SALT_SIZE/binary,
           SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
-          SrpValue:?SRPC_SRP_VALUE_SIZE/binary,
+          Verifier:?SRPC_VERIFIER_SIZE/binary,
           RegistrationData/binary>> ->
 
-          SrpcRegMap = #{user_id   => UserId
-                        ,kdf_salt  => KdfSalt
-                        ,srp_salt  => SrpSalt
-                        ,srp_value => SrpValue
+          SrpcRegMap = #{user_id  => UserId
+                        ,kdf_salt => KdfSalt
+                        ,srp_salt => SrpSalt
+                        ,verifier => Verifier
                         },
+          
           {ok, {RegistrationCode, SrpcRegMap, RegistrationData}};
         _RegData ->
           {error, <<"Process invalid registration data">>}

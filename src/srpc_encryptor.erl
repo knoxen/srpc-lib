@@ -19,6 +19,7 @@
 %%================================================================================================
 %% Defined types
 %%================================================================================================
+-type error_msg()  :: {error, binary()}.
 -type origin()     :: origin_client | origin_server.
 -type aes_block()  :: <<_:16>>.
 -type key_128()    :: <<_:16>>.
@@ -45,12 +46,11 @@
 %%------------------------------------------------------------------------------------------------
 %% @doc Encrypt data using client information
 %%
--spec encrypt(Origin, ClientInfo, Data) -> {ok, Packet} | {error, Reason} when
+-spec encrypt(Origin, ClientInfo, Data) -> {ok, Packet} | error_msg() when
     Origin     :: origin(),
     ClientInfo :: map(),
     Data       :: binary(),
-    Packet     :: binary(),
-    Reason     :: string().
+    Packet     :: binary().
 %%------------------------------------------------------------------------------------------------
 encrypt(origin_client, #{client_key := SymKey} = ClientInfo, Data) ->
   encrypt_key(SymKey, ClientInfo, Data);
@@ -66,12 +66,11 @@ encrypt(_Origin, _ClientInfo, _Data) ->
 %%------------------------------------------------------------------------------------------------
 %% @doc Decrypt packet using client information
 %%
--spec decrypt(Origin, ClientInfo, Packet) -> {ok, Data} | {error, Reason} when
+-spec decrypt(Origin, ClientInfo, Packet) -> {ok, Data} | error_msg() when
     Origin     :: origin(),
     ClientInfo :: map(),
     Packet     :: packet(),
-    Data       :: binary(),
-    Reason     :: string().
+    Data       :: binary().
 %%------------------------------------------------------------------------------------------------
 decrypt(origin_client, #{client_key := SymKey} = ClientInfo, Packet) ->
   decrypt_key(SymKey, ClientInfo, Packet);
@@ -94,12 +93,11 @@ decrypt(_Origin, _ClientInfo, _Packet) ->
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec encrypt_key(SymKey, ClientInfo, Data) -> Packet | {error, Reason} when
+-spec encrypt_key(SymKey, ClientInfo, Data) -> Packet | error_msg() when
     SymKey     :: aes_key(),
     ClientInfo :: map(),
     Data       :: binary(),
-    Packet     :: packet(),
-    Reason     :: string().
+    Packet     :: packet().
 %%------------------------------------------------------------------------------------------------
 encrypt_key(SymKey, #{client_id := ClientId, hmac_key  := HmacKey}, Data) ->
   SrpcDataHdr = srpc_data_hdr(ClientId),
@@ -217,7 +215,7 @@ decrypt_key(_SymKey, _ClientInfo, _Packet) ->
 %% @doc Header for lib data with ClientId
 %%
 -spec srpc_data_hdr(ClientId) -> Header when
-    ClientId :: string(),
+    ClientId :: binary(),
     Header   :: binary().
 %%------------------------------------------------------------------------------------------------
 srpc_data_hdr(ClientId) ->
