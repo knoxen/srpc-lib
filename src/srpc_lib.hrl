@@ -84,6 +84,7 @@
 %%
 %%==================================================================================================
 -type error_msg()   :: {error, binary()}.
+-type invalid_msg() :: {invalid, binary()}.
 -type public_key()  :: binary().
 -type public_keys() :: {public_key(), public_key()}.
 -type verifier()    :: binary().
@@ -103,4 +104,11 @@
                          ,sha_alg      => sha_alg()
                          ,hmac_key     => sym_key()
                          }.
+-type origin()     :: origin_client | origin_server.
+-type aes_block()  :: <<_:16>>.
+-type version()    :: <<_:1>>.
+-type iv()         :: aes_block().
+-type ciphertext() :: binary().
+-type cryptor()    :: [version() | iv() | ciphertext()].
+-type packet()     :: [cryptor() | hmac_key()].
 

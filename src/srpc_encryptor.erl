@@ -15,31 +15,18 @@
    ]).
 
 %%================================================================================================
-%% Defined types
-%%================================================================================================
--type origin()     :: origin_client | origin_server.
--type aes_block()  :: <<_:16>>.
--type version()    :: <<_:1>>.
--type iv()         :: aes_block().
--type ciphertext() :: binary().
--type cryptor()    :: [version() | iv() | ciphertext()].
--type packet()     :: [cryptor() | hmac_key()].
-
-%%================================================================================================
 %%
 %% Public API
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
-%%
 %% Encrypt
-%%
 %%------------------------------------------------------------------------------------------------
 %% @doc Encrypt data using client information
 %%
 -spec encrypt(Origin, ClientInfo, Data) -> {ok, Packet} | error_msg() when
     Origin     :: origin(),
-    ClientInfo :: map(),
+    ClientInfo :: client_info(),
     Data       :: binary(),
     Packet     :: binary().
 %%------------------------------------------------------------------------------------------------
@@ -51,15 +38,13 @@ encrypt(_Origin, _ClientInfo, _Data) ->
   {error, <<"Mismatch origin and key for encrypt">>}.
 
 %%------------------------------------------------------------------------------------------------
-%%
 %% Decrypt
-%%
 %%------------------------------------------------------------------------------------------------
 %% @doc Decrypt packet using client information
 %%
 -spec decrypt(Origin, ClientInfo, Packet) -> {ok, Data} | error_msg() when
     Origin     :: origin(),
-    ClientInfo :: map(),
+    ClientInfo :: client_info(),
     Packet     :: packet(),
     Data       :: binary().
 %%------------------------------------------------------------------------------------------------
@@ -75,18 +60,15 @@ decrypt(_Origin, _ClientInfo, _Packet) ->
 %% Private API
 %%
 %%================================================================================================
-
 %%------------------------------------------------------------------------------------------------
-%%
 %% Encrypt Data
-%%
 %%------------------------------------------------------------------------------------------------
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
 -spec encrypt_with_key(SymKey, ClientInfo, Data) -> {ok, Packet} | error_msg() when
     SymKey     :: sym_key(),
-    ClientInfo :: map(),
+    ClientInfo :: client_info(),
     Data       :: binary(),
     Packet     :: packet().
 %%------------------------------------------------------------------------------------------------
@@ -144,9 +126,7 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
   {error, <<"Invalid args">>}.
 
 %%------------------------------------------------------------------------------------------------
-%%
 %% Decrypt Data
-%%
 %%------------------------------------------------------------------------------------------------
 %% @doc Decrypt data with symmetric key and sign with hmac key.
 %% @private

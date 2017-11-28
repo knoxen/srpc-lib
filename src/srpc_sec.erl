@@ -11,7 +11,6 @@
         ,refresh_keys/2
         ]).
 
-
 %%==================================================================================================
 %%
 %%  Public API
@@ -63,11 +62,12 @@ generate_ephemeral_keys(Verifier) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Client Info
 %%--------------------------------------------------------------------------------------------------
--spec client_info(ClientId, CPubKey, SEphemeralKeys, Verifier) -> client_info() | error_msg() when
+-spec client_info(ClientId, CPubKey, SEphemeralKeys, Verifier) -> Result when
     ClientId       :: client_id(),
     CPubKey        :: public_key(),
     SEphemeralKeys :: public_keys(),
-    Verifier       :: verifier().
+    Verifier       :: verifier(),
+    Result         :: {ok, client_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 client_info(ClientId, CPubKey, SEphemeralKeys, Verifier) ->
   client_info(ClientId, CPubKey, SEphemeralKeys, Verifier, {aes256, sha256}).
@@ -94,15 +94,16 @@ client_info(ClientId, CPubKey, SEphemeralKeys, Verifier, {SymAlg, ShaAlg} = Algs
   
   case gen_keys(Algs, Salt, ClientId, Secret) of
     {ClientKey, ServerKey, HmacKey} ->
-      #{client_id    => ClientId
-       ,c_pub_key    => CPubKey
-       ,s_ephem_keys => SEphemeralKeys
-       ,sym_alg      => SymAlg 
-       ,client_key   => ClientKey
-       ,server_key   => ServerKey
-       ,sha_alg      => ShaAlg
-       ,hmac_key     => HmacKey
-       };
+      {ok, #{client_id    => ClientId
+            ,c_pub_key    => CPubKey
+            ,s_ephem_keys => SEphemeralKeys
+            ,sym_alg      => SymAlg 
+            ,client_key   => ClientKey
+            ,server_key   => ServerKey
+            ,sha_alg      => ShaAlg
+            ,hmac_key     => HmacKey
+            }
+      };
     Error ->
       Error
   end.
@@ -171,7 +172,7 @@ refresh_keys(#{client_id  := ClientId
 %%------------------------------------------------------------------------------------------------
 %%  Sym key size
 %%------------------------------------------------------------------------------------------------
--spec sym_key_size(SymAlg) -> integer() when
+-spec sym_key_size(SymAlg) -> non_neg_integer() when
     SymAlg :: sym_alg().
 %%------------------------------------------------------------------------------------------------
 sym_key_size(aes128) -> ?SRPC_AES_128_KEY_SIZE;
@@ -181,7 +182,7 @@ sym_key_size(aes256) -> ?SRPC_AES_256_KEY_SIZE.
 %%------------------------------------------------------------------------------------------------
 %%  HMAC size
 %%------------------------------------------------------------------------------------------------
--spec sha_size(ShaAlg) -> integer() when
+-spec sha_size(ShaAlg) -> non_neg_integer() when
     ShaAlg :: sha_alg().
 %%------------------------------------------------------------------------------------------------
 sha_size(sha256) -> ?SRPC_HMAC_256_SIZE;
@@ -223,7 +224,7 @@ gen_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
     Salt   :: binary(),
     Info   :: binary(),
     IKM    :: binary(),
-    Len    :: integer().
+    Len    :: non_neg_integer().
 %%------------------------------------------------------------------------------------------------
 hkdf(ShaAlg, Salt, Info, IKM, Len) ->
   PRK = crypto:hmac(ShaAlg, Salt, IKM),
@@ -236,7 +237,7 @@ hkdf(ShaAlg, Salt, Info, IKM, Len) ->
     ShaAlg :: sha_alg(),
     Info   :: binary(),
     PRK    :: binary(),
-    Len    :: integer().
+    Len    :: non_neg_integer().
 %%------------------------------------------------------------------------------------------------
 expand(ShaAlg, Info, PRK, Len) ->
   case {Len, sha_size(ShaAlg) * 255} of 
@@ -256,9 +257,9 @@ expand(ShaAlg, PRK, Info, I, N, Tp, Acc) ->
 %%------------------------------------------------------------------------------------------------
 %%  Number of octets
 %%------------------------------------------------------------------------------------------------
--spec num_octets(ShaAlg, Len) -> integer() when
+-spec num_octets(ShaAlg, Len) -> non_neg_integer() when
     ShaAlg :: sha_alg(),
-    Len    :: integer().
+    Len    :: non_neg_integer().
 %%------------------------------------------------------------------------------------------------
 num_octets(ShaAlg, Len) ->
   Octets = sha_size(ShaAlg),

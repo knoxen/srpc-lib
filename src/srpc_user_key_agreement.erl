@@ -53,6 +53,7 @@ create_exchange_response(ClientId, CryptClientInfo, invalid, _ClientPublicKey, E
                         crypto:strong_rand_bytes(?SRPC_SRP_SALT_SIZE),
                         crypto:strong_rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
                         ExchangeData);
+
 create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKey, ExchangeData) ->
   #{user_id  := UserId
    ,kdf_salt := KdfSalt
@@ -61,17 +62,20 @@ create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKe
   SEphemeralKeys = srpc_sec:generate_ephemeral_keys(Verifier),
   {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
 
-  ClientInfo = 
-    maps:merge(srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, Verifier),
-               #{client_type => user
-                ,entity_id   => UserId}),
-
-  case encrypt_response_data(ClientId, CryptClientInfo, ?SRPC_USER_OK,
-                             KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
-    {ok, ExchangeResponse} ->
-      {ok, {ClientInfo, ExchangeResponse}};
-    Error ->
-      Error
+  case srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, Verifier) of
+    {ok, ClientInfo} ->
+      NewClientInfo =  maps:merge(ClientInfo,
+                                  #{client_type => user
+                                   ,entity_id   => UserId}),
+      case encrypt_response_data(ClientId, CryptClientInfo, ?SRPC_USER_OK,
+                                 KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
+        {ok, ExchangeResponse} ->
+          {ok, {NewClientInfo, ExchangeResponse}};
+        Error ->
+          Error
+      end;
+    Other ->
+      Other
   end.
 
 %%================================================================================================

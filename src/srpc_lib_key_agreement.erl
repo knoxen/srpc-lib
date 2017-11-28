@@ -16,10 +16,12 @@
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Process Key Exchange Request
 %%    L | SrpcId | Client Pub Key | <Exchange Data>
-%%
+%%------------------------------------------------------------------------------------------------
+-spec process_exchange_request(Request) -> Result when
+    Request :: binary(),
+    Result  :: {ok, {public_key(), binary()}} | invalid_msg() | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_exchange_request(<<IdSize:8, ExchangeRequest/binary>>) ->
   SrpcId = srpc_lib:srpc_id(),
@@ -40,10 +42,14 @@ process_exchange_request(_) ->
   {error, <<"Invalid exchange request">>}.
 
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Create Key Exchange Response
 %%    L | ClientId | Server Pub Key | <Exchange Data>
-%%
+%%------------------------------------------------------------------------------------------------
+-spec create_exchange_response(ClientId, ClientPublicKey, ExchangeData) -> Response when
+    ClientId        :: client_id(),
+    ClientPublicKey :: public_key(),
+    ExchangeData    :: binary(),
+    Response        :: {ok, {client_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
   ClientIdLen = byte_size(ClientId),
@@ -51,9 +57,14 @@ create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
   {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
   ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  ClientInfo = srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, ?SRPC_VERIFIER),
-  AgreementInfo = maps:merge(ClientInfo, #{client_type => lib, entity_id => srpc_lib:srpc_id()}),
-  {ok, {AgreementInfo, ExchangeResponse}}.
+  case srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, ?SRPC_VERIFIER) of
+    {ok, ClientInfo} ->
+      AgreementInfo = maps:merge(ClientInfo, #{client_type => lib, 
+                                               entity_id => srpc_lib:srpc_id()}),
+      {ok, {AgreementInfo, ExchangeResponse}};
+    Error ->
+      Error
+  end.
 
 %%================================================================================================
 %%
@@ -61,15 +72,16 @@ create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Process Key Confirm Request
 %%    Client Challenge | <Confirm Data>
-%%
 %%------------------------------------------------------------------------------------------------
-process_confirm_request(AgreementInfo, ConfirmRequest) ->
-  %% io:format("~p debug lib confirm map~n", [?MODULE]),
-  %% srpc_util:debug_info(AgreementInfo),
-  case srpc_encryptor:decrypt(origin_client, AgreementInfo, ConfirmRequest) of
+-spec process_confirm_request(ClientInfo, Request) -> Result when
+    ClientInfo :: client_info(),
+    Request    :: packet(),
+    Result     :: {ok, {binary(), binary()}} | error_msg().
+%%------------------------------------------------------------------------------------------------
+process_confirm_request(ClientInfo, Request) ->
+  case srpc_encryptor:decrypt(origin_client, ClientInfo, Request) of
     {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
       {ok, {Challenge, ConfirmData}};
     {ok, _} ->
