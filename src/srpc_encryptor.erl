@@ -14,25 +14,16 @@
    ,decrypt/3
    ]).
 
--define(SRPC_DATA_VERSION, 1).
-
 %%================================================================================================
 %% Defined types
 %%================================================================================================
--type error_msg()  :: {error, binary()}.
 -type origin()     :: origin_client | origin_server.
 -type aes_block()  :: <<_:16>>.
--type key_128()    :: <<_:16>>.
--type key_192()    :: <<_:24>>.
--type key_256()    :: <<_:32>>.
--type aes_key()    :: key_128() | key_192() |key_256().
--type hmac_key()   :: key_256().
--type hmac_256()   :: <<_:32>>.
 -type version()    :: <<_:1>>.
 -type iv()         :: aes_block().
 -type ciphertext() :: binary().
 -type cryptor()    :: [version() | iv() | ciphertext()].
--type packet()     :: [cryptor() | hmac_256()].
+-type packet()     :: [cryptor() | hmac_key()].
 
 %%================================================================================================
 %%
@@ -53,9 +44,9 @@
     Packet     :: binary().
 %%------------------------------------------------------------------------------------------------
 encrypt(origin_client, #{client_key := SymKey} = ClientInfo, Data) ->
-  encrypt_key(SymKey, ClientInfo, Data);
+  encrypt_with_key(SymKey, ClientInfo, Data);
 encrypt(origin_server, #{server_key := SymKey} = ClientInfo, Data) ->
-  encrypt_key(SymKey, ClientInfo, Data);
+  encrypt_with_key(SymKey, ClientInfo, Data);
 encrypt(_Origin, _ClientInfo, _Data) ->
   {error, <<"Mismatch origin and key for encrypt">>}.
 
@@ -93,33 +84,27 @@ decrypt(_Origin, _ClientInfo, _Packet) ->
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec encrypt_key(SymKey, ClientInfo, Data) -> Packet | error_msg() when
-    SymKey     :: aes_key(),
+-spec encrypt_with_key(SymKey, ClientInfo, Data) -> {ok, Packet} | error_msg() when
+    SymKey     :: sym_key(),
     ClientInfo :: map(),
     Data       :: binary(),
     Packet     :: packet().
 %%------------------------------------------------------------------------------------------------
-encrypt_key(SymKey, #{client_id := ClientId, hmac_key  := HmacKey}, Data) ->
+encrypt_with_key(SymKey, #{client_id := ClientId, hmac_key  := HmacKey}, Data) ->
   SrpcDataHdr = srpc_data_hdr(ClientId),
   LibData = <<SrpcDataHdr/binary, Data/binary>>,
-  case encrypt_data(SymKey, HmacKey, LibData) of
-    {error, Reason} ->
-      {error, list_to_binary(Reason)};
-    Packet ->
-      {ok, Packet}
-  end;
-encrypt_key(_Key, _Map, _Data) ->
+  encrypt_data(SymKey, HmacKey, LibData);
+encrypt_with_key(_Key, _Map, _Data) ->
   {error, <<"Invalid encrypt client info: Missing client_id or hmac_key">>}.
 
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec encrypt_data(SymKey, HmacKey, Data) -> Packet | {error, Reason} when
-    SymKey  :: aes_key(),
+-spec encrypt_data(SymKey, HmacKey, Data) -> {ok, Packet} | error_msg() when
+    SymKey  :: sym_key(),
     HmacKey :: hmac_key(),
     Data    :: binary(),
-    Packet  :: packet(),
-    Reason  :: string().
+    Packet  :: packet().
 %%------------------------------------------------------------------------------------------------
 encrypt_data(SymKey, HmacKey, Data) ->
   IV = crypto:strong_rand_bytes(?SRPC_AES_BLOCK_SIZE),
@@ -129,13 +114,12 @@ encrypt_data(SymKey, HmacKey, Data) ->
 %% @doc Encrypt data with crypt key using iv, and sign with hmac key.
 %% @private
 %%
--spec encrypt_data(SymKey, IV, HmacKey, Data) -> Packet | {error, Reason} when
-    SymKey  :: aes_key(),
+-spec encrypt_data(SymKey, IV, HmacKey, Data) -> {ok, Packet} | error_msg() when
+    SymKey  :: sym_key(),
     IV      :: aes_block(),
     HmacKey :: hmac_key(),
     Data    :: binary(),
-    Packet  :: packet(),
-    Reason  :: string().
+    Packet  :: packet().
 %%------------------------------------------------------------------------------------------------
 encrypt_data(<<SymKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>,
              <<Data/binary>>)
@@ -145,19 +129,19 @@ encrypt_data(<<SymKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/bi
   CipherText = crypto:block_encrypt(aes_cbc256, SymKey, IV, enpad(Data)),
   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
   Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
-  <<CryptorText/binary, Hmac/binary>>;
+  {ok, <<CryptorText/binary, Hmac/binary>>};
 encrypt_data(<<_SymKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
-  {error, "Invalid key size"};
+  {error, <<"Invalid key size">>};
 encrypt_data(_SymKey, <<_IV/binary>>, <<_HmacKey/binary>>, <<_Data/binary>>) ->
-  {error, "Invalid key: Not binary"};
+  {error, <<"Invalid key: Not binary">>};
 encrypt_data(<<_SymKey/binary>>, _IV, <<_HmacKey/binary>>, <<_Data/binary>>) ->
-  {error, "Invalid iv: Not binary"};
+  {error, <<"Invalid iv: Not binary">>};
 encrypt_data(<<_SymKey/binary>>, <<_IV/binary>>, _HmacKey, <<_Data/binary>>) ->
-  {error, "Invalid hmac key: Not binary"};
+  {error, <<"Invalid hmac key: Not binary">>};
 encrypt_data(<<_SymKey/binary>>, <<_IV/binary>>, <<_HmacKey/binary>>, _Data) ->
-  {error, "Invalid data: Not binary"};
+  {error, <<"Invalid data: Not binary">>};
 encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
-  {error, "Invalid args"}.
+  {error, <<"Invalid args">>}.
 
 %%------------------------------------------------------------------------------------------------
 %%
@@ -167,12 +151,11 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
 %% @doc Decrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec decrypt_key(SymKey, ClientInfo, Packet) -> {ok, Data} | {error, Reason} when
-    SymKey     :: aes_key(),
+-spec decrypt_key(SymKey, ClientInfo, Packet) -> {ok, Data} | error_msg() when
+    SymKey     :: sym_key(),
     ClientInfo :: map(),
     Packet     :: packet(),
-    Data       :: binary(),
-    Reason     :: string().
+    Data       :: binary().
 %%------------------------------------------------------------------------------------------------
 decrypt_key(SymKey, #{client_id := ClientId, hmac_key := HmacKey}, Packet) ->
   PacketSize = byte_size(Packet),
@@ -266,9 +249,7 @@ enpad(Bin, Len) ->
 %% don't add padding in this case, i.e. if the last byte is greater than
 %% <strong>k</strong> we interpret as no padding.
 %%
--spec depad(Padded :: binary()) -> Bin | {error, Reason} when
-    Bin    :: binary(),
-    Reason :: string().
+-spec depad(Padded :: binary()) -> {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 depad(Bin) ->
   Len = byte_size(Bin),

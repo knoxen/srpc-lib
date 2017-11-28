@@ -11,30 +11,6 @@
         ,refresh_keys/2
         ]).
 
-%%==================================================================================================
-%%
-%%  Types
-%%
-%%==================================================================================================
--type error_msg()    :: {error, binary()}.
--type public_key()   :: binary().
--type public_keys()  :: {public_key(), public_key()}.
--type verifier()     :: binary().
--type client_id()    :: binary().
--type sym_key()      :: binary().
--type hmac_key()     :: binary().
--type keys()         :: {sym_key(), sym_key(), hmac_key()}.
--type sym_alg()      :: aes128 | aes192 | aes256.
--type sha_alg()      :: sha256 | sha384 | sha512.
--type client_info()  :: #{client_id    => client_id()
-                         ,c_pub_key    => public_key()
-                         ,s_ephem_keys => public_keys()
-                         ,sym_alg      => sym_alg()
-                         ,client_key   => sym_key()
-                         ,server_key   => sym_key()
-                         ,sha_alg      => sha_alg()
-                         ,hmac_key     => sym_key()
-                         }.
 
 %%==================================================================================================
 %%

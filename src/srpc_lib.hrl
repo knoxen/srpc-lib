@@ -7,6 +7,8 @@
 -define(SRPC_VERSION_MINOR, 0).
 -define(SRPC_VERSION_PATCH, 0).
 
+-define(SRPC_DATA_VERSION, 1).
+
 %%
 %% Srpc Lib Option Suites
 %%  32 Bits - Each field is 4 bits
@@ -74,3 +76,31 @@
 -define(SRPC_USER_INVALID_IDENTITY,   2).
 -define(SRPC_USER_INVALID_PASSWORD,   3).
 -define(SRPC_USER_ERROR,             99).
+
+
+%%==================================================================================================
+%%
+%%  Types
+%%
+%%==================================================================================================
+-type error_msg()   :: {error, binary()}.
+-type public_key()  :: binary().
+-type public_keys() :: {public_key(), public_key()}.
+-type verifier()    :: binary().
+-type client_id()   :: binary().
+-type binary_key()  :: <<_:16>> | <<_:24>> | <<_:32>>.
+-type sym_key()     :: binary_key().
+-type hmac_key()    :: binary_key().
+-type keys()        :: {sym_key(), sym_key(), hmac_key()}.
+-type sym_alg()     :: aes128 | aes192 | aes256.
+-type sha_alg()     :: sha256 | sha384 | sha512.
+-type client_info() :: #{client_id    => client_id()
+                         ,c_pub_key    => public_key()
+                         ,s_ephem_keys => public_keys()
+                         ,sym_alg      => sym_alg()
+                         ,client_key   => sym_key()
+                         ,server_key   => sym_key()
+                         ,sha_alg      => sha_alg()
+                         ,hmac_key     => sym_key()
+                         }.
+
