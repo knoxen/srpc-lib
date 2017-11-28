@@ -37,7 +37,7 @@
 %% @doc Compare two binaries for equality, bit-by-bit, without short-circuits
 %% to avoid timing differences. Note this function does short-circuit to
 %% <code>false</code> if the binaries are not of equal size.
-%%
+%%------------------------------------------------------------------------------------------------
 -spec const_compare(Bin1, Bin2) -> boolean() when
     Bin1 :: binary(),
     Bin2 :: binary().
@@ -65,7 +65,7 @@ const_compare(<<>>, <<>>, Acc) ->
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
 %% @doc Convert binary to hex string.
-%%
+%%------------------------------------------------------------------------------------------------
 -spec bin_to_hex(Bin) -> Hex when
     Bin :: binary(),
     Hex :: string().
@@ -76,7 +76,7 @@ bin_to_hex(Bin) ->
 
 %%------------------------------------------------------------------------------------------------
 %% @doc Convert hex string to binary.
-%%
+%%------------------------------------------------------------------------------------------------
 -spec hex_to_bin(Hex) -> Bin when
     Hex :: string(),
     Bin :: binary().
@@ -87,8 +87,13 @@ hex_to_bin(B) when is_binary(B) ->
   hex_to_bin(binary_to_list(B), []).
 
 %%------------------------------------------------------------------------------------------------
-%% @private
 %% @doc Accumulate binary from hex string
+%% @private
+%%------------------------------------------------------------------------------------------------
+-spec hex_to_bin(Hex, Acc) -> Bin when
+    Hex :: string() | [],
+    Acc :: string(),
+    Bin :: binary().
 %%------------------------------------------------------------------------------------------------
 hex_to_bin([], Acc) ->
   list_to_binary(lists:reverse(Acc));

@@ -115,35 +115,133 @@ lib_key_process_exchange_request(ExchangeRequest) ->
 lib_key_create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
   srpc_lib_key_agreement:create_exchange_response(ClientId, ClientPublicKey, ExchangeData).
 
-lib_key_process_confirm_request(ExchangeMap, ConfirmRequest) ->
-  srpc_lib_key_agreement:process_confirm_request(ExchangeMap, ConfirmRequest).
+%%--------------------------------------------------------------------------------------------------
+%%  Lib key confirm request
+%%--------------------------------------------------------------------------------------------------
+-spec lib_key_process_confirm_request(ExchangeMap, Request) -> Result when
+    ExchangeMap :: client_info(),
+    Request     :: packet(),
+    Result      :: {ok, {binary(), binary()}} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+lib_key_process_confirm_request(ExchangeMap, Request) ->
+  srpc_lib_key_agreement:process_confirm_request(ExchangeMap, Request).
 
+%%--------------------------------------------------------------------------------------------------
+%%  Lib key confirm response
+%%--------------------------------------------------------------------------------------------------
+-spec lib_key_create_confirm_response(ExchangeMap, ClientChallenge, ConfirmData) -> Result when
+    ExchangeMap     :: client_info(),
+    ClientChallenge :: binary(),
+    ConfirmData     :: binary(),
+    Result          :: {ok, client_info(), binary()} | error_msg() | invalid_msg().
+%%--------------------------------------------------------------------------------------------------
 lib_key_create_confirm_response(ExchangeMap, ClientChallenge, ConfirmData) ->
   srpc_lib_key_agreement:create_confirm_response(ExchangeMap, ClientChallenge, ConfirmData).
 
-process_registration_request(LibKey, RegistrationRequest) ->
-  srpc_registration:process_registration_request(LibKey, RegistrationRequest).
+%%--------------------------------------------------------------------------------------------------
+%%  Process registration request
+%%--------------------------------------------------------------------------------------------------
+-spec process_registration_request(ClientInfo, Request) -> Result when
+    ClientInfo :: client_info(),
+    Request :: packet(),
+    Result     :: {ok, {integer(), map(), binary()}} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+process_registration_request(ClientInfo, Request) ->
+  srpc_registration:process_registration_request(ClientInfo, Request).
 
-create_registration_response(LibKey, RegistrationResult, ResponseData) ->
-  srpc_registration:create_registration_response(LibKey, RegistrationResult, ResponseData).
+%%--------------------------------------------------------------------------------------------------
+%%  Create registration response
+%%--------------------------------------------------------------------------------------------------
+-spec create_registration_response(ClientInfo, RegCode, Data) -> Result when
+    ClientInfo :: client_info(),
+    RegCode    :: integer(),
+    Data       :: binary() | undefined,
+    Result     :: {ok, packet()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+create_registration_response(ClientInfo, RegCode, Data) ->
+  srpc_registration:create_registration_response(ClientInfo, RegCode, Data).
 
-user_key_process_exchange_request(LibKey, ExchangeRequest) ->
-  srpc_user_key_agreement:process_exchange_request(LibKey, ExchangeRequest).
+%%--------------------------------------------------------------------------------------------------
+%%  User key exchange request
+%%--------------------------------------------------------------------------------------------------
+-spec user_key_process_exchange_request(ClientInfo, Request) -> Result when
+    ClientInfo :: client_info(),
+    Request    :: packet(),
+    Result     :: {ok, {client_id(), public_key(), binary()}} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+user_key_process_exchange_request(ClientInfo, Request) ->
+  srpc_user_key_agreement:process_exchange_request(ClientInfo, Request).
 
-user_key_create_exchange_response(ClientId, LibKey, Reg, UserKey, ResponseData) ->
-  srpc_user_key_agreement:create_exchange_response(ClientId, LibKey, Reg, UserKey, ResponseData).
+%%--------------------------------------------------------------------------------------------------
+%%  User key exchange response
+%%--------------------------------------------------------------------------------------------------
+-spec user_key_create_exchange_response(ClientId, ClientInfo, RegData, PubKey, Data) -> Result when
+    ClientId   :: client_id(),
+    ClientInfo :: client_info(),
+    RegData    :: binary() | invalid,
+    PubKey     :: public_key(),
+    Data       :: binary(),
+    Result     :: {ok, {client_info(), packet()}} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+user_key_create_exchange_response(ClientId, ClientInfo, RegData, PubKey, Data) ->
+  srpc_user_key_agreement:create_exchange_response(ClientId, ClientInfo, RegData, PubKey, Data).
 
-user_key_process_confirm_request(LibKey, ConfirmRequest) ->
-  srpc_user_key_agreement:process_confirm_request(LibKey, ConfirmRequest).
+%%--------------------------------------------------------------------------------------------------
+%%  User key confirm request
+%%--------------------------------------------------------------------------------------------------
+-spec user_key_process_confirm_request(ClientInfo, Request) -> Result when
+    ClientInfo :: client_info(),
+    Request    :: packet(),
+    Result     :: {ok, {binary(), binary()}} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+user_key_process_confirm_request(ClientInfo, Request) ->
+  srpc_user_key_agreement:process_confirm_request(ClientInfo, Request).
 
-user_key_create_confirm_response(LibKey, ClientChallenge, UserKeyReqData, RespData) ->
-  srpc_user_key_agreement:create_confirm_response(LibKey, ClientChallenge, UserKeyReqData, RespData).
+%%--------------------------------------------------------------------------------------------------
+%%  User key confirm response
+%%--------------------------------------------------------------------------------------------------
+-spec user_key_create_confirm_response(LClientInfo, UClientInfo, Challenge, Data) -> Result when
+    LClientInfo :: client_info(),
+    UClientInfo :: client_info() | invalid,
+    Challenge   :: binary(),
+    Data        :: binary(),
+    Result          :: {ok, binary()} | {invalid, binary()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+user_key_create_confirm_response(LibClientInfo, UserClientInfo, ClientChallenge, Data) ->
+  srpc_user_key_agreement:create_confirm_response(LibClientInfo, UserClientInfo, 
+                                                  ClientChallenge, Data).
 
+%%--------------------------------------------------------------------------------------------------
+%%  Encrypt
+%%--------------------------------------------------------------------------------------------------
+-spec encrypt(Origin, ClientInfo, Data) -> Result when
+    Origin     :: origin(),
+    ClientInfo :: client_info(),
+    Data       :: binary(),
+    Result     :: {ok, packet()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
 encrypt(Origin, ClientInfo, Data) ->
   srpc_encryptor:encrypt(Origin, ClientInfo, Data).
 
-decrypt(Origin, ClientInfo, Data) ->
-  srpc_encryptor:decrypt(Origin, ClientInfo, Data).
+%%--------------------------------------------------------------------------------------------------
+%%  Decrypt
+%%--------------------------------------------------------------------------------------------------
+-spec decrypt(Origin, ClientInfo, Packet) -> Result when
+    Origin     :: origin(),
+    ClientInfo :: client_info(),
+    Packet     :: packet(),
+    Result     :: {ok, binary()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+decrypt(Origin, ClientInfo, Packet) ->
+  srpc_encryptor:decrypt(Origin, ClientInfo, Packet).
 
+%%--------------------------------------------------------------------------------------------------
+%%  Refresh keys
+%%--------------------------------------------------------------------------------------------------
+-spec refresh_keys(ClientInfo, Data) -> Result when
+    ClientInfo :: client_info(),
+    Data       :: binary(),
+    Result     :: {ok, client_info()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
 refresh_keys(ClientInfo, Data) ->
   srpc_sec:refresh_keys(ClientInfo, Data).

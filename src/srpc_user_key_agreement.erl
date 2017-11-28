@@ -16,13 +16,16 @@
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Process Key Exchange Request
 %%    L | UserId | Client Pub Key | <Exchange Data>
-%%
 %%------------------------------------------------------------------------------------------------
-process_exchange_request(AgreementInfo, ExchangeRequest) ->
-  case srpc_encryptor:decrypt(origin_client, AgreementInfo, ExchangeRequest) of
+-spec process_exchange_request(ClientInfo, Request) -> Result when
+    ClientInfo :: client_info(),
+    Request    :: packet(),
+    Result     :: {ok, {client_id(), public_key(), binary()}} | error_msg().
+%%------------------------------------------------------------------------------------------------
+process_exchange_request(ClientInfo, Request) ->
+  case srpc_encryptor:decrypt(origin_client, ClientInfo, Request) of
     {ok, <<IdSize:8, RequestData/binary>>} ->
       case RequestData of
         <<UserId:IdSize/binary, PublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ExchangeData/binary>> ->
@@ -42,10 +45,16 @@ process_exchange_request(AgreementInfo, ExchangeRequest) ->
   end.
 
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Create Key Exchange Response
 %%    User Code | L | ClientId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
-%%
+%%------------------------------------------------------------------------------------------------
+-spec create_exchange_response(ClientId, ClientInfo, RegData, PublicKey, ExchData) -> Result when
+    ClientId  :: client_id(),
+    ClientInfo :: client_info(),
+    RegData   :: binary() | invalid,
+    PublicKey  :: public_key(),
+    ExchData   :: binary(),
+    Result     :: {ok, {client_info(), packet()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 create_exchange_response(ClientId, CryptClientInfo, invalid, _ClientPublicKey, ExchangeData) ->
   encrypt_response_data(ClientId, CryptClientInfo, ?SRPC_USER_INVALID_IDENTITY,
@@ -74,8 +83,8 @@ create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKe
         Error ->
           Error
       end;
-    Other ->
-      Other
+    Error ->
+      Error
   end.
 
 %%================================================================================================
@@ -84,14 +93,17 @@ create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKe
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Process Key Confirm Request
 %%    Client Challenge | <Confirm Data>
-%%
 %%------------------------------------------------------------------------------------------------
-process_confirm_request(AgreementInfo, ConfirmRequest) ->
-  %% srpc_util:debug_info({?MODULE, process_confirm_request}, AgreementInfo),
-  case srpc_encryptor:decrypt(origin_client, AgreementInfo, ConfirmRequest) of
+-spec process_confirm_request(ClientInfo, Request) -> Result when
+    ClientInfo :: client_info(),
+    Request    :: packet(),
+    Result     :: {ok, {binary(), binary()}} | error_msg().
+%%------------------------------------------------------------------------------------------------
+process_confirm_request(ClientInfo, Request) ->
+  %% srpc_util:debug_info({?MODULE, process_confirm_request}, ClientInfo),
+  case srpc_encryptor:decrypt(origin_client, ClientInfo, Request) of
     {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
       {ok, {Challenge, ConfirmData}};
     {ok, _} ->
@@ -101,27 +113,33 @@ process_confirm_request(AgreementInfo, ConfirmRequest) ->
   end.
 
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Create Key Confirm Response
 %%    Server Challenge | <Confirm Data>
-%%
 %%------------------------------------------------------------------------------------------------
-create_confirm_response(CryptMap, invalid, _ClientChallenge, ConfirmData) ->
+-spec create_confirm_response(LibClientInfo, UserClientInfo, ClientChallenge, Data) -> Result when
+    LibClientInfo :: client_info(),
+    UserClientInfo :: client_info() | invalid,
+    ClientChallenge :: binary(),
+    Data            :: binary(),
+    Result          :: {ok, binary()} | {invalid, binary()} | error_msg().
+%%------------------------------------------------------------------------------------------------
+create_confirm_response(LibClientInfo, invalid, _ClientChallenge, ConfirmData) ->
   ServerChallenge = crypto:strong_rand_bytes(?SRPC_CHALLENGE_SIZE),
   ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
-  case srpc_encryptor:encrypt(origin_server, CryptMap, ConfirmResponse) of
+  case srpc_encryptor:encrypt(origin_server, LibClientInfo, ConfirmResponse) of
     {ok, ConfirmPacket} ->
       {invalid, #{}, ConfirmPacket};
     Error ->
       Error
   end;
-create_confirm_response(CryptMap, AgreementInfo, ClientChallenge, ConfirmData) ->
-  {Result, ServerChallenge} = srpc_sec:process_client_challenge(AgreementInfo, ClientChallenge),
+
+create_confirm_response(LibClientInfo, UserClientInfo, ClientChallenge, ConfirmData) ->
+  {Atom, ServerChallenge} = srpc_sec:process_client_challenge(UserClientInfo, ClientChallenge),
   ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
-  case srpc_encryptor:encrypt(origin_server, CryptMap, ConfirmResponse) of
+  case srpc_encryptor:encrypt(origin_server, LibClientInfo, ConfirmResponse) of
     {ok, ConfirmPacket} ->
-      ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, AgreementInfo)),
-      {Result, ClientInfo, ConfirmPacket};
+      ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, UserClientInfo)),
+      {Atom, ClientInfo, ConfirmPacket};
     Error ->
       Error
   end.
@@ -132,14 +150,23 @@ create_confirm_response(CryptMap, AgreementInfo, ClientChallenge, ConfirmData) -
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Create Key Exchange Response
 %%    User Code | L | ClientId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
-%%
 %%------------------------------------------------------------------------------------------------
-encrypt_response_data(ClientId, AgreementInfo, UserCode,
+-spec encrypt_response_data(ClientId, ClientInfo, UserCode,
+                            KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) -> Result when
+    ClientId        :: client_id(),
+    ClientInfo      :: client_info(),
+    UserCode        :: integer(),
+    KdfSalt         :: binary(),
+    SrpSalt         :: binary(),
+    ServerPublicKey :: public_key(),    
+    ExchangeData    :: binary(),
+    Result          :: {ok, packet()} | error_msg().
+%%------------------------------------------------------------------------------------------------
+encrypt_response_data(ClientId, ClientInfo, UserCode,
                       KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
   ClientIdLen = byte_size(ClientId),
   ResponseData = <<UserCode, ClientIdLen, ClientId/binary,
                    KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, ExchangeData/binary>>,
-  srpc_encryptor:encrypt(origin_server, AgreementInfo, ResponseData).
+  srpc_encryptor:encrypt(origin_server, ClientInfo, ResponseData).

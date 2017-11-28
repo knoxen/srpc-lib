@@ -139,15 +139,14 @@ process_client_challenge(#{c_pub_key    := CPubKey
   end.
 
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Refresh Keys
-%%
 %%------------------------------------------------------------------------------------------------
 %% @doc Refresh client keys using data
 %%
--spec refresh_keys(ClientInfo, Data) -> {ok, client_info()} | error_msg() when
+-spec refresh_keys(ClientInfo, Data) -> Result when
     ClientInfo :: client_info(),
-    Data       :: binary().
+    Data       :: binary(),
+    Result     :: {ok, client_info()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 refresh_keys(#{client_id  := ClientId
               ,sym_alg    := SymAlg

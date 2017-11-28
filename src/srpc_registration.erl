@@ -12,14 +12,22 @@
 -define(USER_ID_LEN_BITS, 8).
 -define(REG_CODE_BITS,    8).
 
-%% ==============================================================================================
+%%==================================================================================================
 %%
+%%  Public API
+%%
+%%==================================================================================================
+%%--------------------------------------------------------------------------------------------------
 %%  Process User Registration Request
 %%    L | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Registration Data>
-%%
-%% ==============================================================================================
-process_registration_request(ClientInfo, RegistrationRequest) ->
-  case srpc_encryptor:decrypt(origin_client, ClientInfo, RegistrationRequest) of
+%%--------------------------------------------------------------------------------------------------
+-spec process_registration_request(ClientInfo, Request) -> Result when
+    ClientInfo :: client_info(),
+    Request :: packet(),
+    Result     :: {ok, {integer(), map(), binary()}} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+process_registration_request(ClientInfo, Request) ->
+  case srpc_encryptor:decrypt(origin_client, ClientInfo, Request) of
     {ok, <<UserIdLen:?USER_ID_LEN_BITS, RequestData/binary>>} ->
       case RequestData of
         <<UserId:UserIdLen/binary,
@@ -45,14 +53,18 @@ process_registration_request(ClientInfo, RegistrationRequest) ->
       Error
   end.
 
-%% ==============================================================================================
-%%
+%%--------------------------------------------------------------------------------------------------
 %%  Create User Registration Response
 %%    Code | <Registration Data>
-%%
-%% ==============================================================================================
-create_registration_response(ClientInfo, RegistrationCode, undefined) ->
-  create_registration_response(ClientInfo, RegistrationCode, <<>>);
-create_registration_response(ClientInfo,  RegistrationCode, RespData) ->
+%%--------------------------------------------------------------------------------------------------
+-spec create_registration_response(ClientInfo, RegCode, Data) -> Result when
+    ClientInfo :: client_info(),
+    RegCode    :: integer(),
+    Data       :: binary() | undefined,
+    Result     :: {ok, packet()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+create_registration_response(ClientInfo, RegCode, undefined) ->
+  create_registration_response(ClientInfo, RegCode, <<>>);
+create_registration_response(ClientInfo,  RegCode, RespData) ->
   srpc_encryptor:encrypt(origin_server, ClientInfo,
-                         <<RegistrationCode:?REG_CODE_BITS,  RespData/binary>>).
+                         <<RegCode:?REG_CODE_BITS,  RespData/binary>>).

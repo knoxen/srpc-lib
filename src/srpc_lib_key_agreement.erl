@@ -91,19 +91,23 @@ process_confirm_request(ClientInfo, Request) ->
   end.
 
 %%------------------------------------------------------------------------------------------------
-%%
 %%  Create Key Confirm Response
 %%    Server Challenge | <Confirm Data>
-%%
 %%------------------------------------------------------------------------------------------------
-create_confirm_response(AgreementInfo, ClientChallenge, RespConfirmData) ->
-  case srpc_sec:process_client_challenge(AgreementInfo, ClientChallenge) of
+-spec create_confirm_response(ClientInfo, ClientChallenge, ConfirmData) -> Result when
+    ClientInfo :: client_info(),
+    ClientChallenge :: binary(),
+    ConfirmData     :: binary(),
+    Result          :: {ok, client_info(), binary()} | error_msg() | invalid_msg().
+%%------------------------------------------------------------------------------------------------
+create_confirm_response(ClientInfo, ClientChallenge, ConfirmData) ->
+  case srpc_sec:process_client_challenge(ClientInfo, ClientChallenge) of
     {ok, ServerChallenge} ->
-      ConfirmResponse = <<ServerChallenge/binary, RespConfirmData/binary>>,
-      case srpc_encryptor:encrypt(origin_server, AgreementInfo, ConfirmResponse) of
+      ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
+      case srpc_encryptor:encrypt(origin_server, ClientInfo, ConfirmResponse) of
         {ok, ConfirmPacket} ->
-          ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, AgreementInfo)),
-          {ok, ClientInfo, ConfirmPacket};
+          NewClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, ClientInfo)),
+          {ok, NewClientInfo, ConfirmPacket};
         Error ->
           Error
       end;

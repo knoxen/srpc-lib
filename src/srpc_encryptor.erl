@@ -24,11 +24,11 @@
 %%------------------------------------------------------------------------------------------------
 %% @doc Encrypt data using client information
 %%
--spec encrypt(Origin, ClientInfo, Data) -> {ok, Packet} | error_msg() when
+-spec encrypt(Origin, ClientInfo, Data) -> Result when
     Origin     :: origin(),
     ClientInfo :: client_info(),
     Data       :: binary(),
-    Packet     :: binary().
+    Result     :: {ok, packet()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 encrypt(origin_client, #{client_key := SymKey} = ClientInfo, Data) ->
   encrypt_with_key(SymKey, ClientInfo, Data);
@@ -42,11 +42,11 @@ encrypt(_Origin, _ClientInfo, _Data) ->
 %%------------------------------------------------------------------------------------------------
 %% @doc Decrypt packet using client information
 %%
--spec decrypt(Origin, ClientInfo, Packet) -> {ok, Data} | error_msg() when
+-spec decrypt(Origin, ClientInfo, Packet) -> Result when
     Origin     :: origin(),
     ClientInfo :: client_info(),
     Packet     :: packet(),
-    Data       :: binary().
+    Result     :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 decrypt(origin_client, #{client_key := SymKey} = ClientInfo, Packet) ->
   decrypt_key(SymKey, ClientInfo, Packet);
