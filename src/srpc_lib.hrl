@@ -104,4 +104,11 @@
                         ,sha_alg      => sha_alg()
                         ,hmac_key     => hmac_key()
                         }.
+
+-type registration() :: #{user_id  => binary()
+                          ,kdf_salt => binary()
+                          ,srp_salt => binary()
+                          ,verifier => binary()
+                          }.
+
 -type origin()      :: origin_client | origin_server.

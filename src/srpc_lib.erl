@@ -175,16 +175,18 @@ user_key_process_exchange_request(ClientInfo, Request) ->
 %%--------------------------------------------------------------------------------------------------
 %%  User key exchange response
 %%--------------------------------------------------------------------------------------------------
--spec user_key_create_exchange_response(ClientId, ClientInfo, RegData, PubKey, Data) -> Result when
-    ClientId   :: client_id(),
-    ClientInfo :: client_info(),
-    RegData    :: binary() | invalid,
-    PubKey     :: public_key(),
-    Data       :: binary(),
-    Result     :: {ok, {client_info(), binary()}} | error_msg().
+-spec user_key_create_exchange_response(ClientId, ClientInfo, Registration, 
+                                        PubKey, ExchData) -> Result when
+    ClientId     :: client_id(),
+    ClientInfo   :: client_info(),
+    Registration :: binary() | invalid,
+    PubKey       :: public_key(),
+    ExchData     :: binary(),
+    Result       :: {ok, {client_info(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-user_key_create_exchange_response(ClientId, ClientInfo, RegData, PubKey, Data) ->
-  srpc_user_key_agreement:create_exchange_response(ClientId, ClientInfo, RegData, PubKey, Data).
+user_key_create_exchange_response(ClientId, ClientInfo, Registration, PubKey, ExchData) ->
+  srpc_user_key_agreement:create_exchange_response(ClientId, ClientInfo, Registration,
+                                                   PubKey, ExchData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  User key confirm request

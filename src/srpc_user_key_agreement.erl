@@ -48,26 +48,26 @@ process_exchange_request(ClientInfo, Request) ->
 %%  Create Key Exchange Response
 %%    User Code | L | ClientId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
--spec create_exchange_response(ClientId, ClientInfo, RegData, PublicKey, ExchData) -> Result when
-    ClientId  :: client_id(),
-    ClientInfo :: client_info(),
-    RegData   :: binary() | invalid,
-    PublicKey  :: public_key(),
-    ExchData   :: binary(),
-    Result     :: {ok, {client_info(), binary()}} | error_msg().
+-spec create_exchange_response(ClientId, ClientInfo, Registration, PublicKey, Data) -> Result when
+    ClientId     :: client_id(),
+    ClientInfo   :: client_info(),
+    Registration :: binary() | invalid,
+    PublicKey    :: public_key(),
+    Data         :: binary(),
+    Result       :: {ok, {client_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
-create_exchange_response(ClientId, CryptClientInfo, invalid, _ClientPublicKey, ExchangeData) ->
+create_exchange_response(ClientId, CryptClientInfo, invalid, _ClientPublicKey, ExchData) ->
   encrypt_response_data(ClientId, CryptClientInfo, ?SRPC_USER_INVALID_IDENTITY,
                         crypto:strong_rand_bytes(?SRPC_KDF_SALT_SIZE),
                         crypto:strong_rand_bytes(?SRPC_SRP_SALT_SIZE),
                         crypto:strong_rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
-                        ExchangeData);
+                        ExchData);
 
-create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKey, ExchangeData) ->
+create_exchange_response(ClientId, CryptClientInfo, Registration, ClientPublicKey, ExchData) ->
   #{user_id  := UserId
    ,kdf_salt := KdfSalt
    ,srp_salt := SrpSalt
-   ,verifier := Verifier} = SrpcUserData,
+   ,verifier := Verifier} = Registration,
   SEphemeralKeys = srpc_sec:generate_ephemeral_keys(Verifier),
   {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
 
@@ -77,7 +77,7 @@ create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKe
                                   #{client_type => user
                                    ,entity_id   => UserId}),
       case encrypt_response_data(ClientId, CryptClientInfo, ?SRPC_USER_OK,
-                                 KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) of
+                                 KdfSalt, SrpSalt, ServerPublicKey, ExchData) of
         {ok, ExchangeResponse} ->
           {ok, {NewClientInfo, ExchangeResponse}};
         Error ->
