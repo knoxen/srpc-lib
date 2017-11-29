@@ -77,7 +77,7 @@ create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
 %%------------------------------------------------------------------------------------------------
 -spec process_confirm_request(ClientInfo, Request) -> Result when
     ClientInfo :: client_info(),
-    Request    :: packet(),
+    Request    :: binary(),
     Result     :: {ok, {binary(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_confirm_request(ClientInfo, Request) ->

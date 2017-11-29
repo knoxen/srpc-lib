@@ -28,7 +28,7 @@
     Origin     :: origin(),
     ClientInfo :: client_info(),
     Data       :: binary(),
-    Result     :: {ok, packet()} | error_msg().
+    Result     :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 encrypt(origin_client, #{client_key := SymKey} = ClientInfo, Data) ->
   encrypt_with_key(SymKey, ClientInfo, Data);
@@ -45,7 +45,7 @@ encrypt(_Origin, _ClientInfo, _Data) ->
 -spec decrypt(Origin, ClientInfo, Packet) -> Result when
     Origin     :: origin(),
     ClientInfo :: client_info(),
-    Packet     :: packet(),
+    Packet     :: binary(),
     Result     :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 decrypt(origin_client, #{client_key := SymKey} = ClientInfo, Packet) ->
@@ -70,7 +70,7 @@ decrypt(_Origin, _ClientInfo, _Packet) ->
     SymKey     :: sym_key(),
     ClientInfo :: client_info(),
     Data       :: binary(),
-    Packet     :: packet().
+    Packet     :: binary().
 %%------------------------------------------------------------------------------------------------
 encrypt_with_key(SymKey, #{client_id := ClientId, hmac_key  := HmacKey}, Data) ->
   SrpcDataHdr = srpc_data_hdr(ClientId),
@@ -86,7 +86,7 @@ encrypt_with_key(_Key, _Map, _Data) ->
     SymKey  :: sym_key(),
     HmacKey :: hmac_key(),
     Data    :: binary(),
-    Packet  :: packet().
+    Packet  :: binary().
 %%------------------------------------------------------------------------------------------------
 encrypt_data(SymKey, HmacKey, Data) ->
   IV = crypto:strong_rand_bytes(?SRPC_AES_BLOCK_SIZE),
@@ -101,7 +101,7 @@ encrypt_data(SymKey, HmacKey, Data) ->
     IV      :: aes_block(),
     HmacKey :: hmac_key(),
     Data    :: binary(),
-    Packet  :: packet().
+    Packet  :: binary().
 %%------------------------------------------------------------------------------------------------
 encrypt_data(<<SymKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<HmacKey/binary>>,
              <<Data/binary>>)
@@ -134,7 +134,7 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
 -spec decrypt_key(SymKey, ClientInfo, Packet) -> {ok, Data} | error_msg() when
     SymKey     :: sym_key(),
     ClientInfo :: map(),
-    Packet     :: packet(),
+    Packet     :: binary(),
     Data       :: binary().
 %%------------------------------------------------------------------------------------------------
 decrypt_key(SymKey, #{client_id := ClientId, hmac_key := HmacKey}, Packet) ->

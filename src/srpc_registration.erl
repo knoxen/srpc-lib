@@ -23,7 +23,7 @@
 %%--------------------------------------------------------------------------------------------------
 -spec process_registration_request(ClientInfo, Request) -> Result when
     ClientInfo :: client_info(),
-    Request :: packet(),
+    Request    :: binary(),
     Result     :: {ok, {integer(), map(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_registration_request(ClientInfo, Request) ->
@@ -61,7 +61,7 @@ process_registration_request(ClientInfo, Request) ->
     ClientInfo :: client_info(),
     RegCode    :: integer(),
     Data       :: binary() | undefined,
-    Result     :: {ok, packet()} | error_msg().
+    Result     :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 create_registration_response(ClientInfo, RegCode, undefined) ->
   create_registration_response(ClientInfo, RegCode, <<>>);

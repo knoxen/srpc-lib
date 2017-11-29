@@ -120,7 +120,7 @@ lib_key_create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
 %%--------------------------------------------------------------------------------------------------
 -spec lib_key_process_confirm_request(ExchangeMap, Request) -> Result when
     ExchangeMap :: client_info(),
-    Request     :: packet(),
+    Request     :: binary(),
     Result      :: {ok, {binary(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 lib_key_process_confirm_request(ExchangeMap, Request) ->
@@ -143,7 +143,7 @@ lib_key_create_confirm_response(ExchangeMap, ClientChallenge, ConfirmData) ->
 %%--------------------------------------------------------------------------------------------------
 -spec process_registration_request(ClientInfo, Request) -> Result when
     ClientInfo :: client_info(),
-    Request :: packet(),
+    Request :: binary(),
     Result     :: {ok, {integer(), map(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_registration_request(ClientInfo, Request) ->
@@ -156,7 +156,7 @@ process_registration_request(ClientInfo, Request) ->
     ClientInfo :: client_info(),
     RegCode    :: integer(),
     Data       :: binary() | undefined,
-    Result     :: {ok, packet()} | error_msg().
+    Result     :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 create_registration_response(ClientInfo, RegCode, Data) ->
   srpc_registration:create_registration_response(ClientInfo, RegCode, Data).
@@ -166,7 +166,7 @@ create_registration_response(ClientInfo, RegCode, Data) ->
 %%--------------------------------------------------------------------------------------------------
 -spec user_key_process_exchange_request(ClientInfo, Request) -> Result when
     ClientInfo :: client_info(),
-    Request    :: packet(),
+    Request    :: binary(),
     Result     :: {ok, {client_id(), public_key(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 user_key_process_exchange_request(ClientInfo, Request) ->
@@ -181,7 +181,7 @@ user_key_process_exchange_request(ClientInfo, Request) ->
     RegData    :: binary() | invalid,
     PubKey     :: public_key(),
     Data       :: binary(),
-    Result     :: {ok, {client_info(), packet()}} | error_msg().
+    Result     :: {ok, {client_info(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 user_key_create_exchange_response(ClientId, ClientInfo, RegData, PubKey, Data) ->
   srpc_user_key_agreement:create_exchange_response(ClientId, ClientInfo, RegData, PubKey, Data).
@@ -191,7 +191,7 @@ user_key_create_exchange_response(ClientId, ClientInfo, RegData, PubKey, Data) -
 %%--------------------------------------------------------------------------------------------------
 -spec user_key_process_confirm_request(ClientInfo, Request) -> Result when
     ClientInfo :: client_info(),
-    Request    :: packet(),
+    Request    :: binary(),
     Result     :: {ok, {binary(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 user_key_process_confirm_request(ClientInfo, Request) ->
@@ -218,7 +218,7 @@ user_key_create_confirm_response(LibClientInfo, UserClientInfo, ClientChallenge,
     Origin     :: origin(),
     ClientInfo :: client_info(),
     Data       :: binary(),
-    Result     :: {ok, packet()} | error_msg().
+    Result     :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 encrypt(Origin, ClientInfo, Data) ->
   srpc_encryptor:encrypt(Origin, ClientInfo, Data).
@@ -229,7 +229,7 @@ encrypt(Origin, ClientInfo, Data) ->
 -spec decrypt(Origin, ClientInfo, Packet) -> Result when
     Origin     :: origin(),
     ClientInfo :: client_info(),
-    Packet     :: packet(),
+    Packet     :: binary(),
     Result     :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 decrypt(Origin, ClientInfo, Packet) ->

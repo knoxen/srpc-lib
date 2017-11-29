@@ -21,7 +21,7 @@
 %%------------------------------------------------------------------------------------------------
 -spec process_exchange_request(ClientInfo, Request) -> Result when
     ClientInfo :: client_info(),
-    Request    :: packet(),
+    Request    :: binary(),
     Result     :: {ok, {client_id(), public_key(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_exchange_request(ClientInfo, Request) ->
@@ -54,7 +54,7 @@ process_exchange_request(ClientInfo, Request) ->
     RegData   :: binary() | invalid,
     PublicKey  :: public_key(),
     ExchData   :: binary(),
-    Result     :: {ok, {client_info(), packet()}} | error_msg().
+    Result     :: {ok, {client_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 create_exchange_response(ClientId, CryptClientInfo, invalid, _ClientPublicKey, ExchangeData) ->
   encrypt_response_data(ClientId, CryptClientInfo, ?SRPC_USER_INVALID_IDENTITY,
@@ -98,7 +98,7 @@ create_exchange_response(ClientId, CryptClientInfo, SrpcUserData, ClientPublicKe
 %%------------------------------------------------------------------------------------------------
 -spec process_confirm_request(ClientInfo, Request) -> Result when
     ClientInfo :: client_info(),
-    Request    :: packet(),
+    Request    :: binary(),
     Result     :: {ok, {binary(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_confirm_request(ClientInfo, Request) ->
@@ -162,7 +162,7 @@ create_confirm_response(LibClientInfo, UserClientInfo, ClientChallenge, ConfirmD
     SrpSalt         :: binary(),
     ServerPublicKey :: public_key(),    
     ExchangeData    :: binary(),
-    Result          :: {ok, packet()} | error_msg().
+    Result          :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 encrypt_response_data(ClientId, ClientInfo, UserCode,
                       KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->

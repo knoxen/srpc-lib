@@ -89,8 +89,9 @@
 -type public_keys() :: {public_key(), public_key()}.
 -type verifier()    :: binary().
 -type client_id()   :: binary().
--type sym_key()     :: <<_:16>> | <<_:24>> | <<_:32>>.
--type hmac_key()    :: <<_:16>>.
+-type aes_block()   :: <<_:128>>.
+-type sym_key()     :: <<_:128>> | <<_:192>> | <<_:256>>.
+-type hmac_key()    :: <<_:256>>.
 -type keys()        :: {sym_key(), sym_key(), hmac_key()}.
 -type sym_alg()     :: aes128 | aes192 | aes256.
 -type sha_alg()     :: sha256 | sha384 | sha512.
@@ -103,11 +104,4 @@
                         ,sha_alg      => sha_alg()
                         ,hmac_key     => hmac_key()
                         }.
--type origin()     :: origin_client | origin_server.
--type aes_block()  :: <<_:16>>.
--type version()    :: <<_:1>>.
--type iv()         :: aes_block().
--type ciphertext() :: binary().
--type cryptor()    :: [version() | iv() | ciphertext()].
--type packet()     :: [cryptor() | hmac_key()].
-
+-type origin()      :: origin_client | origin_server.
