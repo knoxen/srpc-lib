@@ -5,7 +5,8 @@
 -include("srpc_lib.hrl").
 
 -export([validate_public_key/1
-        ,generate_ephemeral_keys/1
+        ,generate_server_keys/1
+        ,generate_client_keys/0
         ,client_info/4
         ,process_client_challenge/2
         ,refresh_keys/2
@@ -18,7 +19,7 @@
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 %%  Validate public key
-%%    - Prevent K < N to ensure exponential "wrap" in cyclic group
+%%    - Prevent K < N to ensure "wrap" in cyclic group
 %%--------------------------------------------------------------------------------------------------
 -spec validate_public_key(PublicKey) -> ok | error_msg() when
     PublicKey :: binary().
@@ -37,66 +38,66 @@ validate_public_key(_PublicKey) ->
   {error, <<"Public key not binary">>}.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Generate ephmeral keys
+%%  Generate SRP server keys
 %%--------------------------------------------------------------------------------------------------
--spec generate_ephemeral_keys(Verifier) -> PublicKeys when
+-spec generate_server_keys(Verifier) -> PublicKeys when
     Verifier   :: verifier(),
     PublicKeys :: public_keys().
 %%--------------------------------------------------------------------------------------------------
-generate_ephemeral_keys(Verifier) ->
+generate_server_keys(Verifier) ->
   SrpParams = [Verifier, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
-  {GeneratedPublicKey, PrivateKey} = crypto:generate_key(srp, {host, SrpParams}),
+  {PublicKey, PrivateKey} = crypto:generate_key(srp, {host, SrpParams}),
+  {pad_value(PublicKey, ?SRPC_PUBLIC_KEY_SIZE), PrivateKey}.
 
-  %% Prepend generated public key with 0's to ensure SRP public key size length. Necessary 
-  %% because this value is transmitted.
-  PublicKey = 
-    case byte_size(GeneratedPublicKey) of
-      ?SRPC_PUBLIC_KEY_SIZE ->
-        GeneratedPublicKey;
-      ByteSize ->
-        LeadZeros = (?SRPC_PUBLIC_KEY_SIZE - ByteSize) * 8,
-        << 0:LeadZeros, GeneratedPublicKey/binary >>
-    end,
-  {PublicKey, PrivateKey}.
+%%--------------------------------------------------------------------------------------------------
+%%  Generate SRP client keys
+%%--------------------------------------------------------------------------------------------------
+-spec generate_client_keys() -> PublicKeys when
+    PublicKeys :: public_keys().
+%%--------------------------------------------------------------------------------------------------
+generate_client_keys() ->
+  SrpParams = [?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
+  {PublicKey, PrivateKey} = crypto:generate_key(srp, {user, SrpParams}),
+  {pad_value(PublicKey, ?SRPC_PUBLIC_KEY_SIZE), PrivateKey}.
+
+%%--------------------------------------------------------------------------------------------------
+%%  Prepend 0's to ensure length. Necessary for values transmitted between client and server
+%%--------------------------------------------------------------------------------------------------
+pad_value(PublicKey, Size) ->
+  case byte_size(PublicKey) of
+    Size ->
+      PublicKey;
+    ByteSize ->
+      Padding = (Size - ByteSize) * 8,
+      << 0:Padding, PublicKey/binary >>
+  end.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Client Info
 %%--------------------------------------------------------------------------------------------------
--spec client_info(ClientId, CPubKey, SEphemeralKeys, Verifier) -> Result when
-    ClientId       :: client_id(),
-    CPubKey        :: public_key(),
-    SEphemeralKeys :: public_keys(),
-    Verifier       :: verifier(),
-    Result         :: {ok, client_info()} | error_msg().
+-spec client_info(ClientId, CPubKey, ServerKeys, Verifier) -> Result when
+    ClientId   :: client_id(),
+    CPubKey    :: public_key(),
+    ServerKeys :: public_keys(),
+    Verifier   :: verifier(),
+    Result     :: {ok, client_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-client_info(ClientId, CPubKey, SEphemeralKeys, Verifier) ->
-  client_info(ClientId, CPubKey, SEphemeralKeys, Verifier, {aes256, sha256}).
+client_info(ClientId, CPubKey, ServerKeys, Verifier) ->
+  client_info(ClientId, CPubKey, ServerKeys, Verifier, {aes256, sha256}).
 
-client_info(ClientId, CPubKey, SEphemeralKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
+client_info(ClientId, CPubKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
   SrpHostParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
-  ComputedKey = crypto:compute_key(srp, CPubKey, SEphemeralKeys, SrpHostParams),
-
-  %% Prepend computed key (secret) with 0's to ensure SRP value size length.
-  VerifierSize = ?SRPC_VERIFIER_SIZE,
-  Secret =
-    case byte_size(ComputedKey) of
-      VerifierSize ->
-        ComputedKey;
-      ByteSize ->
-        LeadZeros = (VerifierSize - ByteSize) * 8,
-        << 0:LeadZeros, ComputedKey/binary >>
-    end,
-
-  {SPubKey, _SPrivKey} = SEphemeralKeys,
+  Secret = crypto:compute_key(srp, CPubKey, ServerKeys, SrpHostParams),
+  {SPubKey, _SPrivKey} = ServerKeys,
 
   %% Salt is hash of A|B
   Salt = crypto:hash(ShaAlg, <<CPubKey/binary, SPubKey/binary>>),
   
-  case gen_keys(Algs, Salt, ClientId, Secret) of
+  case hkdf_keys(Algs, Salt, ClientId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
     {ClientKey, ServerKey, HmacKey} ->
       {ok, #{client_id    => ClientId
             ,c_pub_key    => CPubKey
-            ,s_ephem_keys => SEphemeralKeys
+            ,s_ephem_keys => ServerKeys
             ,sym_alg      => SymAlg 
             ,client_key   => ClientKey
             ,server_key   => ServerKey
@@ -117,14 +118,14 @@ client_info(ClientId, CPubKey, SEphemeralKeys, Verifier, {SymAlg, ShaAlg} = Algs
     Result          :: {ok, binary()} | {invalid, binary()}.
 %%--------------------------------------------------------------------------------------------------
 process_client_challenge(#{c_pub_key    := CPubKey
-                          ,s_ephem_keys := SEphemeralKeys
+                          ,s_ephem_keys := ServerKeys
                           ,client_key   := ClientKey
                           ,server_key   := ServerKey
                           ,sha_alg      := ShaAlg
                           }
                         ,ClientChallenge) ->
   
-  {SPubKey, _PrivateKey} = SEphemeralKeys,
+  {SPubKey, _PrivateKey} = ServerKeys,
   ChallengeData = <<CPubKey/binary, SPubKey/binary, ServerKey/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
 
@@ -158,7 +159,7 @@ refresh_keys(#{client_id  := ClientId
             ,Data) ->
 
   IKM = <<ClientKey/binary, ServerKey/binary, HmacKey/binary>>,
-  case gen_keys({SymAlg, ShaAlg}, Data, ClientId, IKM) of
+  case hkdf_keys({SymAlg, ShaAlg}, Data, ClientId, IKM) of
     {NewClientKey, NewServerKey, NewHmacKey} ->
       maps:merge(ClientInfo, 
                  #{client_key => NewClientKey
@@ -191,14 +192,14 @@ sha_size(sha512) -> ?SRPC_HMAC_512_SIZE.
 %%------------------------------------------------------------------------------------------------
 %%  Keys using HKDF
 %%------------------------------------------------------------------------------------------------
--spec gen_keys({SymAlg, ShaAlg}, Salt, Info, IKM) -> keys() | error_msg() when
+-spec hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) -> keys() | error_msg() when
     SymAlg :: sym_alg(),
     ShaAlg :: sha_alg(),
     Salt   :: binary(),
     Info   :: binary(),
     IKM    :: binary().
 %%------------------------------------------------------------------------------------------------
-gen_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
+hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
   SymKeySize = sym_key_size(SymAlg),
   HmacKeySize = sha_size(ShaAlg),
   Len = 2 * SymKeySize + HmacKeySize,

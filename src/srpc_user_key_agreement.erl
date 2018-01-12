@@ -68,10 +68,10 @@ create_exchange_response(ClientId, CryptClientInfo, Registration, ClientPublicKe
    ,kdf_salt := KdfSalt
    ,srp_salt := SrpSalt
    ,verifier := Verifier} = Registration,
-  SEphemeralKeys = srpc_sec:generate_ephemeral_keys(Verifier),
-  {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
+  ServerKeys = srpc_sec:generate_server_keys(Verifier),
+  {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
 
-  case srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, Verifier) of
+  case srpc_sec:client_info(ClientId, ClientPublicKey, ServerKeys, Verifier) of
     {ok, ClientInfo} ->
       NewClientInfo =  maps:merge(ClientInfo,
                                   #{client_type => user

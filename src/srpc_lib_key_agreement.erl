@@ -53,11 +53,11 @@ process_exchange_request(_) ->
 %%------------------------------------------------------------------------------------------------
 create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
   ClientIdLen = byte_size(ClientId),
-  SEphemeralKeys = srpc_sec:generate_ephemeral_keys(?SRPC_VERIFIER),
-  {ServerPublicKey, _ServerPrivateKey} = SEphemeralKeys,
+  ServerKeys = srpc_sec:generate_server_keys(?SRPC_VERIFIER),
+  {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
   ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  case srpc_sec:client_info(ClientId, ClientPublicKey, SEphemeralKeys, ?SRPC_VERIFIER) of
+  case srpc_sec:client_info(ClientId, ClientPublicKey, ServerKeys, ?SRPC_VERIFIER) of
     {ok, ClientInfo} ->
       AgreementInfo = maps:merge(ClientInfo, #{client_type => lib, 
                                                entity_id => srpc_lib:srpc_id()}),
