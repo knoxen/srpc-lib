@@ -17,15 +17,15 @@
 %%            #{client_id := ClientId
 %%             ,client_type := ClientType
 %%             ,entity_id := EntityId
-%%             ,client_sym_key := ClientKey
-%%             ,server_sym_key := ServerKey
+%%             ,client_sym_key := ClientSymKey
+%%             ,server_sym_key := ServerSymKey
 %%             ,hmac_key := HmacKey
 %%             }) ->
 %%   io:format("~s~n", [Description]),
 %%   io:format("  Client Id = ~p, Type = ~p~n", [ClientId, ClientType]),
 %%   io:format("  EntityId = ~p~n", [EntityId]),
-%%   io:format("  ClientKey = ~p~n", [srpc_util:bin_to_hex(ClientKey)]),
-%%   io:format("  ServerKey = ~p~n", [srpc_util:bin_to_hex(ServerKey)]),
+%%   io:format("  ClientSymKey = ~p~n", [srpc_util:bin_to_hex(ClientSymKey)]),
+%%   io:format("  ServerSymKey = ~p~n", [srpc_util:bin_to_hex(ServerSymKey)]),
 %%   io:format("  HmacKey =   ~p~n", [srpc_util:bin_to_hex(HmacKey)]).
 
 %%================================================================================================

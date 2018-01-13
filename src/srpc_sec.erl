@@ -94,13 +94,13 @@ client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = 
   Salt = crypto:hash(ShaAlg, <<ClientPublicKey/binary, SPubKey/binary>>),
   
   case hkdf_keys(Algs, Salt, ClientId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
-    {ClientKey, ServerKey, HmacKey} ->
+    {ClientSymKey, ServerSymKey, HmacKey} ->
       {ok, #{client_id             => ClientId
             ,client_public_key     => ClientPublicKey
             ,server_ephemeral_keys => ServerKeys
             ,sym_alg               => SymAlg 
-            ,client_sym_key        => ClientKey
-            ,server_sym_key        => ServerKey
+            ,client_sym_key        => ClientSymKey
+            ,server_sym_key        => ServerSymKey
             ,sha_alg               => ShaAlg
             ,hmac_key              => HmacKey
             }
@@ -119,20 +119,20 @@ client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = 
 %%--------------------------------------------------------------------------------------------------
 process_client_challenge(#{client_public_key     := ClientPublicKey
                           ,server_ephemeral_keys := ServerKeys
-                          ,client_sym_key        := ClientKey
-                          ,server_sym_key        := ServerKey
+                          ,client_sym_key        := ClientSymKey
+                          ,server_sym_key        := ServerSymKey
                           ,sha_alg               := ShaAlg
                           }
                         ,ClientChallenge) ->
   
   {SPubKey, _PrivateKey} = ServerKeys,
-  ChallengeData = <<ClientPublicKey/binary, SPubKey/binary, ServerKey/binary>>,
+  ChallengeData = <<ClientPublicKey/binary, SPubKey/binary, ServerSymKey/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
 
   case srpc_util:const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
-        <<ClientPublicKey/binary, ClientChallenge/binary, ClientKey/binary>>,
+        <<ClientPublicKey/binary, ClientChallenge/binary, ClientSymKey/binary>>,
       ServerChallenge = crypto:hash(ShaAlg, ServerChallengeData),
       {ok, ServerChallenge};
     false ->
@@ -151,19 +151,19 @@ process_client_challenge(#{client_public_key     := ClientPublicKey
 %%------------------------------------------------------------------------------------------------
 refresh_keys(#{client_id      := ClientId
               ,sym_alg        := SymAlg
-              ,client_sym_key := ClientKey
-              ,server_sym_key := ServerKey
+              ,client_sym_key := ClientSymKey
+              ,server_sym_key := ServerSymKey
               ,sha_alg        := ShaAlg
               ,hmac_key       := HmacKey
               } = ClientInfo
             ,Data) ->
 
-  IKM = <<ClientKey/binary, ServerKey/binary, HmacKey/binary>>,
+  IKM = <<ClientSymKey/binary, ServerSymKey/binary, HmacKey/binary>>,
   case hkdf_keys({SymAlg, ShaAlg}, Data, ClientId, IKM) of
-    {NewClientKey, NewServerKey, NewHmacKey} ->
+    {NewClientSymKey, NewServerSymKey, NewHmacKey} ->
       maps:merge(ClientInfo, 
-                 #{client_sym_key => NewClientKey
-                  ,server_sym_key => NewServerKey
+                 #{client_sym_key => NewClientSymKey
+                  ,server_sym_key => NewServerSymKey
                   ,hmac_key       => NewHmacKey});
     Error ->
       Error
@@ -206,9 +206,11 @@ hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
 
   case hkdf(ShaAlg, Salt, Info, IKM, Len) of
     {ok, KeyingMaterial} ->
-      <<ClientKey:SymKeySize/binary, ServerKey:SymKeySize/binary, HmacKey:HmacKeySize/binary>>
+      <<ClientSymKey:SymKeySize/binary, 
+        ServerSymKey:SymKeySize/binary, 
+        HmacKey:HmacKeySize/binary>>
         = KeyingMaterial,
-      {ClientKey, ServerKey, HmacKey};
+      {ClientSymKey, ServerSymKey, HmacKey};
     Error ->
       Error
   end.    
