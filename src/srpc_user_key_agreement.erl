@@ -22,7 +22,7 @@
 -spec process_exchange_request(ClientInfo, Request) -> Result when
     ClientInfo :: client_info(),
     Request    :: binary(),
-    Result     :: {ok, {client_id(), public_key(), binary()}} | error_msg().
+    Result     :: {ok, {client_id(), ephemeral_key(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_exchange_request(ClientInfo, Request) ->
   case srpc_encryptor:decrypt(origin_client, ClientInfo, Request) of
@@ -52,7 +52,7 @@ process_exchange_request(ClientInfo, Request) ->
     ClientId     :: client_id(),
     ClientInfo   :: client_info(),
     Registration :: binary() | invalid,
-    PublicKey    :: public_key(),
+    PublicKey    :: ephemeral_key(),
     Data         :: binary(),
     Result       :: {ok, {client_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
@@ -138,7 +138,8 @@ create_confirm_response(LibClientInfo, UserClientInfo, ClientChallenge, ConfirmD
   ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
   case srpc_encryptor:encrypt(origin_server, LibClientInfo, ConfirmResponse) of
     {ok, ConfirmPacket} ->
-      ClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, UserClientInfo)),
+      ClientInfo = maps:remove(client_public_key, 
+                               maps:remove(server_ephemeral_keys, UserClientInfo)),
       {Atom, ClientInfo, ConfirmPacket};
     Error ->
       Error
@@ -160,7 +161,7 @@ create_confirm_response(LibClientInfo, UserClientInfo, ClientChallenge, ConfirmD
     UserCode        :: integer(),
     KdfSalt         :: binary(),
     SrpSalt         :: binary(),
-    ServerPublicKey :: public_key(),    
+    ServerPublicKey :: ephemeral_key(),    
     ExchangeData    :: binary(),
     Result          :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------

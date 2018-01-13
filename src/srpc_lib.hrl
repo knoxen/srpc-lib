@@ -85,8 +85,8 @@
 %%==================================================================================================
 -type error_msg()   :: {error, binary()}.
 -type invalid_msg() :: {invalid, binary()}.
--type public_key()  :: binary().
--type public_keys() :: {public_key(), public_key()}.
+-type ephemeral_key()  :: binary().
+-type ephemeral_keys() :: {ephemeral_key(), ephemeral_key()}.
 -type verifier()    :: binary().
 -type client_id()   :: binary().
 -type aes_block()   :: <<_:128>>.
@@ -96,8 +96,8 @@
 -type sym_alg()     :: aes128 | aes192 | aes256.
 -type sha_alg()     :: sha256 | sha384 | sha512.
 -type client_info() :: #{client_id    => client_id()
-                        ,c_pub_key    => public_key()
-                        ,s_ephem_keys => public_keys()
+                        ,client_public_key    => ephemeral_key()
+                        ,server_ephemeral_keys => ephemeral_keys()
                         ,sym_alg      => sym_alg()
                         ,sha_alg      => sha_alg()
                         ,client_key   => sym_key()

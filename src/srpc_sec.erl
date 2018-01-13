@@ -42,7 +42,7 @@ validate_public_key(_PublicKey) ->
 %%--------------------------------------------------------------------------------------------------
 -spec generate_server_keys(Verifier) -> PublicKeys when
     Verifier   :: verifier(),
-    PublicKeys :: public_keys().
+    PublicKeys :: ephemeral_keys().
 %%--------------------------------------------------------------------------------------------------
 generate_server_keys(Verifier) ->
   SrpParams = [Verifier, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
@@ -53,7 +53,7 @@ generate_server_keys(Verifier) ->
 %%  Generate SRP client keys
 %%--------------------------------------------------------------------------------------------------
 -spec generate_client_keys() -> PublicKeys when
-    PublicKeys :: public_keys().
+    PublicKeys :: ephemeral_keys().
 %%--------------------------------------------------------------------------------------------------
 generate_client_keys() ->
   SrpParams = [?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
@@ -75,34 +75,34 @@ pad_value(PublicKey, Size) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Client Info
 %%--------------------------------------------------------------------------------------------------
--spec client_info(ClientId, CPubKey, ServerKeys, Verifier) -> Result when
-    ClientId   :: client_id(),
-    CPubKey    :: public_key(),
-    ServerKeys :: public_keys(),
-    Verifier   :: verifier(),
-    Result     :: {ok, client_info()} | error_msg().
+-spec client_info(ClientId, ClientPublicKey, ServerKeys, Verifier) -> Result when
+    ClientId        :: client_id(),
+    ClientPublicKey :: ephemeral_key(),
+    ServerKeys      :: ephemeral_keys(),
+    Verifier        :: verifier(),
+    Result          :: {ok, client_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-client_info(ClientId, CPubKey, ServerKeys, Verifier) ->
-  client_info(ClientId, CPubKey, ServerKeys, Verifier, {aes256, sha256}).
+client_info(ClientId, ClientPublicKey, ServerKeys, Verifier) ->
+  client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {aes256, sha256}).
 
-client_info(ClientId, CPubKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
+client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
   SrpHostParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
-  Secret = crypto:compute_key(srp, CPubKey, ServerKeys, SrpHostParams),
+  Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeys, SrpHostParams),
   {SPubKey, _SPrivKey} = ServerKeys,
 
   %% Salt is hash of A|B
-  Salt = crypto:hash(ShaAlg, <<CPubKey/binary, SPubKey/binary>>),
+  Salt = crypto:hash(ShaAlg, <<ClientPublicKey/binary, SPubKey/binary>>),
   
   case hkdf_keys(Algs, Salt, ClientId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
     {ClientKey, ServerKey, HmacKey} ->
-      {ok, #{client_id    => ClientId
-            ,c_pub_key    => CPubKey
-            ,s_ephem_keys => ServerKeys
-            ,sym_alg      => SymAlg 
-            ,client_key   => ClientKey
-            ,server_key   => ServerKey
-            ,sha_alg      => ShaAlg
-            ,hmac_key     => HmacKey
+      {ok, #{client_id             => ClientId
+            ,client_public_key     => ClientPublicKey
+            ,server_ephemeral_keys => ServerKeys
+            ,sym_alg               => SymAlg 
+            ,client_key            => ClientKey
+            ,server_key            => ServerKey
+            ,sha_alg               => ShaAlg
+            ,hmac_key              => HmacKey
             }
       };
     Error ->
@@ -117,22 +117,22 @@ client_info(ClientId, CPubKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
     ClientChallenge :: binary(),
     Result          :: {ok, binary()} | {invalid, binary()}.
 %%--------------------------------------------------------------------------------------------------
-process_client_challenge(#{c_pub_key    := CPubKey
-                          ,s_ephem_keys := ServerKeys
-                          ,client_key   := ClientKey
-                          ,server_key   := ServerKey
-                          ,sha_alg      := ShaAlg
+process_client_challenge(#{client_public_key     := ClientPublicKey
+                          ,server_ephemeral_keys := ServerKeys
+                          ,client_key            := ClientKey
+                          ,server_key            := ServerKey
+                          ,sha_alg               := ShaAlg
                           }
                         ,ClientChallenge) ->
   
   {SPubKey, _PrivateKey} = ServerKeys,
-  ChallengeData = <<CPubKey/binary, SPubKey/binary, ServerKey/binary>>,
+  ChallengeData = <<ClientPublicKey/binary, SPubKey/binary, ServerKey/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
 
   case srpc_util:const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
-        <<CPubKey/binary, ClientChallenge/binary, ClientKey/binary>>,
+        <<ClientPublicKey/binary, ClientChallenge/binary, ClientKey/binary>>,
       ServerChallenge = crypto:hash(ShaAlg, ServerChallengeData),
       {ok, ServerChallenge};
     false ->

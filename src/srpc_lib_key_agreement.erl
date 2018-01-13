@@ -29,7 +29,7 @@
 %%------------------------------------------------------------------------------------------------
 -spec process_exchange_request(Request) -> Result when
     Request :: binary(),
-    Result  :: {ok, {public_key(), binary()}} | invalid_msg() | error_msg().
+    Result  :: {ok, {ephemeral_key(), binary()}} | invalid_msg() | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_exchange_request(<<IdSize:8, ExchangeRequest/binary>>) ->
   SrpcId = srpc_lib:srpc_id(),
@@ -55,7 +55,7 @@ process_exchange_request(_) ->
 %%------------------------------------------------------------------------------------------------
 -spec create_exchange_response(ClientId, ClientPublicKey, ExchangeData) -> Response when
     ClientId        :: client_id(),
-    ClientPublicKey :: public_key(),
+    ClientPublicKey :: ephemeral_key(),
     ExchangeData    :: binary(),
     Response        :: {ok, {client_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
@@ -109,7 +109,7 @@ create_confirm_response(ClientInfo, ClientChallenge, ConfirmData) ->
       ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
       case srpc_encryptor:encrypt(origin_server, ClientInfo, ConfirmResponse) of
         {ok, ConfirmPacket} ->
-          NewClientInfo = maps:remove(c_pub_key, maps:remove(s_ephem_keys, ClientInfo)),
+          NewClientInfo = maps:remove(client_public_key, maps:remove(server_ephemeral_keys, ClientInfo)),
           {ok, NewClientInfo, ConfirmPacket};
         Error ->
           Error

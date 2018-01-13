@@ -98,7 +98,7 @@ srpc_info() ->
 %%--------------------------------------------------------------------------------------------------
 -spec lib_key_process_exchange_request(Request) -> Result when
     Request :: binary(),
-    Result  :: {ok, {public_key(), binary()}} | invalid_msg() | error_msg().
+    Result  :: {ok, {ephemeral_key(), binary()}} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 lib_key_process_exchange_request(ExchangeRequest) ->
   srpc_lib_key_agreement:process_exchange_request(ExchangeRequest).
@@ -108,7 +108,7 @@ lib_key_process_exchange_request(ExchangeRequest) ->
 %%--------------------------------------------------------------------------------------------------
 -spec lib_key_create_exchange_response(ClientId, ClientPublicKey, ExchangeData) -> Result when
     ClientId        :: client_id(),
-    ClientPublicKey :: public_key(),
+    ClientPublicKey :: ephemeral_key(),
     ExchangeData    :: binary(),
     Result          :: {ok, {client_info(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
@@ -167,7 +167,7 @@ create_registration_response(ClientInfo, RegCode, Data) ->
 -spec user_key_process_exchange_request(ClientInfo, Request) -> Result when
     ClientInfo :: client_info(),
     Request    :: binary(),
-    Result     :: {ok, {client_id(), public_key(), binary()}} | error_msg().
+    Result     :: {ok, {client_id(), ephemeral_key(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 user_key_process_exchange_request(ClientInfo, Request) ->
   srpc_user_key_agreement:process_exchange_request(ClientInfo, Request).
@@ -180,7 +180,7 @@ user_key_process_exchange_request(ClientInfo, Request) ->
     ClientId     :: client_id(),
     ClientInfo   :: client_info(),
     Registration :: binary() | invalid,
-    PubKey       :: public_key(),
+    PubKey       :: ephemeral_key(),
     ExchData     :: binary(),
     Result       :: {ok, {client_info(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
