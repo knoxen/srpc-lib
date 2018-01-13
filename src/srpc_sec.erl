@@ -88,10 +88,10 @@ client_info(ClientId, ClientPublicKey, ServerKeys, Verifier) ->
 client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
   SrpHostParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
   Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeys, SrpHostParams),
-  {SPubKey, _SPrivKey} = ServerKeys,
+  {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
 
   %% Salt is hash of A|B
-  Salt = crypto:hash(ShaAlg, <<ClientPublicKey/binary, SPubKey/binary>>),
+  Salt = crypto:hash(ShaAlg, <<ClientPublicKey/binary, ServerPublicKey/binary>>),
   
   case hkdf_keys(Algs, Salt, ClientId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
     {ClientSymKey, ServerSymKey, HmacKey} ->
@@ -125,10 +125,9 @@ process_client_challenge(#{client_public_key     := ClientPublicKey
                           }
                         ,ClientChallenge) ->
   
-  {SPubKey, _PrivateKey} = ServerKeys,
-  ChallengeData = <<ClientPublicKey/binary, SPubKey/binary, ServerSymKey/binary>>,
+  {ServerPublicKey, _PrivateKey} = ServerKeys,
+  ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ServerSymKey/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
-
   case srpc_util:const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
