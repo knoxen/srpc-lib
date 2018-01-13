@@ -95,14 +95,14 @@
 -type keys()        :: {sym_key(), sym_key(), hmac_key()}.
 -type sym_alg()     :: aes128 | aes192 | aes256.
 -type sha_alg()     :: sha256 | sha384 | sha512.
--type client_info() :: #{client_id    => client_id()
-                        ,client_public_key    => ephemeral_key()
+-type client_info() :: #{client_id             => client_id()
+                        ,client_public_key     => ephemeral_key()
                         ,server_ephemeral_keys => ephemeral_keys()
-                        ,sym_alg      => sym_alg()
-                        ,sha_alg      => sha_alg()
-                        ,client_key   => sym_key()
-                        ,server_key   => sym_key()
-                        ,hmac_key     => hmac_key()
+                        ,sym_alg               => sym_alg()
+                        ,sha_alg               => sha_alg()
+                        ,client_sym_key        => sym_key()
+                        ,server_key            => sym_key()
+                        ,hmac_key              => hmac_key()
                         }.
 
 -type registration() :: #{user_id  => binary()

@@ -99,7 +99,7 @@ client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = 
             ,client_public_key     => ClientPublicKey
             ,server_ephemeral_keys => ServerKeys
             ,sym_alg               => SymAlg 
-            ,client_key            => ClientKey
+            ,client_sym_key        => ClientKey
             ,server_key            => ServerKey
             ,sha_alg               => ShaAlg
             ,hmac_key              => HmacKey
@@ -119,7 +119,7 @@ client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = 
 %%--------------------------------------------------------------------------------------------------
 process_client_challenge(#{client_public_key     := ClientPublicKey
                           ,server_ephemeral_keys := ServerKeys
-                          ,client_key            := ClientKey
+                          ,client_sym_key        := ClientKey
                           ,server_key            := ServerKey
                           ,sha_alg               := ShaAlg
                           }
@@ -151,7 +151,7 @@ process_client_challenge(#{client_public_key     := ClientPublicKey
 %%------------------------------------------------------------------------------------------------
 refresh_keys(#{client_id  := ClientId
               ,sym_alg    := SymAlg
-              ,client_key := ClientKey
+              ,client_sym_key := ClientKey
               ,server_key := ServerKey
               ,sha_alg    := ShaAlg
               ,hmac_key   := HmacKey
@@ -162,7 +162,7 @@ refresh_keys(#{client_id  := ClientId
   case hkdf_keys({SymAlg, ShaAlg}, Data, ClientId, IKM) of
     {NewClientKey, NewServerKey, NewHmacKey} ->
       maps:merge(ClientInfo, 
-                 #{client_key => NewClientKey
+                 #{client_sym_key => NewClientKey
                   ,server_key => NewServerKey
                   ,hmac_key   => NewHmacKey});
     Error ->

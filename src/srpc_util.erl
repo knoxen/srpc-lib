@@ -17,7 +17,7 @@
 %%            #{client_id := ClientId
 %%             ,client_type := ClientType
 %%             ,entity_id := EntityId
-%%             ,client_key := ClientKey
+%%             ,client_sym_key := ClientKey
 %%             ,server_key := ServerKey
 %%             ,hmac_key := HmacKey
 %%             }) ->

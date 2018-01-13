@@ -30,7 +30,7 @@
     Data       :: binary(),
     Result     :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-encrypt(origin_client, #{client_key := SymKey} = ClientInfo, Data) ->
+encrypt(origin_client, #{client_sym_key := SymKey} = ClientInfo, Data) ->
   encrypt_with_key(SymKey, ClientInfo, Data);
 encrypt(origin_server, #{server_key := SymKey} = ClientInfo, Data) ->
   encrypt_with_key(SymKey, ClientInfo, Data);
@@ -48,7 +48,7 @@ encrypt(_Origin, _ClientInfo, _Data) ->
     Packet     :: binary(),
     Result     :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-decrypt(origin_client, #{client_key := SymKey} = ClientInfo, Packet) ->
+decrypt(origin_client, #{client_sym_key := SymKey} = ClientInfo, Packet) ->
   decrypt_key(SymKey, ClientInfo, Packet);
 decrypt(origin_server, #{server_key := SymKey} = ClientInfo, Packet) ->
   decrypt_key(SymKey, ClientInfo, Packet);
