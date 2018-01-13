@@ -32,7 +32,7 @@
 %%------------------------------------------------------------------------------------------------
 encrypt(origin_client, #{client_sym_key := SymKey} = ClientInfo, Data) ->
   encrypt_with_key(SymKey, ClientInfo, Data);
-encrypt(origin_server, #{server_key := SymKey} = ClientInfo, Data) ->
+encrypt(origin_server, #{server_sym_key := SymKey} = ClientInfo, Data) ->
   encrypt_with_key(SymKey, ClientInfo, Data);
 encrypt(_Origin, _ClientInfo, _Data) ->
   {error, <<"Mismatch origin and key for encrypt">>}.
@@ -50,7 +50,7 @@ encrypt(_Origin, _ClientInfo, _Data) ->
 %%------------------------------------------------------------------------------------------------
 decrypt(origin_client, #{client_sym_key := SymKey} = ClientInfo, Packet) ->
   decrypt_key(SymKey, ClientInfo, Packet);
-decrypt(origin_server, #{server_key := SymKey} = ClientInfo, Packet) ->
+decrypt(origin_server, #{server_sym_key := SymKey} = ClientInfo, Packet) ->
   decrypt_key(SymKey, ClientInfo, Packet);
 decrypt(_Origin, _ClientInfo, _Packet) ->
   {error, <<"Mismatch origin and key for decrypt">>}.

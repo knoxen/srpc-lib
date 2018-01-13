@@ -101,7 +101,7 @@
                         ,sym_alg               => sym_alg()
                         ,sha_alg               => sha_alg()
                         ,client_sym_key        => sym_key()
-                        ,server_key            => sym_key()
+                        ,server_sym_key        => sym_key()
                         ,hmac_key              => hmac_key()
                         }.
 

@@ -100,7 +100,7 @@ client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = 
             ,server_ephemeral_keys => ServerKeys
             ,sym_alg               => SymAlg 
             ,client_sym_key        => ClientKey
-            ,server_key            => ServerKey
+            ,server_sym_key        => ServerKey
             ,sha_alg               => ShaAlg
             ,hmac_key              => HmacKey
             }
@@ -120,7 +120,7 @@ client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = 
 process_client_challenge(#{client_public_key     := ClientPublicKey
                           ,server_ephemeral_keys := ServerKeys
                           ,client_sym_key        := ClientKey
-                          ,server_key            := ServerKey
+                          ,server_sym_key        := ServerKey
                           ,sha_alg               := ShaAlg
                           }
                         ,ClientChallenge) ->
@@ -149,12 +149,12 @@ process_client_challenge(#{client_public_key     := ClientPublicKey
     Data       :: binary(),
     Result     :: {ok, client_info()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-refresh_keys(#{client_id  := ClientId
-              ,sym_alg    := SymAlg
+refresh_keys(#{client_id      := ClientId
+              ,sym_alg        := SymAlg
               ,client_sym_key := ClientKey
-              ,server_key := ServerKey
-              ,sha_alg    := ShaAlg
-              ,hmac_key   := HmacKey
+              ,server_sym_key := ServerKey
+              ,sha_alg        := ShaAlg
+              ,hmac_key       := HmacKey
               } = ClientInfo
             ,Data) ->
 
@@ -163,8 +163,8 @@ refresh_keys(#{client_id  := ClientId
     {NewClientKey, NewServerKey, NewHmacKey} ->
       maps:merge(ClientInfo, 
                  #{client_sym_key => NewClientKey
-                  ,server_key => NewServerKey
-                  ,hmac_key   => NewHmacKey});
+                  ,server_sym_key => NewServerKey
+                  ,hmac_key       => NewHmacKey});
     Error ->
       Error
   end.

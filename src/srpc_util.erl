@@ -18,7 +18,7 @@
 %%             ,client_type := ClientType
 %%             ,entity_id := EntityId
 %%             ,client_sym_key := ClientKey
-%%             ,server_key := ServerKey
+%%             ,server_sym_key := ServerKey
 %%             ,hmac_key := HmacKey
 %%             }) ->
 %%   io:format("~s~n", [Description]),
