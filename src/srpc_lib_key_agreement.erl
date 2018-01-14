@@ -6,6 +6,7 @@
 
 %% Client Lib Key Agreement
 -export([create_exchange_request/0
+        ,create_exchange_request/1
         ,process_exchange_response/0
         ,create_confirm_request/0
         ,process_confirm_response/0
@@ -40,12 +41,13 @@ create_exchange_request(ExchangeData) when is_binary(ExchangeData) ->
 
 %%------------------------------------------------------------------------------------------------
 %%  Process Key Exchange Response
-%%    L | ClientId | Server Pub Key | <Exchange Data>
+%%    L | ConnId | Server Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
-process_exchange_response(ClientKeys, <<ClientIdSize, 
-                                        ClientId:ClientIdSize/binary, 
-                                        ServerPublicKey??SRPC_PUBLIC_KEY_SIZE/binary,
-                                        ExchangeData/binary>>) ->
+process_exchange_response() ->
+%% process_exchange_response(ClientKeys, <<ConnIdSize, 
+%%                                         ConnId:ConnIdSize/binary, 
+%%                                         ServerPublicKey?SRPC_PUBLIC_KEY_SIZE/binary,
+%%                                         ExchangeData/binary>>) ->
   
   ok.
 
@@ -97,23 +99,23 @@ process_exchange_request(_) ->
 
 %%------------------------------------------------------------------------------------------------
 %%  Create Key Exchange Response
-%%    L | ClientId | Server Pub Key | <Exchange Data>
+%%    L | ConnId | Server Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
--spec create_exchange_response(ClientId, ClientPublicKey, ExchangeData) -> Response when
-    ClientId        :: client_id(),
+-spec create_exchange_response(ConnId, ClientPublicKey, ExchangeData) -> Response when
+    ConnId        :: conn_id(),
     ClientPublicKey :: ephemeral_key(),
     ExchangeData    :: binary(),
-    Response        :: {ok, {client_info(), binary()}} | error_msg().
+    Response        :: {ok, {conn_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
-create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
-  ClientIdLen = byte_size(ClientId),
+create_exchange_response(ConnId, ClientPublicKey, ExchangeData) ->
+  ConnIdLen = byte_size(ConnId),
   ServerKeys = srpc_sec:generate_server_keys(?SRPC_VERIFIER),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
-  ExchangeResponse = <<ClientIdLen, ClientId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
+  ExchangeResponse = <<ConnIdLen, ConnId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  case srpc_sec:client_info(ClientId, ClientPublicKey, ServerKeys, ?SRPC_VERIFIER) of
-    {ok, ClientInfo} ->
-      AgreementInfo = maps:merge(ClientInfo, #{client_type => lib, 
+  case srpc_sec:conn_info(ConnId, ClientPublicKey, ServerKeys, ?SRPC_VERIFIER) of
+    {ok, ConnInfo} ->
+      AgreementInfo = maps:merge(ConnInfo, #{client_type => lib, 
                                                entity_id => srpc_lib:srpc_id()}),
       {ok, {AgreementInfo, ExchangeResponse}};
     Error ->
@@ -124,13 +126,13 @@ create_exchange_response(ClientId, ClientPublicKey, ExchangeData) ->
 %%  Process Key Confirm Request
 %%    Client Challenge | <Confirm Data>
 %%------------------------------------------------------------------------------------------------
--spec process_confirm_request(ClientInfo, Request) -> Result when
-    ClientInfo :: client_info(),
+-spec process_confirm_request(ConnInfo, Request) -> Result when
+    ConnInfo :: conn_info(),
     Request    :: binary(),
     Result     :: {ok, {binary(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
-process_confirm_request(ClientInfo, Request) ->
-  case srpc_encryptor:decrypt(origin_client, ClientInfo, Request) of
+process_confirm_request(ConnInfo, Request) ->
+  case srpc_encryptor:decrypt(origin_client, ConnInfo, Request) of
     {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
       {ok, {Challenge, ConfirmData}};
     {ok, _} ->
@@ -143,20 +145,20 @@ process_confirm_request(ClientInfo, Request) ->
 %%  Create Key Confirm Response
 %%    Server Challenge | <Confirm Data>
 %%------------------------------------------------------------------------------------------------
--spec create_confirm_response(ClientInfo, ClientChallenge, ConfirmData) -> Result when
-    ClientInfo :: client_info(),
+-spec create_confirm_response(ConnInfo, ClientChallenge, ConfirmData) -> Result when
+    ConnInfo :: conn_info(),
     ClientChallenge :: binary(),
     ConfirmData     :: binary(),
-    Result          :: {ok, client_info(), binary()} | error_msg() | invalid_msg().
+    Result          :: {ok, conn_info(), binary()} | error_msg() | invalid_msg().
 %%------------------------------------------------------------------------------------------------
-create_confirm_response(ClientInfo, ClientChallenge, ConfirmData) ->
-  case srpc_sec:process_client_challenge(ClientInfo, ClientChallenge) of
+create_confirm_response(ConnInfo, ClientChallenge, ConfirmData) ->
+  case srpc_sec:process_client_challenge(ConnInfo, ClientChallenge) of
     {ok, ServerChallenge} ->
       ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
-      case srpc_encryptor:encrypt(origin_server, ClientInfo, ConfirmResponse) of
+      case srpc_encryptor:encrypt(origin_server, ConnInfo, ConfirmResponse) of
         {ok, ConfirmPacket} ->
-          NewClientInfo = maps:remove(client_public_key, maps:remove(server_ephemeral_keys, ClientInfo)),
-          {ok, NewClientInfo, ConfirmPacket};
+          NewConnInfo = maps:remove(client_public_key, maps:remove(server_ephemeral_keys, ConnInfo)),
+          {ok, NewConnInfo, ConfirmPacket};
         Error ->
           Error
       end;

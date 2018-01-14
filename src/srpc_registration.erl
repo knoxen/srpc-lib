@@ -21,13 +21,13 @@
 %%  Process User Registration Request
 %%    L | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Registration Data>
 %%--------------------------------------------------------------------------------------------------
--spec process_registration_request(ClientInfo, Request) -> Result when
-    ClientInfo :: client_info(),
+-spec process_registration_request(ConnInfo, Request) -> Result when
+    ConnInfo :: conn_info(),
     Request    :: binary(),
     Result     :: {ok, {integer(), map(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_registration_request(ClientInfo, Request) ->
-  case srpc_encryptor:decrypt(origin_client, ClientInfo, Request) of
+process_registration_request(ConnInfo, Request) ->
+  case srpc_encryptor:decrypt(origin_client, ConnInfo, Request) of
     {ok, <<UserIdLen:?USER_ID_LEN_BITS, RequestData/binary>>} ->
       case RequestData of
         <<UserId:UserIdLen/binary,
@@ -57,14 +57,14 @@ process_registration_request(ClientInfo, Request) ->
 %%  Create User Registration Response
 %%    Code | <Registration Data>
 %%--------------------------------------------------------------------------------------------------
--spec create_registration_response(ClientInfo, RegCode, Data) -> Result when
-    ClientInfo :: client_info(),
+-spec create_registration_response(ConnInfo, RegCode, Data) -> Result when
+    ConnInfo :: conn_info(),
     RegCode    :: integer(),
     Data       :: binary() | undefined,
     Result     :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-create_registration_response(ClientInfo, RegCode, undefined) ->
-  create_registration_response(ClientInfo, RegCode, <<>>);
-create_registration_response(ClientInfo,  RegCode, RespData) ->
-  srpc_encryptor:encrypt(origin_server, ClientInfo,
+create_registration_response(ConnInfo, RegCode, undefined) ->
+  create_registration_response(ConnInfo, RegCode, <<>>);
+create_registration_response(ConnInfo,  RegCode, RespData) ->
+  srpc_encryptor:encrypt(origin_server, ConnInfo,
                          <<RegCode:?REG_CODE_BITS,  RespData/binary>>).

@@ -7,7 +7,7 @@
 -export([validate_public_key/1
         ,generate_client_keys/0
         ,generate_server_keys/1
-        ,client_info/4
+        ,conn_info/4
         ,process_client_challenge/2
         ,refresh_keys/2
         ]).
@@ -75,17 +75,17 @@ pad_value(PublicKey, Size) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Client Info
 %%--------------------------------------------------------------------------------------------------
--spec client_info(ClientId, ClientPublicKey, ServerKeys, Verifier) -> Result when
-    ClientId        :: client_id(),
+-spec conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier) -> Result when
+    ConnId        :: conn_id(),
     ClientPublicKey :: ephemeral_key(),
     ServerKeys      :: ephemeral_keys(),
     Verifier        :: verifier(),
-    Result          :: {ok, client_info()} | error_msg().
+    Result          :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-client_info(ClientId, ClientPublicKey, ServerKeys, Verifier) ->
-  client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {aes256, sha256}).
+conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier) ->
+  conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier, {aes256, sha256}).
 
-client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
+conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
   SrpHostParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
   Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeys, SrpHostParams),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
@@ -93,9 +93,9 @@ client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = 
   %% Salt is hash of A|B
   Salt = crypto:hash(ShaAlg, <<ClientPublicKey/binary, ServerPublicKey/binary>>),
   
-  case hkdf_keys(Algs, Salt, ClientId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
+  case hkdf_keys(Algs, Salt, ConnId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
     {ClientSymKey, ServerSymKey, HmacKey} ->
-      {ok, #{client_id             => ClientId
+      {ok, #{conn_id             => ConnId
             ,client_public_key     => ClientPublicKey
             ,server_ephemeral_keys => ServerKeys
             ,sym_alg               => SymAlg 
@@ -112,8 +112,8 @@ client_info(ClientId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = 
 %%--------------------------------------------------------------------------------------------------
 %%  Process client challenge
 %%--------------------------------------------------------------------------------------------------
--spec process_client_challenge(ClientInfo, ClientChallenge) -> Result when
-    ClientInfo      :: client_info(),
+-spec process_client_challenge(ConnInfo, ClientChallenge) -> Result when
+    ConnInfo      :: conn_info(),
     ClientChallenge :: binary(),
     Result          :: {ok, binary()} | {invalid, binary()}.
 %%--------------------------------------------------------------------------------------------------
@@ -143,24 +143,24 @@ process_client_challenge(#{client_public_key     := ClientPublicKey
 %%------------------------------------------------------------------------------------------------
 %% @doc Refresh client keys using data
 %%
--spec refresh_keys(ClientInfo, Data) -> Result when
-    ClientInfo :: client_info(),
+-spec refresh_keys(ConnInfo, Data) -> Result when
+    ConnInfo :: conn_info(),
     Data       :: binary(),
-    Result     :: {ok, client_info()} | error_msg().
+    Result     :: {ok, conn_info()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-refresh_keys(#{client_id      := ClientId
+refresh_keys(#{conn_id      := ConnId
               ,sym_alg        := SymAlg
               ,client_sym_key := ClientSymKey
               ,server_sym_key := ServerSymKey
               ,sha_alg        := ShaAlg
               ,hmac_key       := HmacKey
-              } = ClientInfo
+              } = ConnInfo
             ,Data) ->
 
   IKM = <<ClientSymKey/binary, ServerSymKey/binary, HmacKey/binary>>,
-  case hkdf_keys({SymAlg, ShaAlg}, Data, ClientId, IKM) of
+  case hkdf_keys({SymAlg, ShaAlg}, Data, ConnId, IKM) of
     {NewClientSymKey, NewServerSymKey, NewHmacKey} ->
-      maps:merge(ClientInfo, 
+      maps:merge(ConnInfo, 
                  #{client_sym_key => NewClientSymKey
                   ,server_sym_key => NewServerSymKey
                   ,hmac_key       => NewHmacKey});

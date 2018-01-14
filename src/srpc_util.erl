@@ -14,7 +14,7 @@
 %% -export([debug_info/2]).
 
 %% debug_info(Description,
-%%            #{client_id := ClientId
+%%            #{conn_id := ConnId
 %%             ,client_type := ClientType
 %%             ,entity_id := EntityId
 %%             ,client_sym_key := ClientSymKey
@@ -22,7 +22,7 @@
 %%             ,hmac_key := HmacKey
 %%             }) ->
 %%   io:format("~s~n", [Description]),
-%%   io:format("  Client Id = ~p, Type = ~p~n", [ClientId, ClientType]),
+%%   io:format("  Client Id = ~p, Type = ~p~n", [ConnId, ClientType]),
 %%   io:format("  EntityId = ~p~n", [EntityId]),
 %%   io:format("  ClientSymKey = ~p~n", [srpc_util:bin_to_hex(ClientSymKey)]),
 %%   io:format("  ServerSymKey = ~p~n", [srpc_util:bin_to_hex(ServerSymKey)]),

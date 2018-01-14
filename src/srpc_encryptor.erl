@@ -24,17 +24,17 @@
 %%------------------------------------------------------------------------------------------------
 %% @doc Encrypt data using client information
 %%
--spec encrypt(Origin, ClientInfo, Data) -> Result when
+-spec encrypt(Origin, ConnInfo, Data) -> Result when
     Origin     :: origin(),
-    ClientInfo :: client_info(),
+    ConnInfo :: conn_info(),
     Data       :: binary(),
     Result     :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-encrypt(origin_client, #{client_sym_key := SymKey} = ClientInfo, Data) ->
-  encrypt_with_key(SymKey, ClientInfo, Data);
-encrypt(origin_server, #{server_sym_key := SymKey} = ClientInfo, Data) ->
-  encrypt_with_key(SymKey, ClientInfo, Data);
-encrypt(_Origin, _ClientInfo, _Data) ->
+encrypt(origin_client, #{client_sym_key := SymKey} = ConnInfo, Data) ->
+  encrypt_with_key(SymKey, ConnInfo, Data);
+encrypt(origin_server, #{server_sym_key := SymKey} = ConnInfo, Data) ->
+  encrypt_with_key(SymKey, ConnInfo, Data);
+encrypt(_Origin, _ConnInfo, _Data) ->
   {error, <<"Mismatch origin and key for encrypt">>}.
 
 %%------------------------------------------------------------------------------------------------
@@ -42,17 +42,17 @@ encrypt(_Origin, _ClientInfo, _Data) ->
 %%------------------------------------------------------------------------------------------------
 %% @doc Decrypt packet using client information
 %%
--spec decrypt(Origin, ClientInfo, Packet) -> Result when
+-spec decrypt(Origin, ConnInfo, Packet) -> Result when
     Origin     :: origin(),
-    ClientInfo :: client_info(),
+    ConnInfo :: conn_info(),
     Packet     :: binary(),
     Result     :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-decrypt(origin_client, #{client_sym_key := SymKey} = ClientInfo, Packet) ->
-  decrypt_key(SymKey, ClientInfo, Packet);
-decrypt(origin_server, #{server_sym_key := SymKey} = ClientInfo, Packet) ->
-  decrypt_key(SymKey, ClientInfo, Packet);
-decrypt(_Origin, _ClientInfo, _Packet) ->
+decrypt(origin_client, #{client_sym_key := SymKey} = ConnInfo, Packet) ->
+  decrypt_key(SymKey, ConnInfo, Packet);
+decrypt(origin_server, #{server_sym_key := SymKey} = ConnInfo, Packet) ->
+  decrypt_key(SymKey, ConnInfo, Packet);
+decrypt(_Origin, _ConnInfo, _Packet) ->
   {error, <<"Mismatch origin and key for decrypt">>}.
 
 %%================================================================================================
@@ -66,18 +66,18 @@ decrypt(_Origin, _ClientInfo, _Packet) ->
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec encrypt_with_key(SymKey, ClientInfo, Data) -> {ok, Packet} | error_msg() when
+-spec encrypt_with_key(SymKey, ConnInfo, Data) -> {ok, Packet} | error_msg() when
     SymKey     :: sym_key(),
-    ClientInfo :: client_info(),
+    ConnInfo :: conn_info(),
     Data       :: binary(),
     Packet     :: binary().
 %%------------------------------------------------------------------------------------------------
-encrypt_with_key(SymKey, #{client_id := ClientId, hmac_key  := HmacKey}, Data) ->
-  SrpcDataHdr = srpc_data_hdr(ClientId),
+encrypt_with_key(SymKey, #{conn_id := ConnId, hmac_key  := HmacKey}, Data) ->
+  SrpcDataHdr = srpc_data_hdr(ConnId),
   LibData = <<SrpcDataHdr/binary, Data/binary>>,
   encrypt_data(SymKey, HmacKey, LibData);
 encrypt_with_key(_Key, _Map, _Data) ->
-  {error, <<"Invalid encrypt client info: Missing client_id or hmac_key">>}.
+  {error, <<"Invalid encrypt client info: Missing conn_id or hmac_key">>}.
 
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
@@ -131,13 +131,13 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
 %% @doc Decrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec decrypt_key(SymKey, ClientInfo, Packet) -> {ok, Data} | error_msg() when
+-spec decrypt_key(SymKey, ConnInfo, Packet) -> {ok, Data} | error_msg() when
     SymKey     :: sym_key(),
-    ClientInfo :: map(),
+    ConnInfo :: map(),
     Packet     :: binary(),
     Data       :: binary().
 %%------------------------------------------------------------------------------------------------
-decrypt_key(SymKey, #{client_id := ClientId, hmac_key := HmacKey}, Packet) ->
+decrypt_key(SymKey, #{conn_id := ConnId, hmac_key := HmacKey}, Packet) ->
   PacketSize = byte_size(Packet),
   CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_HMAC_256_SIZE}),
   PacketHmac   = binary_part(Packet, {PacketSize, -?SRPC_HMAC_256_SIZE}),
@@ -149,7 +149,7 @@ decrypt_key(SymKey, #{client_id := ClientId, hmac_key := HmacKey}, Packet) ->
           PaddedData = crypto:block_decrypt(aes_cbc256, SymKey, IV, CipherText),
           case depad(PaddedData) of
             {ok, Cryptor} ->
-              SrpcDataHdr = srpc_data_hdr(ClientId),
+              SrpcDataHdr = srpc_data_hdr(ConnId),
               HdrLen = byte_size(SrpcDataHdr),
               case Cryptor of
                 <<SrpcDataHdr:HdrLen/binary, Data/binary>> ->
@@ -167,7 +167,7 @@ decrypt_key(SymKey, #{client_id := ClientId, hmac_key := HmacKey}, Packet) ->
       {error, <<"Invalid hmac">>}
   end;
 
-decrypt_key(_SymKey, _ClientInfo, _Packet) ->
+decrypt_key(_SymKey, _ConnInfo, _Packet) ->
   {error, <<"Invalid decrypt client info">>}.
 
 %%------------------------------------------------------------------------------------------------
@@ -175,21 +175,21 @@ decrypt_key(_SymKey, _ClientInfo, _Packet) ->
 %% Data Header
 %%
 %%------------------------------------------------------------------------------------------------
-%% @doc Header for lib data with ClientId
+%% @doc Header for lib data with ConnId
 %%
--spec srpc_data_hdr(ClientId) -> Header when
-    ClientId :: binary(),
+-spec srpc_data_hdr(ConnId) -> Header when
+    ConnId :: binary(),
     Header   :: binary().
 %%------------------------------------------------------------------------------------------------
-srpc_data_hdr(ClientId) ->
+srpc_data_hdr(ConnId) ->
   SrpcId = srpc_lib:srpc_id(),
   DataHdr = <<?SRPC_VERSION_MAJOR:8,
               ?SRPC_VERSION_MINOR:8,
               ?SRPC_VERSION_PATCH:8,
               ?SRPC_OPTIONS/binary,
               SrpcId/binary>>,
-  ClientIdLen = byte_size(ClientId),
-  <<DataHdr/binary, ClientIdLen, ClientId/binary>>.
+  ConnIdLen = byte_size(ConnId),
+  <<DataHdr/binary, ConnIdLen, ConnId/binary>>.
 
 %%------------------------------------------------------------------------------------------------
 %%

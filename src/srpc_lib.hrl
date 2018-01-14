@@ -83,32 +83,32 @@
 %%  Types
 %%
 %%==================================================================================================
--type error_msg()   :: {error, binary()}.
--type invalid_msg() :: {invalid, binary()}.
+-type error_msg()      :: {error, binary()}.
+-type invalid_msg()    :: {invalid, binary()}.
 -type ephemeral_key()  :: binary().
 -type ephemeral_keys() :: {ephemeral_key(), ephemeral_key()}.
--type verifier()    :: binary().
--type client_id()   :: binary().
--type aes_block()   :: <<_:128>>.
--type sym_key()     :: <<_:128>> | <<_:192>> | <<_:256>>.
--type hmac_key()    :: <<_:256>>.
--type keys()        :: {sym_key(), sym_key(), hmac_key()}.
--type sym_alg()     :: aes128 | aes192 | aes256.
--type sha_alg()     :: sha256 | sha384 | sha512.
--type client_info() :: #{client_id             => client_id()
-                        ,client_public_key     => ephemeral_key()
-                        ,server_ephemeral_keys => ephemeral_keys()
-                        ,sym_alg               => sym_alg()
-                        ,sha_alg               => sha_alg()
-                        ,client_sym_key        => sym_key()
-                        ,server_sym_key        => sym_key()
-                        ,hmac_key              => hmac_key()
-                        }.
+-type verifier()       :: binary().
+-type conn_id()        :: binary().
+-type aes_block()      :: <<_:128>>.
+-type sym_key()        :: <<_:128>> | <<_:192>> | <<_:256>>.
+-type hmac_key()       :: <<_:256>>.
+-type keys()           :: {sym_key(), sym_key(), hmac_key()}.
+-type sym_alg()        :: aes128 | aes192 | aes256.
+-type sha_alg()        :: sha256 | sha384 | sha512.
+-type conn_info()      :: #{conn_id               => conn_id()
+                           ,client_public_key     => ephemeral_key()
+                           ,server_ephemeral_keys => ephemeral_keys()
+                           ,sym_alg               => sym_alg()
+                           ,sha_alg               => sha_alg()
+                           ,client_sym_key        => sym_key()
+                           ,server_sym_key        => sym_key()
+                           ,hmac_key              => hmac_key()
+                           }.
 
 -type registration() :: #{user_id  => binary()
-                          ,kdf_salt => binary()
-                          ,srp_salt => binary()
-                          ,verifier => binary()
-                          }.
+                         ,kdf_salt => binary()
+                         ,srp_salt => binary()
+                         ,verifier => binary()
+                         }.
 
 -type origin()      :: origin_client | origin_server.
