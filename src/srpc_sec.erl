@@ -5,8 +5,8 @@
 -include("srpc_lib.hrl").
 
 -export([validate_public_key/1
-        ,generate_server_keys/1
         ,generate_client_keys/0
+        ,generate_server_keys/1
         ,client_info/4
         ,process_client_challenge/2
         ,refresh_keys/2
@@ -38,6 +38,17 @@ validate_public_key(_PublicKey) ->
   {error, <<"Public key not binary">>}.
 
 %%--------------------------------------------------------------------------------------------------
+%%  Generate SRP client keys
+%%--------------------------------------------------------------------------------------------------
+-spec generate_client_keys() -> PublicKeys when
+    PublicKeys :: ephemeral_keys().
+%%--------------------------------------------------------------------------------------------------
+generate_client_keys() ->
+  SrpParams = [?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
+  {PublicKey, PrivateKey} = crypto:generate_key(srp, {user, SrpParams}),
+  {pad_value(PublicKey, ?SRPC_PUBLIC_KEY_SIZE), PrivateKey}.
+
+%%--------------------------------------------------------------------------------------------------
 %%  Generate SRP server keys
 %%--------------------------------------------------------------------------------------------------
 -spec generate_server_keys(Verifier) -> PublicKeys when
@@ -47,17 +58,6 @@ validate_public_key(_PublicKey) ->
 generate_server_keys(Verifier) ->
   SrpParams = [Verifier, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
   {PublicKey, PrivateKey} = crypto:generate_key(srp, {host, SrpParams}),
-  {pad_value(PublicKey, ?SRPC_PUBLIC_KEY_SIZE), PrivateKey}.
-
-%%--------------------------------------------------------------------------------------------------
-%%  Generate SRP client keys
-%%--------------------------------------------------------------------------------------------------
--spec generate_client_keys() -> PublicKeys when
-    PublicKeys :: ephemeral_keys().
-%%--------------------------------------------------------------------------------------------------
-generate_client_keys() ->
-  SrpParams = [?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
-  {PublicKey, PrivateKey} = crypto:generate_key(srp, {user, SrpParams}),
   {pad_value(PublicKey, ?SRPC_PUBLIC_KEY_SIZE), PrivateKey}.
 
 %%--------------------------------------------------------------------------------------------------

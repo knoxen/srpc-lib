@@ -4,6 +4,13 @@
 
 -include("srpc_lib.hrl").
 
+%% Client Lib Key Agreement
+-export([create_exchange_request/0
+        ,process_exchange_response/0
+        ,create_confirm_request/0
+        ,process_confirm_response/0
+        ]).
+
 %% Server Lib Key Agreement
 -export([process_exchange_request/1
         ,create_exchange_response/3
@@ -11,12 +18,51 @@
         ,create_confirm_response/3
         ]).
 
-%% Client Lib Key Agreement
--export([create_exchange_request/0
-        ,process_exchange_response/0
-        ,create_confirm_request/0
-        ,process_confirm_response/0
-        ]).
+%%================================================================================================
+%%
+%%  Client Lib Key Agreement
+%%
+%%================================================================================================
+%%------------------------------------------------------------------------------------------------
+%%  Create Key Exchange Request
+%%    L | SrpcId | Client Pub Key | <Exchange Data>
+%%------------------------------------------------------------------------------------------------
+create_exchange_request() ->
+  SrpcId = srpc_lib:srpc_id(),
+  ClientKeys = srpc_sec:generate_client_keys(),
+  {ClientPublicKey, _} = ClientKeys,
+  IdSize = erlang:byte_size(SrpcId),
+  {SrpcId, ClientKeys, <<IdSize:8, SrpcId/binary, ClientPublicKey/binary>>}.
+  
+create_exchange_request(ExchangeData) when is_binary(ExchangeData) ->
+  {SrpcId, ClientKeys, Request} = create_exchange_request(),
+  {SrpcId, ClientKeys, <<Request/binary, ExchangeData/binary>>}.
+
+%%------------------------------------------------------------------------------------------------
+%%  Process Key Exchange Response
+%%    L | ClientId | Server Pub Key | <Exchange Data>
+%%------------------------------------------------------------------------------------------------
+process_exchange_response(ClientKeys, <<ClientIdSize, 
+                                        ClientId:ClientIdSize/binary, 
+                                        ServerPublicKey??SRPC_PUBLIC_KEY_SIZE/binary,
+                                        ExchangeData/binary>>) ->
+  
+  ok.
+
+%%------------------------------------------------------------------------------------------------
+%%  Create Key Confirm Request
+%%    
+%%------------------------------------------------------------------------------------------------
+create_confirm_request() ->
+  ok.
+
+%%------------------------------------------------------------------------------------------------
+%%  Process Key Confirm Response
+%%    
+%%------------------------------------------------------------------------------------------------
+process_confirm_response() ->
+  ok.
+
 
 %%================================================================================================
 %%
@@ -118,39 +164,4 @@ create_confirm_response(ClientInfo, ClientChallenge, ConfirmData) ->
       Invalid
   end.
 
-
-%%================================================================================================
-%%
-%%  Client Lib Key Agreement
-%%
-%%================================================================================================
-%%------------------------------------------------------------------------------------------------
-%%  Create Key Exchange Request
-%%    L | SrpcId | Client Pub Key | <Exchange Data>
-%%------------------------------------------------------------------------------------------------
-create_exchange_request() ->
-  %% SrpcId = srpc_lib:srpc_id(),
-
-  ok.
-
-%%------------------------------------------------------------------------------------------------
-%%  Process Key Exchange Response
-%%    
-%%------------------------------------------------------------------------------------------------
-process_exchange_response() ->
-  ok.
-
-%%------------------------------------------------------------------------------------------------
-%%  Create Key Confirm Request
-%%    
-%%------------------------------------------------------------------------------------------------
-create_confirm_request() ->
-  ok.
-
-%%------------------------------------------------------------------------------------------------
-%%  Process Key Confirm Response
-%%    
-%%------------------------------------------------------------------------------------------------
-process_confirm_response() ->
-  ok.
 
