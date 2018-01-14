@@ -77,7 +77,7 @@ process_confirm_response() ->
 %%------------------------------------------------------------------------------------------------
 -spec process_exchange_request(Request) -> Result when
     Request :: binary(),
-    Result  :: {ok, {ephemeral_key(), binary()}} | invalid_msg() | error_msg().
+    Result  :: {ok, {exch_key(), binary()}} | invalid_msg() | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_exchange_request(<<IdSize:8, ExchangeRequest/binary>>) ->
   SrpcId = srpc_lib:srpc_id(),
@@ -103,7 +103,7 @@ process_exchange_request(_) ->
 %%------------------------------------------------------------------------------------------------
 -spec create_exchange_response(ConnId, ClientPublicKey, ExchangeData) -> Response when
     ConnId        :: conn_id(),
-    ClientPublicKey :: ephemeral_key(),
+    ClientPublicKey :: exch_key(),
     ExchangeData    :: binary(),
     Response        :: {ok, {conn_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------

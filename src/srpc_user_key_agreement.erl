@@ -22,7 +22,7 @@
 -spec process_exchange_request(ConnInfo, Request) -> Result when
     ConnInfo :: conn_info(),
     Request    :: binary(),
-    Result     :: {ok, {conn_id(), ephemeral_key(), binary()}} | error_msg().
+    Result     :: {ok, {conn_id(), exch_key(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_exchange_request(ConnInfo, Request) ->
   case srpc_encryptor:decrypt(origin_client, ConnInfo, Request) of
@@ -52,7 +52,7 @@ process_exchange_request(ConnInfo, Request) ->
     ConnId     :: conn_id(),
     ConnInfo   :: conn_info(),
     Registration :: binary() | invalid,
-    PublicKey    :: ephemeral_key(),
+    PublicKey    :: exch_key(),
     Data         :: binary(),
     Result       :: {ok, {conn_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
@@ -160,7 +160,7 @@ create_confirm_response(LibConnInfo, UserConnInfo, ClientChallenge, ConfirmData)
     UserCode        :: integer(),
     KdfSalt         :: binary(),
     SrpSalt         :: binary(),
-    ServerPublicKey :: ephemeral_key(),    
+    ServerPublicKey :: exch_key(),    
     ExchangeData    :: binary(),
     Result          :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------

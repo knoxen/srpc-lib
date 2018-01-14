@@ -41,7 +41,7 @@ validate_public_key(_PublicKey) ->
 %%  Generate SRP client keys
 %%--------------------------------------------------------------------------------------------------
 -spec generate_client_keys() -> PublicKeys when
-    PublicKeys :: ephemeral_keys().
+    PublicKeys :: exch_key_pair().
 %%--------------------------------------------------------------------------------------------------
 generate_client_keys() ->
   SrpParams = [?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
@@ -53,7 +53,7 @@ generate_client_keys() ->
 %%--------------------------------------------------------------------------------------------------
 -spec generate_server_keys(Verifier) -> PublicKeys when
     Verifier   :: verifier(),
-    PublicKeys :: ephemeral_keys().
+    PublicKeys :: exch_key_pair().
 %%--------------------------------------------------------------------------------------------------
 generate_server_keys(Verifier) ->
   SrpParams = [Verifier, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
@@ -77,8 +77,8 @@ pad_value(PublicKey, Size) ->
 %%--------------------------------------------------------------------------------------------------
 -spec conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier) -> Result when
     ConnId        :: conn_id(),
-    ClientPublicKey :: ephemeral_key(),
-    ServerKeys      :: ephemeral_keys(),
+    ClientPublicKey :: exch_key(),
+    ServerKeys      :: exch_key_pair(),
     Verifier        :: verifier(),
     Result          :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
@@ -117,11 +117,11 @@ conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs
     ClientChallenge :: binary(),
     Result          :: {ok, binary()} | {invalid, binary()}.
 %%--------------------------------------------------------------------------------------------------
-process_client_challenge(#{exch_public_key     := ClientPublicKey
-                          ,exch_key_pair := ServerKeys
-                          ,client_sym_key        := ClientSymKey
-                          ,server_sym_key        := ServerSymKey
-                          ,sha_alg               := ShaAlg
+process_client_challenge(#{exch_public_key := ClientPublicKey
+                          ,exch_key_pair   := ServerKeys
+                          ,client_sym_key  := ClientSymKey
+                          ,server_sym_key  := ServerSymKey
+                          ,sha_alg         := ShaAlg
                           }
                         ,ClientChallenge) ->
   

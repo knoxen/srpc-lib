@@ -98,7 +98,7 @@ srpc_info() ->
 %%--------------------------------------------------------------------------------------------------
 -spec lib_key_process_exchange_request(Request) -> Result when
     Request :: binary(),
-    Result  :: {ok, {ephemeral_key(), binary()}} | invalid_msg() | error_msg().
+    Result  :: {ok, {exch_key(), binary()}} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 lib_key_process_exchange_request(ExchangeRequest) ->
   srpc_lib_key_agreement:process_exchange_request(ExchangeRequest).
@@ -108,7 +108,7 @@ lib_key_process_exchange_request(ExchangeRequest) ->
 %%--------------------------------------------------------------------------------------------------
 -spec lib_key_create_exchange_response(ConnId, ClientPublicKey, ExchangeData) -> Result when
     ConnId        :: conn_id(),
-    ClientPublicKey :: ephemeral_key(),
+    ClientPublicKey :: exch_key(),
     ExchangeData    :: binary(),
     Result          :: {ok, {conn_info(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
@@ -167,7 +167,7 @@ create_registration_response(ConnInfo, RegCode, Data) ->
 -spec user_key_process_exchange_request(ConnInfo, Request) -> Result when
     ConnInfo :: conn_info(),
     Request    :: binary(),
-    Result     :: {ok, {conn_id(), ephemeral_key(), binary()}} | error_msg().
+    Result     :: {ok, {conn_id(), exch_key(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 user_key_process_exchange_request(ConnInfo, Request) ->
   srpc_user_key_agreement:process_exchange_request(ConnInfo, Request).
@@ -180,7 +180,7 @@ user_key_process_exchange_request(ConnInfo, Request) ->
     ConnId     :: conn_id(),
     ConnInfo   :: conn_info(),
     Registration :: binary() | invalid,
-    PubKey       :: ephemeral_key(),
+    PubKey       :: exch_key(),
     ExchData     :: binary(),
     Result       :: {ok, {conn_info(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
