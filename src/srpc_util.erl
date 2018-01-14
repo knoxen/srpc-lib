@@ -15,14 +15,14 @@
 
 %% debug_info(Description,
 %%            #{conn_id := ConnId
-%%             ,client_type := ClientType
+%%             ,conn_type := ConnType
 %%             ,entity_id := EntityId
 %%             ,client_sym_key := ClientSymKey
 %%             ,server_sym_key := ServerSymKey
 %%             ,hmac_key := HmacKey
 %%             }) ->
 %%   io:format("~s~n", [Description]),
-%%   io:format("  Client Id = ~p, Type = ~p~n", [ConnId, ClientType]),
+%%   io:format("  Connection Id = ~p, Type = ~p~n", [ConnId, ConnType]),
 %%   io:format("  EntityId = ~p~n", [EntityId]),
 %%   io:format("  ClientSymKey = ~p~n", [srpc_util:bin_to_hex(ClientSymKey)]),
 %%   io:format("  ServerSymKey = ~p~n", [srpc_util:bin_to_hex(ServerSymKey)]),

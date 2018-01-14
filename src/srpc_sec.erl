@@ -7,7 +7,7 @@
 -export([validate_public_key/1
         ,generate_client_keys/0
         ,generate_server_keys/1
-        ,conn_info/4
+        ,conn_info/5
         ,process_client_challenge/2
         ,refresh_keys/2
         ]).
@@ -73,19 +73,19 @@ pad_value(PublicKey, Size) ->
   end.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Client Info
+%%  Client Connection Info
 %%--------------------------------------------------------------------------------------------------
--spec conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier) -> Result when
-    ConnId        :: conn_id(),
+-spec conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier) -> Result when
+    ConnId          :: conn_id(),
     ClientPublicKey :: exch_key(),
     ServerKeys      :: exch_key_pair(),
     Verifier        :: verifier(),
     Result          :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier) ->
-  conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier, {aes256, sha256}).
+conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier) ->
+  conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier, {aes256, sha256}).
 
-conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
+conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
   SrpHostParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
   Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeys, SrpHostParams),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,

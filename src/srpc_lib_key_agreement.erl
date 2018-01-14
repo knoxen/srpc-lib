@@ -29,27 +29,26 @@
 %%    L | SrpcId | Client Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
 create_exchange_request() ->
+  create_exchange_request(<<>>).
+
+create_exchange_request(ExchangeData) when is_binary(ExchangeData) ->
   SrpcId = srpc_lib:srpc_id(),
   ClientKeys = srpc_sec:generate_client_keys(),
   {ClientPublicKey, _} = ClientKeys,
   IdSize = erlang:byte_size(SrpcId),
-  {SrpcId, ClientKeys, <<IdSize:8, SrpcId/binary, ClientPublicKey/binary>>}.
-  
-create_exchange_request(ExchangeData) when is_binary(ExchangeData) ->
-  {SrpcId, ClientKeys, Request} = create_exchange_request(),
-  {SrpcId, ClientKeys, <<Request/binary, ExchangeData/binary>>}.
+  {ClientKeys, <<IdSize:8, SrpcId/binary, ClientPublicKey/binary, ExchangeData/binary>>}.
 
 %%------------------------------------------------------------------------------------------------
 %%  Process Key Exchange Response
 %%    L | ConnId | Server Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
-process_exchange_response() ->
+process_exchange_response() -> ok.
+
 %% process_exchange_response(ClientKeys, <<ConnIdSize, 
 %%                                         ConnId:ConnIdSize/binary, 
 %%                                         ServerPublicKey?SRPC_PUBLIC_KEY_SIZE/binary,
 %%                                         ExchangeData/binary>>) ->
-  
-  ok.
+%%   ok.
 
 %%------------------------------------------------------------------------------------------------
 %%  Create Key Confirm Request
@@ -113,10 +112,10 @@ create_exchange_response(ConnId, ClientPublicKey, ExchangeData) ->
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
   ExchangeResponse = <<ConnIdLen, ConnId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
 
-  case srpc_sec:conn_info(ConnId, ClientPublicKey, ServerKeys, ?SRPC_VERIFIER) of
+  case srpc_sec:conn_info(client, ConnId, ClientPublicKey, ServerKeys, ?SRPC_VERIFIER) of
     {ok, ConnInfo} ->
-      AgreementInfo = maps:merge(ConnInfo, #{client_type => lib, 
-                                               entity_id => srpc_lib:srpc_id()}),
+      AgreementInfo = maps:merge(ConnInfo, #{conn_type => lib, 
+                                             entity_id => srpc_lib:srpc_id()}),
       {ok, {AgreementInfo, ExchangeResponse}};
     Error ->
       Error

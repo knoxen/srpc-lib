@@ -71,10 +71,10 @@ create_exchange_response(ConnId, CryptConnInfo, Registration, ClientPublicKey, E
   ServerKeys = srpc_sec:generate_server_keys(Verifier),
   {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
 
-  case srpc_sec:conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier) of
+  case srpc_sec:conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier) of
     {ok, ConnInfo} ->
       NewConnInfo =  maps:merge(ConnInfo,
-                                  #{client_type => user
+                                  #{conn_type => user
                                    ,entity_id   => UserId}),
       case encrypt_response_data(ConnId, CryptConnInfo, ?SRPC_USER_OK,
                                  KdfSalt, SrpSalt, ServerPublicKey, ExchData) of
