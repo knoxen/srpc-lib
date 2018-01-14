@@ -96,8 +96,8 @@ conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs
   case hkdf_keys(Algs, Salt, ConnId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
     {ClientSymKey, ServerSymKey, HmacKey} ->
       {ok, #{conn_id             => ConnId
-            ,client_public_key     => ClientPublicKey
-            ,server_ephemeral_keys => ServerKeys
+            ,exch_public_key     => ClientPublicKey
+            ,exch_key_pair => ServerKeys
             ,sym_alg               => SymAlg 
             ,client_sym_key        => ClientSymKey
             ,server_sym_key        => ServerSymKey
@@ -117,8 +117,8 @@ conn_info(ConnId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs
     ClientChallenge :: binary(),
     Result          :: {ok, binary()} | {invalid, binary()}.
 %%--------------------------------------------------------------------------------------------------
-process_client_challenge(#{client_public_key     := ClientPublicKey
-                          ,server_ephemeral_keys := ServerKeys
+process_client_challenge(#{exch_public_key     := ClientPublicKey
+                          ,exch_key_pair := ServerKeys
                           ,client_sym_key        := ClientSymKey
                           ,server_sym_key        := ServerSymKey
                           ,sha_alg               := ShaAlg

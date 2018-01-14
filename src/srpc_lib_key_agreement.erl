@@ -157,7 +157,7 @@ create_confirm_response(ConnInfo, ClientChallenge, ConfirmData) ->
       ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
       case srpc_encryptor:encrypt(origin_server, ConnInfo, ConfirmResponse) of
         {ok, ConfirmPacket} ->
-          NewConnInfo = maps:remove(client_public_key, maps:remove(server_ephemeral_keys, ConnInfo)),
+          NewConnInfo = maps:remove(exch_public_key, maps:remove(exch_key_pair, ConnInfo)),
           {ok, NewConnInfo, ConfirmPacket};
         Error ->
           Error
