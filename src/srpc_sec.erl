@@ -7,6 +7,7 @@
 -export([validate_public_key/1
         ,generate_client_keys/0
         ,generate_server_keys/1
+        ,conn_keys/2
         ,conn_info/5
         ,process_client_challenge/2
         ,refresh_keys/2
@@ -73,6 +74,41 @@ pad_value(PublicKey, Size) ->
   end.
 
 %%--------------------------------------------------------------------------------------------------
+%%  Client Connection Keys
+%%--------------------------------------------------------------------------------------------------
+-spec conn_keys(ConnInfo, Verifier) -> Result when
+    ConnInfo :: conn_info(),
+    Verifier :: verifier(),
+    Result   :: {ok, conn_info()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+conn_keys(#{conn_id         := ConnId
+           ,exch_public_key := ClientPublicKey} = ConnInfo
+         ,Verifier) ->
+
+  ServerKeyPair = srpc_sec:generate_server_keys(?SRPC_VERIFIER),
+  Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeyPair, 
+                              {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
+
+  {ServerPublicKey, _ServerPrivateKey} = ServerKeyPair,
+  {SymAlg, ShaAlg} = {aes256, sha256},
+
+  %% Salt is hash of A|B
+  Salt = crypto:hash(ShaAlg, <<ClientPublicKey/binary, ServerPublicKey/binary>>),
+
+  case hkdf_keys({SymAlg, ShaAlg}, Salt, ConnId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
+    {ClientSymKey, ServerSymKey, HmacKey} ->
+      {ok, maps:merge(ConnInfo,
+                      #{exch_key_pair  => ServerKeyPair
+                       ,sym_alg        => SymAlg
+                       ,client_sym_key => ClientSymKey
+                       ,server_sym_key => ServerSymKey
+                       ,hmac_key       => HmacKey
+                       ,sha_alg        => ShaAlg})};
+    Error ->
+      Error
+  end.
+
+%%--------------------------------------------------------------------------------------------------
 %%  Client Connection Info
 %%--------------------------------------------------------------------------------------------------
 -spec conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier) -> Result when
@@ -92,13 +128,13 @@ conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg
 
   %% Salt is hash of A|B
   Salt = crypto:hash(ShaAlg, <<ClientPublicKey/binary, ServerPublicKey/binary>>),
-  
+
   case hkdf_keys(Algs, Salt, ConnId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
     {ClientSymKey, ServerSymKey, HmacKey} ->
       {ok, #{conn_id             => ConnId
             ,exch_public_key     => ClientPublicKey
             ,exch_key_pair => ServerKeys
-            ,sym_alg               => SymAlg 
+            ,sym_alg               => SymAlg
             ,client_sym_key        => ClientSymKey
             ,server_sym_key        => ServerSymKey
             ,sha_alg               => ShaAlg
@@ -124,7 +160,7 @@ process_client_challenge(#{exch_public_key := ClientPublicKey
                           ,sha_alg         := ShaAlg
                           }
                         ,ClientChallenge) ->
-  
+
   {ServerPublicKey, _PrivateKey} = ServerKeys,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ServerSymKey/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
@@ -160,7 +196,7 @@ refresh_keys(#{conn_id      := ConnId
   IKM = <<ClientSymKey/binary, ServerSymKey/binary, HmacKey/binary>>,
   case hkdf_keys({SymAlg, ShaAlg}, Data, ConnId, IKM) of
     {NewClientSymKey, NewServerSymKey, NewHmacKey} ->
-      maps:merge(ConnInfo, 
+      maps:merge(ConnInfo,
                  #{client_sym_key => NewClientSymKey
                   ,server_sym_key => NewServerSymKey
                   ,hmac_key       => NewHmacKey});
@@ -205,14 +241,14 @@ hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
 
   case hkdf(ShaAlg, Salt, Info, IKM, Len) of
     {ok, KeyingMaterial} ->
-      <<ClientSymKey:SymKeySize/binary, 
-        ServerSymKey:SymKeySize/binary, 
+      <<ClientSymKey:SymKeySize/binary,
+        ServerSymKey:SymKeySize/binary,
         HmacKey:HmacKeySize/binary>>
         = KeyingMaterial,
       {ClientSymKey, ServerSymKey, HmacKey};
     Error ->
       Error
-  end.    
+  end.
 
 %%------------------------------------------------------------------------------------------------
 %%
@@ -241,7 +277,7 @@ hkdf(ShaAlg, Salt, Info, IKM, Len) ->
     Len    :: non_neg_integer().
 %%------------------------------------------------------------------------------------------------
 expand(ShaAlg, Info, PRK, Len) ->
-  case {Len, sha_size(ShaAlg) * 255} of 
+  case {Len, sha_size(ShaAlg) * 255} of
     {Len, MaxLen} when Len =< MaxLen ->
       OKM = expand(ShaAlg, PRK, Info, 1, num_octets(ShaAlg, Len), <<>>, <<>>),
       {ok, <<OKM:Len/binary>>};
@@ -254,7 +290,7 @@ expand(_ShaAlg, _PRK, _Info, I, N, _Tp, Acc) when I > N ->
 expand(ShaAlg, PRK, Info, I, N, Tp, Acc) ->
   Ti = crypto:hmac(ShaAlg, PRK, <<Tp/binary, Info/binary, I:8>>),
   expand(ShaAlg, PRK, Info, I+1, N, Ti, <<Acc/binary, Ti/binary>>).
- 
+
 %%------------------------------------------------------------------------------------------------
 %%  Number of octets
 %%------------------------------------------------------------------------------------------------
