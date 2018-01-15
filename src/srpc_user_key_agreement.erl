@@ -98,8 +98,8 @@ create_exchange_response(ConnId, CryptConnInfo, Registration, ClientPublicKey, E
 %%------------------------------------------------------------------------------------------------
 -spec process_confirm_request(ConnInfo, Request) -> Result when
     ConnInfo :: conn_info(),
-    Request    :: binary(),
-    Result     :: {ok, {binary(), binary()}} | error_msg().
+    Request  :: binary(),
+    Result   :: {ok, {binary(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_confirm_request(ConnInfo, Request) ->
   %% srpc_util:debug_info({?MODULE, process_confirm_request}, ConnInfo),

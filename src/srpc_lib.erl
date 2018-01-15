@@ -13,7 +13,7 @@
 
 %% Lib Client
 -export([lib_key_process_exchange_request/1
-        ,lib_key_create_exchange_response/3
+        ,lib_key_create_exchange_response/2
         ,lib_key_process_confirm_request/2
         ,lib_key_create_confirm_response/3
         ]).
@@ -106,14 +106,13 @@ lib_key_process_exchange_request(ExchangeRequest) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Lib key exchange response
 %%--------------------------------------------------------------------------------------------------
--spec lib_key_create_exchange_response(ConnId, ClientPublicKey, ExchangeData) -> Result when
-    ConnId        :: conn_id(),
-    ClientPublicKey :: exch_key(),
-    ExchangeData    :: binary(),
-    Result          :: {ok, {conn_info(), binary()}} | error_msg().
+-spec lib_key_create_exchange_response(ConnInfo, ExchangeData) -> Result when
+    ConnInfo     :: conn_info(),
+    ExchangeData :: binary(),
+    Result       :: {ok, {conn_info(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-lib_key_create_exchange_response(ConnId, ClientPublicKey, ExchangeData) ->
-  srpc_lib_key_agreement:create_exchange_response(ConnId, ClientPublicKey, ExchangeData).
+lib_key_create_exchange_response(ConnInfo, ExchangeData) ->
+  srpc_lib_key_agreement:create_exchange_response(ConnInfo, ExchangeData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Lib key confirm request

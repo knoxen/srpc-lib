@@ -14,7 +14,7 @@
 
 %% Server Lib Key Agreement
 -export([process_exchange_request/1
-        ,create_exchange_response/3
+        ,create_exchange_response/2
         ,process_confirm_request/2
         ,create_confirm_response/3
         ]).
@@ -100,23 +100,19 @@ process_exchange_request(_) ->
 %%  Create Key Exchange Response
 %%    L | ConnId | Server Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
--spec create_exchange_response(ConnId, ClientPublicKey, ExchangeData) -> Response when
-    ConnId        :: conn_id(),
-    ClientPublicKey :: exch_key(),
-    ExchangeData    :: binary(),
-    Response        :: {ok, {conn_info(), binary()}} | error_msg().
+-spec create_exchange_response(ConnInfo, ExchangeData) -> Response when
+    ConnInfo     :: conn_info(),
+    ExchangeData :: binary(),
+    Response     :: {ok, {conn_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
-create_exchange_response(ConnId, ClientPublicKey, ExchangeData) ->
-  ConnIdLen = byte_size(ConnId),
-  ServerKeys = srpc_sec:generate_server_keys(?SRPC_VERIFIER),
-  {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
-  ExchangeResponse = <<ConnIdLen, ConnId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
-
-  case srpc_sec:conn_info(client, ConnId, ClientPublicKey, ServerKeys, ?SRPC_VERIFIER) of
-    {ok, ConnInfo} ->
-      AgreementInfo = maps:merge(ConnInfo, #{conn_type => lib, 
-                                             entity_id => srpc_lib:srpc_id()}),
-      {ok, {AgreementInfo, ExchangeResponse}};
+create_exchange_response(ConnInfo, ExchangeData) -> 
+  case srpc_sec:conn_keys(ConnInfo, ?SRPC_VERIFIER) of
+    {ok, ConnInfo2} ->
+      ConnId = maps:get(conn_id, ConnInfo2),
+      ConnIdLen = byte_size(ConnId),
+      {ServerPublicKey, _ServerPrivateKey} = maps:get(exch_key_pair, ConnInfo2),
+      ExchangeResponse = <<ConnIdLen, ConnId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
+      {ok, {ConnInfo2, ExchangeResponse}};
     Error ->
       Error
   end.
