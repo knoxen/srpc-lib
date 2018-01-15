@@ -105,14 +105,14 @@ process_exchange_request(_) ->
     ExchangeData :: binary(),
     Response     :: {ok, {conn_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
-create_exchange_response(ConnInfo, ExchangeData) -> 
-  case srpc_sec:conn_keys(ConnInfo, ?SRPC_VERIFIER) of
-    {ok, ConnInfo2} ->
-      ConnId = maps:get(conn_id, ConnInfo2),
+create_exchange_response(ExchConnInfo, ExchangeData) -> 
+  case srpc_sec:client_conn_keys(ExchConnInfo, ?SRPC_VERIFIER) of
+    {ok, ConnInfo} ->
+      ConnId = maps:get(conn_id, ConnInfo),
       ConnIdLen = byte_size(ConnId),
-      {ServerPublicKey, _ServerPrivateKey} = maps:get(exch_key_pair, ConnInfo2),
+      {ServerPublicKey, _ServerPrivateKey} = maps:get(exch_key_pair, ConnInfo),
       ExchangeResponse = <<ConnIdLen, ConnId/binary, ServerPublicKey/binary, ExchangeData/binary>>,
-      {ok, {ConnInfo2, ExchangeResponse}};
+      {ok, {ConnInfo, ExchangeResponse}};
     Error ->
       Error
   end.

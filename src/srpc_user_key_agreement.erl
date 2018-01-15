@@ -49,37 +49,37 @@ process_exchange_request(ConnInfo, Request) ->
 %%    User Code | L | ConnId | Kdf Salt | Srp Salt | Server Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
 -spec create_exchange_response(ConnId, ConnInfo, Registration, PublicKey, Data) -> Result when
-    ConnId     :: conn_id(),
-    ConnInfo   :: conn_info(),
+    ConnId       :: conn_id(),
+    ConnInfo     :: conn_info(),
     Registration :: binary() | invalid,
     PublicKey    :: exch_key(),
     Data         :: binary(),
     Result       :: {ok, {conn_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
-create_exchange_response(ConnId, CryptConnInfo, invalid, _ClientPublicKey, ExchData) ->
-  encrypt_response_data(ConnId, CryptConnInfo, ?SRPC_USER_INVALID_IDENTITY,
+create_exchange_response(ConnId, ExchConnInfo, invalid, _ClientPublicKey, ExchData) ->
+  encrypt_response_data(ConnId, ExchConnInfo, ?SRPC_USER_INVALID_IDENTITY,
                         crypto:strong_rand_bytes(?SRPC_KDF_SALT_SIZE),
                         crypto:strong_rand_bytes(?SRPC_SRP_SALT_SIZE),
                         crypto:strong_rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
                         ExchData);
 
-create_exchange_response(ConnId, CryptConnInfo, Registration, ClientPublicKey, ExchData) ->
+create_exchange_response(ConnId, ExchConnInfo, Registration, ClientPublicKey, ExchData) ->
   #{user_id  := UserId
    ,kdf_salt := KdfSalt
    ,srp_salt := SrpSalt
    ,verifier := Verifier} = Registration,
-  ServerKeys = srpc_sec:generate_server_keys(Verifier),
-  {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
 
-  case srpc_sec:conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier) of
+  case srpc_sec:client_conn_keys(#{conn_id         => ConnId
+                                  ,exch_public_key => ClientPublicKey
+                                  ,conn_type       => user
+                                  ,entity_id       => UserId}
+                                ,Verifier) of
     {ok, ConnInfo} ->
-      NewConnInfo =  maps:merge(ConnInfo,
-                                  #{conn_type => user
-                                   ,entity_id   => UserId}),
-      case encrypt_response_data(ConnId, CryptConnInfo, ?SRPC_USER_OK,
+      {ServerPublicKey, _} = maps:get(exch_key_pair, ConnInfo),
+      case encrypt_response_data(ConnId, ExchConnInfo, ?SRPC_USER_OK,
                                  KdfSalt, SrpSalt, ServerPublicKey, ExchData) of
         {ok, ExchangeResponse} ->
-          {ok, {NewConnInfo, ExchangeResponse}};
+          {ok, {ConnInfo, ExchangeResponse}};
         Error ->
           Error
       end;

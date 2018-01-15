@@ -7,8 +7,7 @@
 -export([validate_public_key/1
         ,generate_client_keys/0
         ,generate_server_keys/1
-        ,conn_keys/2
-        ,conn_info/5
+        ,client_conn_keys/2
         ,process_client_challenge/2
         ,refresh_keys/2
         ]).
@@ -73,32 +72,33 @@ pad_value(PublicKey, Size) ->
       << 0:Padding, PublicKey/binary >>
   end.
 
+
 %%--------------------------------------------------------------------------------------------------
 %%  Client Connection Keys
 %%--------------------------------------------------------------------------------------------------
--spec conn_keys(ConnInfo, Verifier) -> Result when
+-spec client_conn_keys(ConnInfo, Verifier) -> Result when
     ConnInfo :: conn_info(),
     Verifier :: verifier(),
     Result   :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-conn_keys(#{conn_id         := ConnId
-           ,exch_public_key := ClientPublicKey} = ConnInfo
-         ,Verifier) ->
+client_conn_keys(#{conn_id         := ConnId
+                  ,exch_public_key := ExchPublicKey} = ConnInfo
+                ,Verifier) ->
 
-  ServerKeyPair = srpc_sec:generate_server_keys(?SRPC_VERIFIER),
-  Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeyPair, 
+  ExchKeyPair = srpc_sec:generate_server_keys(Verifier),
+  Secret = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, 
                               {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
 
-  {ServerPublicKey, _ServerPrivateKey} = ServerKeyPair,
+  {ServerPublicKey, _ServerPrivateKey} = ExchKeyPair,
   {SymAlg, ShaAlg} = {aes256, sha256},
 
   %% Salt is hash of A|B
-  Salt = crypto:hash(ShaAlg, <<ClientPublicKey/binary, ServerPublicKey/binary>>),
+  Salt = crypto:hash(ShaAlg, <<ExchPublicKey/binary, ServerPublicKey/binary>>),
 
   case hkdf_keys({SymAlg, ShaAlg}, Salt, ConnId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
     {ClientSymKey, ServerSymKey, HmacKey} ->
       {ok, maps:merge(ConnInfo,
-                      #{exch_key_pair  => ServerKeyPair
+                      #{exch_key_pair  => ExchKeyPair
                        ,sym_alg        => SymAlg
                        ,client_sym_key => ClientSymKey
                        ,server_sym_key => ServerSymKey
@@ -108,42 +108,15 @@ conn_keys(#{conn_id         := ConnId
       Error
   end.
 
-%%--------------------------------------------------------------------------------------------------
-%%  Client Connection Info
-%%--------------------------------------------------------------------------------------------------
--spec conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier) -> Result when
-    ConnId          :: conn_id(),
-    ClientPublicKey :: exch_key(),
-    ServerKeys      :: exch_key_pair(),
-    Verifier        :: verifier(),
-    Result          :: {ok, conn_info()} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier) ->
-  conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier, {aes256, sha256}).
+%% conn_secret(client, ExchPublicKey, ExchKeyPair, Verifier) ->
+%%   crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, 
+%%                      {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}).
 
-conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg} = Algs) ->
-  SrpHostParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
-  Secret = crypto:compute_key(srp, ClientPublicKey, ServerKeys, SrpHostParams),
-  {ServerPublicKey, _ServerPrivateKey} = ServerKeys,
+%% conn_secret(server, ExchPublicKey, ExchKeyPair) ->
+%%   crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, 
+%%                      {user, [DerivedKey, 
+%%                              ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]}).
 
-  %% Salt is hash of A|B
-  Salt = crypto:hash(ShaAlg, <<ClientPublicKey/binary, ServerPublicKey/binary>>),
-
-  case hkdf_keys(Algs, Salt, ConnId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
-    {ClientSymKey, ServerSymKey, HmacKey} ->
-      {ok, #{conn_id             => ConnId
-            ,exch_public_key     => ClientPublicKey
-            ,exch_key_pair => ServerKeys
-            ,sym_alg               => SymAlg
-            ,client_sym_key        => ClientSymKey
-            ,server_sym_key        => ServerSymKey
-            ,sha_alg               => ShaAlg
-            ,hmac_key              => HmacKey
-            }
-      };
-    Error ->
-      Error
-  end.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process client challenge
@@ -154,14 +127,14 @@ conn_info(client, ConnId, ClientPublicKey, ServerKeys, Verifier, {SymAlg, ShaAlg
     Result          :: {ok, binary()} | {invalid, binary()}.
 %%--------------------------------------------------------------------------------------------------
 process_client_challenge(#{exch_public_key := ClientPublicKey
-                          ,exch_key_pair   := ServerKeys
+                          ,exch_key_pair   := ServerKeyPair
                           ,client_sym_key  := ClientSymKey
                           ,server_sym_key  := ServerSymKey
                           ,sha_alg         := ShaAlg
                           }
                         ,ClientChallenge) ->
 
-  {ServerPublicKey, _PrivateKey} = ServerKeys,
+  {ServerPublicKey, _PrivateKey} = ServerKeyPair,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ServerSymKey/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
   case srpc_util:const_compare(ChallengeCheck, ClientChallenge) of
