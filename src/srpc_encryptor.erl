@@ -183,10 +183,11 @@ decrypt_key(_SymKey, _ConnInfo, _Packet) ->
 %%------------------------------------------------------------------------------------------------
 srpc_data_hdr(ConnId) ->
   SrpcId = srpc_lib:srpc_id(),
+  SrpcOptions = srpc_lib:srpc_options(),
   DataHdr = <<?SRPC_VERSION_MAJOR:8,
               ?SRPC_VERSION_MINOR:8,
               ?SRPC_VERSION_PATCH:8,
-              ?SRPC_OPTIONS/binary,
+              SrpcOptions/binary,
               SrpcId/binary>>,
   ConnIdLen = byte_size(ConnId),
   <<DataHdr/binary, ConnIdLen, ConnId/binary>>.

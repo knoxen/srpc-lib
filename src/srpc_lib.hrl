@@ -1,5 +1,3 @@
--include("srpc_config.hrl").
-
 %%
 %% Srpc Version
 %%

@@ -44,10 +44,10 @@ create_exchange_request(ExchangeData) when is_binary(ExchangeData) ->
 %%------------------------------------------------------------------------------------------------
 process_exchange_response() -> ok.
 
-%% process_exchange_response(ClientKeys, <<ConnIdSize, 
-%%                                         ConnId:ConnIdSize/binary, 
-%%                                         ServerPublicKey?SRPC_PUBLIC_KEY_SIZE/binary,
-%%                                         ExchangeData/binary>>) ->
+%% process_exchange_response(ConnInfo, <<ConnIdSize, 
+%%                                       ConnId:ConnIdSize/binary, 
+%%                                       ServerPublicKey?SRPC_PUBLIC_KEY_SIZE/binary,
+%%                                       ExchangeData/binary>>) ->
 %%   ok.
 
 %%------------------------------------------------------------------------------------------------
@@ -106,7 +106,8 @@ process_exchange_request(_) ->
     Response     :: {ok, {conn_info(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 create_exchange_response(ExchConnInfo, ExchangeData) -> 
-  case srpc_sec:client_conn_keys(ExchConnInfo, ?SRPC_VERIFIER) of
+  {ok, LibVerifier} = application:get_env(srpc_lib, lib_verifier),
+  case srpc_sec:client_conn_keys(ExchConnInfo, LibVerifier) of
     {ok, ConnInfo} ->
       ConnId = maps:get(conn_id, ConnInfo),
       ConnIdLen = byte_size(ConnId),

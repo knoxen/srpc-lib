@@ -51,7 +51,8 @@
 -spec srpc_id() -> binary().
 %%--------------------------------------------------------------------------------------------------
 srpc_id() ->
-  ?SRPC_ID.
+  {ok, LibId} = application:get_env(srpc_lib, lib_id),
+  LibId.
 
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC version
@@ -70,11 +71,12 @@ srpc_version() ->
 -spec srpc_options() -> binary().
 %%--------------------------------------------------------------------------------------------------
 srpc_options() ->
-  case ?SRPC_OPTIONS of
-    ?SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256 ->
+  {ok, LibOptions} = application:get_env(srpc_lib, lib_options),
+  case LibOptions of
+    srpc_pbkdf2_sha256_g2048_aes_256_cbc_hmac_sha256 ->
       <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>;
     _Invalid ->
-      <<"Invalid Srpc Option">>
+      <<"Invalid Srpc Options">>
   end.
 
 %%--------------------------------------------------------------------------------------------------
