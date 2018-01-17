@@ -25,10 +25,10 @@
 %% @doc Encrypt data using client information
 %%
 -spec encrypt(Origin, ConnInfo, Data) -> Result when
-    Origin     :: origin(),
+    Origin   :: origin(),
     ConnInfo :: conn_info(),
-    Data       :: binary(),
-    Result     :: {ok, binary()} | error_msg().
+    Data     :: binary(),
+    Result   :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 encrypt(origin_client, #{client_sym_key := SymKey} = ConnInfo, Data) ->
   encrypt_with_key(SymKey, ConnInfo, Data);
@@ -43,10 +43,10 @@ encrypt(_Origin, _ConnInfo, _Data) ->
 %% @doc Decrypt packet using client information
 %%
 -spec decrypt(Origin, ConnInfo, Packet) -> Result when
-    Origin     :: origin(),
+    Origin   :: origin(),
     ConnInfo :: conn_info(),
-    Packet     :: binary(),
-    Result     :: {ok, binary()} | error_msg().
+    Packet   :: binary(),
+    Result   :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 decrypt(origin_client, #{client_sym_key := SymKey} = ConnInfo, Packet) ->
   decrypt_key(SymKey, ConnInfo, Packet);
@@ -67,10 +67,10 @@ decrypt(_Origin, _ConnInfo, _Packet) ->
 %% @private
 %%
 -spec encrypt_with_key(SymKey, ConnInfo, Data) -> {ok, Packet} | error_msg() when
-    SymKey     :: sym_key(),
+    SymKey   :: sym_key(),
     ConnInfo :: conn_info(),
-    Data       :: binary(),
-    Packet     :: binary().
+    Data     :: binary(),
+    Packet   :: binary().
 %%------------------------------------------------------------------------------------------------
 encrypt_with_key(SymKey, #{conn_id := ConnId, hmac_key  := HmacKey}, Data) ->
   SrpcDataHdr = srpc_data_hdr(ConnId),
@@ -132,10 +132,10 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
 %% @private
 %%
 -spec decrypt_key(SymKey, ConnInfo, Packet) -> {ok, Data} | error_msg() when
-    SymKey     :: sym_key(),
+    SymKey   :: sym_key(),
     ConnInfo :: map(),
-    Packet     :: binary(),
-    Data       :: binary().
+    Packet   :: binary(),
+    Data     :: binary().
 %%------------------------------------------------------------------------------------------------
 decrypt_key(SymKey, #{conn_id := ConnId, hmac_key := HmacKey}, Packet) ->
   PacketSize = byte_size(Packet),
@@ -183,11 +183,11 @@ decrypt_key(_SymKey, _ConnInfo, _Packet) ->
 %%------------------------------------------------------------------------------------------------
 srpc_data_hdr(ConnId) ->
   SrpcId = srpc_lib:srpc_id(),
-  SrpcOptions = srpc_lib:srpc_options(),
+  SrpcOptionsHdr = srpc_options_hdr(),
   DataHdr = <<?SRPC_VERSION_MAJOR:8,
               ?SRPC_VERSION_MINOR:8,
               ?SRPC_VERSION_PATCH:8,
-              SrpcOptions/binary,
+              SrpcOptionsHdr/binary,
               SrpcId/binary>>,
   ConnIdLen = byte_size(ConnId),
   <<DataHdr/binary, ConnIdLen, ConnId/binary>>.
@@ -250,4 +250,23 @@ depad(Bin) ->
     false ->
       %% The last byte is greater than our block size; we interpret as no padding
       {ok, Bin}
+  end.
+
+
+%%------------------------------------------------------------------------------------------------
+%%  Binary value for Srpc options set in every encryption packet header.
+%%------------------------------------------------------------------------------------------------
+-spec srpc_options_hdr() -> binary().
+%%------------------------------------------------------------------------------------------------
+srpc_options_hdr() ->
+  case application:get_env(srpc_lib, lib_options) of
+    {ok, LibOptions} ->
+      case LibOptions of
+        srpc_pbkdf2_sha256_g2048_aes_256_cbc_hmac_sha256 ->
+          <<16#00121311:32>>;
+        _ ->
+          throw(io_lib:format("Invalid srpc_lib setting for lib_options: ~p", [LibOptions]))
+      end;
+    _ ->
+      throw("Missing srpc_lib setting for lib_options")
   end.

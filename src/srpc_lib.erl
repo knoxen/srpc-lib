@@ -75,7 +75,7 @@ srpc_options() ->
   case LibOptions of
     srpc_pbkdf2_sha256_g2048_aes_256_cbc_hmac_sha256 ->
       <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>;
-    _Invalid ->
+    _ ->
       <<"Invalid Srpc Options">>
   end.
 
