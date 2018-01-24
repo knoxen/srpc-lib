@@ -5,18 +5,17 @@
 -include("srpc_lib.hrl").
 
 %% Client Lib Key Agreement
--export([create_exchange_request/0
-        ,create_exchange_request/1
-        ,process_exchange_response/0
-        ,create_confirm_request/0
-        ,process_confirm_response/0
+-export([create_exchange_request/1,
+         process_exchange_response/1,
+         create_confirm_request/1,
+         process_confirm_response/0
         ]).
 
 %% Server Lib Key Agreement
--export([process_exchange_request/1
-        ,create_exchange_response/2
-        ,process_confirm_request/2
-        ,create_confirm_response/3
+-export([process_exchange_request/1,
+         create_exchange_response/2,
+         process_confirm_request/2,
+         create_confirm_response/3
         ]).
 
 %%================================================================================================
@@ -28,10 +27,7 @@
 %%  Create Key Exchange Request
 %%    L | SrpcId | Client Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
-create_exchange_request() ->
-  create_exchange_request(<<>>).
-
-create_exchange_request(ExchangeData) when is_binary(ExchangeData) ->
+create_exchange_request(ExchangeData) ->
   SrpcId = srpc_lib:srpc_id(),
   ClientKeys = srpc_sec:generate_client_keys(),
   {ClientPublicKey, _} = ClientKeys,
@@ -42,19 +38,17 @@ create_exchange_request(ExchangeData) when is_binary(ExchangeData) ->
 %%  Process Key Exchange Response
 %%    L | ConnId | Server Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
-process_exchange_response() -> ok.
-
-%% process_exchange_response(ConnInfo, <<ConnIdSize, 
-%%                                       ConnId:ConnIdSize/binary, 
-%%                                       ServerPublicKey?SRPC_PUBLIC_KEY_SIZE/binary,
-%%                                       ExchangeData/binary>>) ->
-%%   ok.
+process_exchange_response(<<ConnIdSize,
+                            _ConnId:ConnIdSize/binary,
+                            _ServerPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
+                            _ExchangeData/binary>>) ->
+ ok.
 
 %%------------------------------------------------------------------------------------------------
 %%  Create Key Confirm Request
 %%    
 %%------------------------------------------------------------------------------------------------
-create_confirm_request() ->
+create_confirm_request(_ConfirmData) ->
   ok.
 
 %%------------------------------------------------------------------------------------------------
@@ -161,5 +155,3 @@ create_confirm_response(ConnInfo, ClientChallenge, ConfirmData) ->
     Invalid ->
       Invalid
   end.
-
-
