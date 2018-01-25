@@ -146,7 +146,6 @@ client_conn_keys(#{conn_id         := _ConnId,
                    exch_public_key := _ExchPublicKey} = ConnInfo, Verifier) ->
   ExchKeyPair = srpc_sec:generate_server_keys(Verifier),
   SrpServerParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
-
   conn_keys(maps:put(exch_key_pair, ExchKeyPair, ConnInfo), SrpServerParams).
 
 %%--------------------------------------------------------------------------------------------------
@@ -157,18 +156,18 @@ client_conn_keys(#{conn_id         := _ConnId,
     Result   :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 server_conn_keys(ConnInfo) ->
-  {ok, Id}       = application:get_env(srpc_lib, lib_id),
-  {ok, Passcode} = application:get_env(srpc_lib, lib_passcode),
-  {ok, KdfSalt}  = application:get_env(srpc_lib, lib_kdf_salt),
-  {ok, SrpSalt}  = application:get_env(srpc_lib, lib_srp_salt),
+  {ok, Id}        = application:get_env(srpc_lib, lib_id),
+  {ok, Passcode}  = application:get_env(srpc_lib, lib_passcode),
+  {ok, KdfSalt}   = application:get_env(srpc_lib, lib_kdf_salt),
+  {ok, KdfRounds} = application:get_env(srpc_lib, lib_kdf_rounds),
+  {ok, SrpSalt}   = application:get_env(srpc_lib, lib_srp_salt),
 
   %% X = Sha1( S | Sha1(Id | : | P))
-  Passkey = pbkdf2(Passcode, KdfSalt, 100000),
+  Passkey = pbkdf2(Passcode, KdfSalt, KdfRounds),
   IP = crypto:hash(sha, <<Id/binary, ":", Passkey/binary>>),
   X  = crypto:hash(sha, <<SrpSalt/binary, IP/binary>>),
 
   SrpUserParams = {user, [X, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]},
-
   conn_keys(ConnInfo, SrpUserParams).
 
 %%--------------------------------------------------------------------------------------------------
@@ -186,7 +185,13 @@ conn_keys(#{conn_id         := ConnId,
   %% HKDF Salt is hash of the concatenation of the public keys
   A = ExchPublicKey,
   {B,_} = ExchKeyPair,
-  HkdfSalt = crypto:hash(ShaAlg, <<A/binary, B/binary>>),
+  HkdfSalt =
+    case SrpParams of
+      {host,_} ->
+        crypto:hash(ShaAlg, <<A/binary, B/binary>>);
+      {user,_} ->
+        crypto:hash(ShaAlg, <<B/binary, A/binary>>)
+      end,
   
   PaddedSecret = pad_value(Secret, erlang:byte_size(?SRPC_GROUP_MODULUS)),
   case hkdf_keys({SymAlg, ShaAlg}, HkdfSalt, ConnId, PaddedSecret) of
@@ -199,7 +204,6 @@ conn_keys(#{conn_id         := ConnId,
     Error ->
       Error
   end.
-
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process client challenge

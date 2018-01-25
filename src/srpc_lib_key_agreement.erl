@@ -6,7 +6,7 @@
 
 %% Client Lib Key Agreement
 -export([create_exchange_request/1,
-         process_exchange_response/1,
+         process_exchange_response/2,
          create_confirm_request/1,
          process_confirm_response/0
         ]).
@@ -24,7 +24,7 @@
 %%
 %%================================================================================================
 %%------------------------------------------------------------------------------------------------
-%%  Create Key Exchange Request
+%%  Create Lib Key Exchange Request
 %%    L | SrpcId | Client Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
 create_exchange_request(ExchangeData) ->
@@ -35,14 +35,19 @@ create_exchange_request(ExchangeData) ->
   {ClientKeys, <<IdSize:8, SrpcId/binary, ClientPublicKey/binary, ExchangeData/binary>>}.
 
 %%------------------------------------------------------------------------------------------------
-%%  Process Key Exchange Response
+%%  Process Lib Key Exchange Response
 %%    L | ConnId | Server Pub Key | <Exchange Data>
 %%------------------------------------------------------------------------------------------------
-process_exchange_response(<<ConnIdSize,
-                            _ConnId:ConnIdSize/binary,
-                            _ServerPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
+process_exchange_response(ClientKeys,
+                          <<ConnIdSize, ConnId:ConnIdSize/binary,
+                            ServerPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
                             _ExchangeData/binary>>) ->
- ok.
+  ConnInfo = #{conn_id         => ConnId,
+               entity_id       => srpc_lib:srpc_id(),
+               exch_key_pair   => ClientKeys,
+               exch_public_key => ServerPublicKey
+              },
+  {ok, srpc_sec:server_conn_keys(ConnInfo)}.
 
 %%------------------------------------------------------------------------------------------------
 %%  Create Key Confirm Request
@@ -147,8 +152,7 @@ create_confirm_response(ConnInfo, ClientChallenge, ConfirmData) ->
       ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
       case srpc_encryptor:encrypt(origin_server, ConnInfo, ConfirmResponse) of
         {ok, ConfirmPacket} ->
-          NewConnInfo = maps:remove(exch_public_key, maps:remove(exch_key_pair, ConnInfo)),
-          {ok, NewConnInfo, ConfirmPacket};
+          {ok, maps:remove(exch_public_key, maps:remove(exch_key_pair, ConnInfo)), ConfirmPacket};
         Error ->
           Error
       end;
