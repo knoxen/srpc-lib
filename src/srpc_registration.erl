@@ -29,12 +29,13 @@
 process_registration_request(ConnInfo, Request) ->
   case srpc_encryptor:decrypt(origin_client, ConnInfo, Request) of
     {ok, <<UserIdLen:?USER_ID_LEN_BITS, RequestData/binary>>} ->
+      VerifierSize = erlang:byte_size(?SRPC_GROUP_MODULUS),
       case RequestData of
         <<UserId:UserIdLen/binary,
           RegistrationCode:?REG_CODE_BITS,
           KdfSalt:?SRPC_KDF_SALT_SIZE/binary,
           SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
-          Verifier:?SRPC_VERIFIER_SIZE/binary,
+          Verifier:VerifierSize/binary,
           RegistrationData/binary>> ->
 
           SrpcRegMap = #{user_id  => UserId

@@ -43,7 +43,6 @@
 %% SRP
 %%
 -define(SRPC_SRP_SALT_SIZE,   20).
--define(SRPC_VERIFIER_SIZE,  256).
 
 %%
 %% SRPC
@@ -96,6 +95,7 @@
 -type conn_info()     :: #{conn_id         => conn_id()
                           ,exch_public_key => exch_key()
                           ,exch_key_pair   => exch_key_pair()
+                          ,entity_id       => binary()
                           ,sym_alg         => sym_alg()
                           ,sha_alg         => sha_alg()
                           ,client_sym_key  => sym_key()
