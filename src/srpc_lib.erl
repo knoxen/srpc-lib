@@ -18,7 +18,7 @@
 
 %% Client Lib Key Agreement
 -export([create_lib_key_exchange_request/0, create_lib_key_exchange_request/1,
-         process_lib_key_exchange_response/1
+         process_lib_key_exchange_response/2
         ]).
 
 %% Server Lib Key Agreement
@@ -79,12 +79,13 @@ server_per_file(PerFile) ->
 %%--------------------------------------------------------------------------------------------------
 client_per_file(PerFile) ->
   case parse_client_per_file(PerFile) of
-    {ok, Id, Passcode, KdfSalt, SrpSalt} ->
+    {ok, Id, Passcode, KdfSalt, KdfRounds, SrpSalt} ->
       Persistent = [{persistent, true}],
-      application:set_env(srpc_lib, lib_id, Id, Persistent),
-      application:set_env(srpc_lib, lib_passcode, Passcode, Persistent),
-      application:set_env(srpc_lib, lib_kdf_salt, KdfSalt, Persistent),
-      application:set_env(srpc_lib, lib_srp_salt, SrpSalt, Persistent),
+      application:set_env(srpc_lib, lib_id,         Id,        Persistent),
+      application:set_env(srpc_lib, lib_passcode,   Passcode,  Persistent),
+      application:set_env(srpc_lib, lib_kdf_salt,   KdfSalt,   Persistent),
+      application:set_env(srpc_lib, lib_kdf_rounds, KdfRounds, Persistent),
+      application:set_env(srpc_lib, lib_srp_salt,   SrpSalt,   Persistent),
       ok;
     Error ->
       Error
@@ -159,12 +160,14 @@ create_lib_key_exchange_request(ExchangeData) when is_binary(ExchangeData) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Process lib key exchange response
 %%--------------------------------------------------------------------------------------------------
--spec process_lib_key_exchange_response(ExchangeData) -> Result when
+-spec process_lib_key_exchange_response(ClientKeys, ExchangeData) -> Result when
+    ClientKeys   :: exch_key_pair(),
     ExchangeData :: binary(),
     Result       :: binary().
 %%--------------------------------------------------------------------------------------------------
-process_lib_key_exchange_response(ExchangeResponse) when is_binary(ExchangeResponse) ->
-  srpc_lib_key_agreement:process_exchange_response(ExchangeResponse).
+process_lib_key_exchange_response(ClientKeys, ExchangeResponse)
+  when is_binary(ExchangeResponse) ->
+  srpc_lib_key_agreement:process_exchange_response(ClientKeys, ExchangeResponse).
 
 %%==================================================================================================
 %%
@@ -195,25 +198,25 @@ create_lib_key_exchange_response(ConnInfo, ExchangeData) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Lib key confirm request
 %%--------------------------------------------------------------------------------------------------
--spec process_lib_key_confirm_request(ExchangeMap, Request) -> Result when
-    ExchangeMap :: conn_info(),
-    Request     :: binary(),
-    Result      :: {ok, {binary(), binary()}} | error_msg().
+-spec process_lib_key_confirm_request(ConnInfo, Request) -> Result when
+    ConnInfo :: conn_info(),
+    Request  :: binary(),
+    Result   :: {ok, {binary(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_lib_key_confirm_request(ExchangeMap, Request) ->
-  srpc_lib_key_agreement:process_confirm_request(ExchangeMap, Request).
+process_lib_key_confirm_request(ConnInfo, Request) ->
+  srpc_lib_key_agreement:process_confirm_request(ConnInfo, Request).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Lib key confirm response
 %%--------------------------------------------------------------------------------------------------
--spec create_lib_key_confirm_response(ExchangeMap, ClientChallenge, ConfirmData) -> Result when
-    ExchangeMap     :: conn_info(),
+-spec create_lib_key_confirm_response(ConnInfo, ClientChallenge, ConfirmData) -> Result when
+    ConnInfo        :: conn_info(),
     ClientChallenge :: binary(),
     ConfirmData     :: binary(),
     Result          :: {ok, conn_info(), binary()} | error_msg() | invalid_msg().
 %%--------------------------------------------------------------------------------------------------
-create_lib_key_confirm_response(ExchangeMap, ClientChallenge, ConfirmData) ->
-  srpc_lib_key_agreement:create_confirm_response(ExchangeMap, ClientChallenge, ConfirmData).
+create_lib_key_confirm_response(ConnInfo, ClientChallenge, ConfirmData) ->
+  srpc_lib_key_agreement:create_confirm_response(ConnInfo, ClientChallenge, ConfirmData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process registration request
@@ -354,19 +357,21 @@ parse_server_per_file(PerFile) ->
 %%  Parse SRPC client PER file
 %%--------------------------------------------------------------------------------------------------
 -spec parse_client_per_file(PerFile) -> Result when
-    PerFile  :: string(),
-    Id       :: binary(),
-    Passcode :: binary(),
-    KdfSalt  :: binary(),
-    SrpSalt  :: binary(),
-    Result   :: {ok, Id, Passcode, KdfSalt, SrpSalt} | error_msg().
+    PerFile   :: string(),
+    Id        :: binary(),
+    Passcode  :: binary(),
+    KdfSalt   :: binary(),
+    KdfRounds :: integer(),
+    SrpSalt   :: binary(),
+    Result    :: {ok, Id, Passcode, KdfSalt, KdfRounds, SrpSalt} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 parse_client_per_file(PerFile) ->
   case file:read_file(PerFile) of
     {ok, Data} ->
       case parse_data(Data) of
-        [Id, Passcode, KdfSalt, SrpSalt] ->
-          {ok, Id, Passcode, KdfSalt, SrpSalt};
+        [Id, Passcode, KdfSalt, BinKdfRounds, SrpSalt] ->
+          KdfRounds = srpc_util:bin_to_int(BinKdfRounds),
+          {ok, Id, Passcode, KdfSalt, KdfRounds, SrpSalt};
         _ ->
           Reason = io_lib:format("Failed processing client PER file ~p: wrong format", [PerFile]),
           {error, erlang:list_to_binary(Reason)}
