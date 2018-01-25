@@ -142,7 +142,7 @@ decrypt_key(SymKey, #{conn_id := ConnId, hmac_key := HmacKey}, Packet) ->
   CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_HMAC_256_SIZE}),
   PacketHmac   = binary_part(Packet, {PacketSize, -?SRPC_HMAC_256_SIZE}),
   Hmac = crypto:hmac(sha256, HmacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
-  case srpc_util:const_compare(PacketHmac, Hmac) of
+  case srpc_sec:const_compare(PacketHmac, Hmac) of
     true ->
       case CryptorText of
         <<?SRPC_DATA_VERSION, IV:?SRPC_AES_BLOCK_SIZE/binary, CipherText/binary>> ->

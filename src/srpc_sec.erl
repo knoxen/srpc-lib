@@ -4,12 +4,14 @@
 
 -include("srpc_lib.hrl").
 
--export([validate_public_key/1
-        ,generate_client_keys/0
-        ,generate_server_keys/1
-        ,client_conn_keys/2
-        ,process_client_challenge/2
-        ,refresh_keys/2
+-export([const_compare/2,
+         validate_public_key/1,
+         generate_client_keys/0,
+         generate_server_keys/1,
+         client_conn_keys/2,
+         server_conn_keys/1,
+         process_client_challenge/2,
+         refresh_keys/2
         ]).
 
 %%==================================================================================================
@@ -17,6 +19,36 @@
 %%  Public API
 %%
 %%==================================================================================================
+%%================================================================================================
+%%
+%% Compare binaries for equality
+%%
+%%================================================================================================
+%%------------------------------------------------------------------------------------------------
+%% @doc Compare two binaries for equality, bit-by-bit, without short-circuits
+%% to avoid timing differences. Note this function does short-circuit to
+%% <code>false</code> if the binaries are not of equal size.
+%%------------------------------------------------------------------------------------------------
+-spec const_compare(Bin1, Bin2) -> boolean() when
+    Bin1 :: binary(),
+    Bin2 :: binary().
+%%------------------------------------------------------------------------------------------------
+const_compare(<<X/binary>>, <<Y/binary>>) ->
+  case byte_size(X) == byte_size(Y) of
+    true ->
+      const_compare(X, Y, true);
+    false ->
+      false
+  end;
+const_compare(_X, _Y) ->
+  false.
+
+%% @private
+const_compare(<<X:1/bitstring, XT/bitstring>>, <<Y:1/bitstring, YT/bitstring>>, Acc) ->
+  const_compare(XT, YT, (X == Y) and Acc);
+const_compare(<<>>, <<>>, Acc) ->
+  Acc.
+
 %%--------------------------------------------------------------------------------------------------
 %%  Validate public key
 %%    - Prevent K < N to ensure "wrap" in cyclic group
@@ -72,7 +104,6 @@ pad_value(PublicKey, Size) ->
       << 0:Padding, PublicKey/binary >>
   end.
 
-
 %%--------------------------------------------------------------------------------------------------
 %%  Client Connection Keys
 %%--------------------------------------------------------------------------------------------------
@@ -82,9 +113,7 @@ pad_value(PublicKey, Size) ->
     Result   :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 client_conn_keys(#{conn_id         := ConnId
-                  ,exch_public_key := ExchPublicKey} = ConnInfo
-                ,Verifier) ->
-
+                  ,exch_public_key := ExchPublicKey} = ConnInfo, Verifier) ->
   ExchKeyPair = srpc_sec:generate_server_keys(Verifier),
   Secret = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, 
                               {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
@@ -108,14 +137,23 @@ client_conn_keys(#{conn_id         := ConnId
       Error
   end.
 
-%% conn_secret(client, ExchPublicKey, ExchKeyPair, Verifier) ->
-%%   crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, 
-%%                      {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}).
+%%--------------------------------------------------------------------------------------------------
+%%  Server Connection Keys
+%%--------------------------------------------------------------------------------------------------
+-spec server_conn_keys(ConnInfo) -> Result when
+    ConnInfo :: conn_info(),
+    Result   :: {ok, conn_info()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+server_conn_keys(#{conn_id         := _ConnId,
+                   exch_public_key := ExchPublicKey,
+                   exch_key_pair   := ExchKeyPair
+                  } = ConnInfo) ->
 
-%% conn_secret(server, ExchPublicKey, ExchKeyPair) ->
-%%   crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, 
-%%                      {user, [DerivedKey, 
-%%                              ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]}).
+  DerivedKey = <<>>,
+  SrpUserParams = [DerivedKey, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION],
+  crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, {user, SrpUserParams}),
+
+  {ok, ConnInfo}.
 
 
 %%--------------------------------------------------------------------------------------------------
