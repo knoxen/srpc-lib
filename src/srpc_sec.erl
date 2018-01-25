@@ -5,9 +5,10 @@
 -include("srpc_lib.hrl").
 
 -export([const_compare/2,
-         validate_public_key/1,
+         pbkdf2/3,
          generate_client_keys/0,
          generate_server_keys/1,
+         validate_public_key/1,
          client_conn_keys/2,
          server_conn_keys/1,
          process_client_challenge/2,
@@ -19,15 +20,12 @@
 %%  Public API
 %%
 %%==================================================================================================
-%%================================================================================================
-%%
+%%------------------------------------------------------------------------------------------------
 %% Compare binaries for equality
 %%
-%%================================================================================================
-%%------------------------------------------------------------------------------------------------
-%% @doc Compare two binaries for equality, bit-by-bit, without short-circuits
-%% to avoid timing differences. Note this function does short-circuit to
-%% <code>false</code> if the binaries are not of equal size.
+%% @doc Compare two binaries for equality, bit-by-bit, without short-circuits to avoid timing
+%% differences. Note this function does short-circuit to <code>false</code> if the binaries are
+%% not of equal size.
 %%------------------------------------------------------------------------------------------------
 -spec const_compare(Bin1, Bin2) -> boolean() when
     Bin1 :: binary(),
@@ -48,6 +46,38 @@ const_compare(<<X:1/bitstring, XT/bitstring>>, <<Y:1/bitstring, YT/bitstring>>, 
   const_compare(XT, YT, (X == Y) and Acc);
 const_compare(<<>>, <<>>, Acc) ->
   Acc.
+
+%%------------------------------------------------------------------------------------------------
+%%  Compute PBKDF2 passkey.
+%%------------------------------------------------------------------------------------------------
+-spec pbkdf2(Password, Salt, Iterations) -> PassKey when
+    Password   :: binary(),
+    Salt       :: binary(),
+    Iterations :: integer(),
+    PassKey    :: binary().
+%%------------------------------------------------------------------------------------------------
+pbkdf2(Password, Salt, Iterations) ->
+  pbkdf2(Password, Salt, Iterations, ?SRPC_HMAC_256_SIZE, 1, []).
+
+%% @private
+pbkdf2(Password, Salt, Iterations, Length, Block, Value) ->
+  case iolist_size(Value) > Length of
+    true ->
+      <<Data:Length/binary, _/binary>> = iolist_to_binary(lists:reverse(Value)),
+      Data;
+    false ->
+      Data = pbkdf2(Password, Salt, Iterations, Block, 1, <<>>, <<>>),
+      pbkdf2(Password, Salt, Iterations, Length, Block + 1, [Data | Value])
+  end.
+
+pbkdf2(_Password, _Salt, Iterations, _Block, Iteration, _Prev, Value) when Iteration > Iterations ->
+  Value;
+pbkdf2(Password, Salt, Iterations, Block, 1, _Prev, _Value) ->
+  Data = crypto:hmac(sha256, Password, <<Salt/binary, Block:32/integer>>, ?SRPC_HMAC_256_SIZE),
+  pbkdf2(Password, Salt, Iterations, Block, 2, Data, Data);
+pbkdf2(Password, Salt, Iterations, Block, Iteration, Current, Value) ->
+  More = crypto:hmac(sha256, Password, Current, ?SRPC_HMAC_256_SIZE),
+  pbkdf2(Password, Salt, Iterations, Block, Iteration + 1, More, crypto:exor(More, Value)).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Validate public key
@@ -112,30 +142,12 @@ pad_value(PublicKey, Size) ->
     Verifier :: verifier(),
     Result   :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-client_conn_keys(#{conn_id         := ConnId
-                  ,exch_public_key := ExchPublicKey} = ConnInfo, Verifier) ->
+client_conn_keys(#{conn_id         := _ConnId,
+                   exch_public_key := _ExchPublicKey} = ConnInfo, Verifier) ->
   ExchKeyPair = srpc_sec:generate_server_keys(Verifier),
-  Secret = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, 
-                              {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]}),
+  SrpServerParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
 
-  {ServerPublicKey, _ServerPrivateKey} = ExchKeyPair,
-  {SymAlg, ShaAlg} = {aes256, sha256},
-
-  %% Salt is hash of A|B
-  Salt = crypto:hash(ShaAlg, <<ExchPublicKey/binary, ServerPublicKey/binary>>),
-
-  case hkdf_keys({SymAlg, ShaAlg}, Salt, ConnId, pad_value(Secret, ?SRPC_VERIFIER_SIZE)) of
-    {ClientSymKey, ServerSymKey, HmacKey} ->
-      {ok, maps:merge(ConnInfo,
-                      #{exch_key_pair  => ExchKeyPair
-                       ,sym_alg        => SymAlg
-                       ,client_sym_key => ClientSymKey
-                       ,server_sym_key => ServerSymKey
-                       ,hmac_key       => HmacKey
-                       ,sha_alg        => ShaAlg})};
-    Error ->
-      Error
-  end.
+  conn_keys(maps:put(exch_key_pair, ExchKeyPair, ConnInfo), SrpServerParams).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Server Connection Keys
@@ -144,16 +156,49 @@ client_conn_keys(#{conn_id         := ConnId
     ConnInfo :: conn_info(),
     Result   :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-server_conn_keys(#{conn_id         := _ConnId,
-                   exch_public_key := ExchPublicKey,
-                   exch_key_pair   := ExchKeyPair
-                  } = ConnInfo) ->
+server_conn_keys(ConnInfo) ->
+  {ok, Id}       = application:get_env(srpc_lib, lib_id),
+  {ok, Passcode} = application:get_env(srpc_lib, lib_passcode),
+  {ok, KdfSalt}  = application:get_env(srpc_lib, lib_kdf_salt),
+  {ok, SrpSalt}  = application:get_env(srpc_lib, lib_srp_salt),
 
-  DerivedKey = <<>>,
-  SrpUserParams = [DerivedKey, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION],
-  crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, {user, SrpUserParams}),
+  %% X = Sha1( S | Sha1(Id | : | P))
+  Passkey = pbkdf2(Passcode, KdfSalt, 100000),
+  IP = crypto:hash(sha, <<Id/binary, ":", Passkey/binary>>),
+  X  = crypto:hash(sha, <<SrpSalt/binary, IP/binary>>),
 
-  {ok, ConnInfo}.
+  SrpUserParams = {user, [X, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]},
+
+  conn_keys(ConnInfo, SrpUserParams).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Connection Keys
+%%--------------------------------------------------------------------------------------------------
+conn_keys(#{conn_id         := ConnId,
+            exch_public_key := ExchPublicKey,
+            exch_key_pair   := ExchKeyPair} = ConnInfo, SrpParams) ->
+
+  %% Fixed for now
+  {SymAlg, ShaAlg} = {aes256, sha256},
+
+  Secret = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, SrpParams),
+
+  %% HKDF Salt is hash of the concatenation of the public keys
+  A = ExchPublicKey,
+  {B,_} = ExchKeyPair,
+  HkdfSalt = crypto:hash(ShaAlg, <<A/binary, B/binary>>),
+  
+  PaddedSecret = pad_value(Secret, erlang:byte_size(?SRPC_GROUP_MODULUS)),
+  case hkdf_keys({SymAlg, ShaAlg}, HkdfSalt, ConnId, PaddedSecret) of
+    {ClientSymKey, ServerSymKey, HmacKey} ->
+      {ok, maps:merge(ConnInfo, #{sym_alg        => SymAlg,
+                                  client_sym_key => ClientSymKey,
+                                  server_sym_key => ServerSymKey,
+                                  hmac_key       => HmacKey,
+                                  sha_alg        => ShaAlg})};
+    Error ->
+      Error
+  end.
 
 
 %%--------------------------------------------------------------------------------------------------
@@ -175,7 +220,7 @@ process_client_challenge(#{exch_public_key := ClientPublicKey
   {ServerPublicKey, _PrivateKey} = ServerKeyPair,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ServerSymKey/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
-  case srpc_util:const_compare(ChallengeCheck, ClientChallenge) of
+  case const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
         <<ClientPublicKey/binary, ClientChallenge/binary, ClientSymKey/binary>>,
@@ -190,22 +235,22 @@ process_client_challenge(#{exch_public_key := ClientPublicKey
 %%------------------------------------------------------------------------------------------------
 %% @doc Refresh client keys using data
 %%
--spec refresh_keys(ConnInfo, Data) -> Result when
+-spec refresh_keys(ConnInfo, Salt) -> Result when
     ConnInfo :: conn_info(),
-    Data       :: binary(),
+    Salt       :: binary(),
     Result     :: {ok, conn_info()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-refresh_keys(#{conn_id      := ConnId
+refresh_keys(#{conn_id        := ConnId
               ,sym_alg        := SymAlg
               ,client_sym_key := ClientSymKey
               ,server_sym_key := ServerSymKey
               ,sha_alg        := ShaAlg
               ,hmac_key       := HmacKey
               } = ConnInfo
-            ,Data) ->
+            ,Salt) ->
 
   IKM = <<ClientSymKey/binary, ServerSymKey/binary, HmacKey/binary>>,
-  case hkdf_keys({SymAlg, ShaAlg}, Data, ConnId, IKM) of
+  case hkdf_keys({SymAlg, ShaAlg}, Salt, ConnId, IKM) of
     {NewClientSymKey, NewServerSymKey, NewHmacKey} ->
       maps:merge(ConnInfo,
                  #{client_sym_key => NewClientSymKey
@@ -316,3 +361,4 @@ num_octets(ShaAlg, Len) ->
     0 -> NumOctets;
     _ -> NumOctets + 1
   end.
+
