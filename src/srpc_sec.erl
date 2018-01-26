@@ -216,17 +216,18 @@ conn_keys(#{conn_id         := ConnId,
 %%--------------------------------------------------------------------------------------------------
 process_client_challenge(#{exch_public_key := ClientPublicKey,
                            exch_key_pair   := ServerKeyPair,
-                           client_sym_key  := ClientSymKey,
-                           server_sym_key  := ServerSymKey,
+                           exch_hash       := ExchHash,
                            sha_alg         := ShaAlg},
                          ClientChallenge) ->
   {ServerPublicKey, _PrivateKey} = ServerKeyPair,
-  ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ServerSymKey/binary>>,
+
+  ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ExchHash/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
+
   case const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
-        <<ClientPublicKey/binary, ClientChallenge/binary, ClientSymKey/binary>>,
+        <<ClientPublicKey/binary, ClientChallenge/binary, ExchHash/binary>>,
       ServerChallenge = crypto:hash(ShaAlg, ServerChallengeData),
       {ok, ServerChallenge};
     false ->
