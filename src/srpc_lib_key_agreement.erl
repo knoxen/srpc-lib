@@ -7,7 +7,7 @@
 %% Client Lib Key Agreement
 -export([create_exchange_request/1,
          process_exchange_response/2,
-         create_confirm_request/1,
+         create_confirm_request/2,
          process_confirm_response/0
         ]).
 
@@ -53,7 +53,10 @@ process_exchange_response(ClientKeys,
 %%  Create Key Confirm Request
 %%    
 %%------------------------------------------------------------------------------------------------
-create_confirm_request(_ConfirmData) ->
+create_confirm_request(#{} = _ConnInfo,
+                       _ConfirmData) ->
+  
+
   ok.
 
 %%------------------------------------------------------------------------------------------------
@@ -123,13 +126,18 @@ create_exchange_response(ExchConnInfo, ExchangeData) ->
 %%------------------------------------------------------------------------------------------------
 -spec process_confirm_request(ConnInfo, Request) -> Result when
     ConnInfo :: conn_info(),
-    Request    :: binary(),
-    Result     :: {ok, {binary(), binary()}} | error_msg().
+    Request  :: binary(),
+    Result   :: {ok, {binary(), binary()}} | {invalid, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_confirm_request(ConnInfo, Request) ->
   case srpc_encryptor:decrypt(origin_client, ConnInfo, Request) of
     {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
-      {ok, {Challenge, ConfirmData}};
+      case srpc_sec:process_client_challenge(ConnInfo, Challenge) of
+        {ok, ServerChallenge} ->
+          {ok, {ServerChallenge, ConfirmData}};
+        Invalid ->
+          Invalid
+      end;
     {ok, _} ->
       {error, <<"Invalid Lib Key confirm packet: Incorrect format">>};
     Error ->
@@ -140,22 +148,19 @@ process_confirm_request(ConnInfo, Request) ->
 %%  Create Key Confirm Response
 %%    Server Challenge | <Confirm Data>
 %%------------------------------------------------------------------------------------------------
--spec create_confirm_response(ConnInfo, ClientChallenge, ConfirmData) -> Result when
+-spec create_confirm_response(ConnInfo, ServerChallenge, ConfirmData) -> Result when
     ConnInfo :: conn_info(),
-    ClientChallenge :: binary(),
+    ServerChallenge :: binary(),
     ConfirmData     :: binary(),
     Result          :: {ok, conn_info(), binary()} | error_msg() | invalid_msg().
 %%------------------------------------------------------------------------------------------------
-create_confirm_response(ConnInfo, ClientChallenge, ConfirmData) ->
-  case srpc_sec:process_client_challenge(ConnInfo, ClientChallenge) of
-    {ok, ServerChallenge} ->
-      ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
-      case srpc_encryptor:encrypt(origin_server, ConnInfo, ConfirmResponse) of
-        {ok, ConfirmPacket} ->
-          {ok, maps:remove(exch_public_key, maps:remove(exch_key_pair, ConnInfo)), ConfirmPacket};
-        Error ->
-          Error
-      end;
-    Invalid ->
-      Invalid
+create_confirm_response(ConnInfo, ServerChallenge, ConfirmData) ->
+  ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
+  case srpc_encryptor:encrypt(origin_server, ConnInfo, ConfirmResponse) of
+    {ok, ConfirmPacket} ->
+      {ok, 
+       srpc_util:remove_keys(ConnInfo, [exch_public_key, exch_key_pair, exch_hash]),
+       ConfirmPacket};
+    Error ->
+      Error
   end.

@@ -18,7 +18,8 @@
 
 %% Client Lib Key Agreement
 -export([create_lib_key_exchange_request/0, create_lib_key_exchange_request/1,
-         process_lib_key_exchange_response/2
+         process_lib_key_exchange_response/2,
+         create_lib_key_confirm_request/1, create_lib_key_confirm_request/2
         ]).
 
 %% Server Lib Key Agreement
@@ -168,6 +169,24 @@ create_lib_key_exchange_request(ExchangeData) when is_binary(ExchangeData) ->
 process_lib_key_exchange_response(ClientKeys, ExchangeResponse)
   when is_binary(ExchangeResponse) ->
   srpc_lib_key_agreement:process_exchange_response(ClientKeys, ExchangeResponse).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Create lib key confirm request
+%%--------------------------------------------------------------------------------------------------
+-spec create_lib_key_confirm_request(ConnInfo) -> Result when
+    ConnInfo :: conn_info(),
+    Result   :: binary().
+%%--------------------------------------------------------------------------------------------------
+create_lib_key_confirm_request(ConnInfo) ->
+  create_lib_key_confirm_request(ConnInfo, <<>>).
+%%--------------------------------------------------------------------------------------------------
+-spec create_lib_key_confirm_request(ConnInfo, ConfirmData) -> Result when
+    ConnInfo    :: conn_info(),
+    ConfirmData :: binary(),
+    Result      :: binary().
+%%--------------------------------------------------------------------------------------------------
+create_lib_key_confirm_request(ConnInfo, ConfirmData) when is_binary(ConfirmData) ->
+  srpc_lib_key_agreement:create_confirm_request(ConnInfo, ConfirmData).
 
 %%==================================================================================================
 %%
@@ -328,7 +347,6 @@ decrypt(Origin, ConnInfo, Packet) ->
 refresh_keys(ConnInfo, Data) ->
   srpc_sec:refresh_keys(ConnInfo, Data).
 
-
 %%--------------------------------------------------------------------------------------------------
 %%  Parse SRPC server PER file
 %%--------------------------------------------------------------------------------------------------
@@ -341,7 +359,7 @@ refresh_keys(ConnInfo, Data) ->
 parse_server_per_file(PerFile) ->
   case file:read_file(PerFile) of
     {ok, Data} ->
-      case parse_data(Data) of
+      case parse_per_data(Data) of
         [Id, Verifier] ->
           {ok, Id, Verifier};
         _ ->
@@ -368,7 +386,7 @@ parse_server_per_file(PerFile) ->
 parse_client_per_file(PerFile) ->
   case file:read_file(PerFile) of
     {ok, Data} ->
-      case parse_data(Data) of
+      case parse_per_data(Data) of
         [Id, Passcode, KdfSalt, BinKdfRounds, SrpSalt] ->
           KdfRounds = srpc_util:bin_to_int(BinKdfRounds),
           {ok, Id, Passcode, KdfSalt, KdfRounds, SrpSalt};
@@ -381,7 +399,10 @@ parse_client_per_file(PerFile) ->
       {error, erlang:list_to_binary(Reason)}
   end.
 
-parse_data(Data) ->
+%%--------------------------------------------------------------------------------------------------
+%%  Parse PER data
+%%--------------------------------------------------------------------------------------------------
+parse_per_data(Data) ->
   lists:foldl(
     fun(Hex, List) ->
         case Hex of

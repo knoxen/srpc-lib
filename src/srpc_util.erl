@@ -9,7 +9,8 @@
          int_to_hex/1,
          hex_to_int/1,
          int_to_bin/1,
-         bin_to_int/1
+         bin_to_int/1,
+         remove_keys/2
         ]).
 
 %% CxDebug
@@ -132,3 +133,11 @@ bin_to_int(Bin) ->
   Bits = erlang:byte_size(Bin) * 8,
   << Int:Bits >> = Bin,
   Int.
+
+%%================================================================================================
+%%
+%%  Remove a list of keys from a map
+%%
+%%================================================================================================
+remove_keys(Map, Keys) ->
+  lists:foldl(fun(Key, NewMap) -> maps:remove(Key, NewMap) end, Map, Keys).

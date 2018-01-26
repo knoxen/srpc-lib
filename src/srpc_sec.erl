@@ -176,27 +176,28 @@ server_conn_keys(ConnInfo) ->
 conn_keys(#{conn_id         := ConnId,
             exch_public_key := ExchPublicKey,
             exch_key_pair   := ExchKeyPair} = ConnInfo, SrpParams) ->
+  CalcSecret = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, SrpParams),
+  Secret = pad_value(CalcSecret, erlang:byte_size(?SRPC_GROUP_MODULUS)),
 
-  %% Fixed for now
+  %% Algorithms fixed for now
   {SymAlg, ShaAlg} = {aes256, sha256},
-
-  Secret = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, SrpParams),
 
   %% HKDF Salt is hash of the concatenation of the public keys
   A = ExchPublicKey,
   {B,_} = ExchKeyPair,
-  HkdfSalt =
-    case SrpParams of
-      {host,_} ->
-        crypto:hash(ShaAlg, <<A/binary, B/binary>>);
-      {user,_} ->
-        crypto:hash(ShaAlg, <<B/binary, A/binary>>)
-      end,
+  SaltData = case SrpParams of
+               {host,_} ->
+                 <<A/binary, B/binary>>;
+               {user,_} ->
+                 <<B/binary, A/binary>>
+             end,
+  HkdfSalt = crypto:hash(ShaAlg, SaltData),
   
-  PaddedSecret = pad_value(Secret, erlang:byte_size(?SRPC_GROUP_MODULUS)),
-  case hkdf_keys({SymAlg, ShaAlg}, HkdfSalt, ConnId, PaddedSecret) of
+  case hkdf_keys({SymAlg, ShaAlg}, HkdfSalt, ConnId, Secret) of
     {ClientSymKey, ServerSymKey, HmacKey} ->
-      {ok, maps:merge(ConnInfo, #{sym_alg        => SymAlg,
+      HashSecret = crypto:hash(ShaAlg, Secret),
+      {ok, maps:merge(ConnInfo, #{exch_hash      => HashSecret,
+                                  sym_alg        => SymAlg,
                                   client_sym_key => ClientSymKey,
                                   server_sym_key => ServerSymKey,
                                   hmac_key       => HmacKey,
@@ -209,18 +210,16 @@ conn_keys(#{conn_id         := ConnId,
 %%  Process client challenge
 %%--------------------------------------------------------------------------------------------------
 -spec process_client_challenge(ConnInfo, ClientChallenge) -> Result when
-    ConnInfo      :: conn_info(),
+    ConnInfo        :: conn_info(),
     ClientChallenge :: binary(),
     Result          :: {ok, binary()} | {invalid, binary()}.
 %%--------------------------------------------------------------------------------------------------
-process_client_challenge(#{exch_public_key := ClientPublicKey
-                          ,exch_key_pair   := ServerKeyPair
-                          ,client_sym_key  := ClientSymKey
-                          ,server_sym_key  := ServerSymKey
-                          ,sha_alg         := ShaAlg
-                          }
-                        ,ClientChallenge) ->
-
+process_client_challenge(#{exch_public_key := ClientPublicKey,
+                           exch_key_pair   := ServerKeyPair,
+                           client_sym_key  := ClientSymKey,
+                           server_sym_key  := ServerSymKey,
+                           sha_alg         := ShaAlg},
+                         ClientChallenge) ->
   {ServerPublicKey, _PrivateKey} = ServerKeyPair,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ServerSymKey/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),

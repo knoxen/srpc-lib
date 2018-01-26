@@ -138,8 +138,9 @@ create_confirm_response(LibConnInfo, UserConnInfo, ClientChallenge, ConfirmData)
   ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
   case srpc_encryptor:encrypt(origin_server, LibConnInfo, ConfirmResponse) of
     {ok, ConfirmPacket} ->
-      ConnInfo = maps:remove(exch_public_key, maps:remove(exch_key_pair, UserConnInfo)),
-      {Atom, ConnInfo, ConfirmPacket};
+      {Atom,
+       srpc_util:remove_keys(UserConnInfo, [exch_public_key, exch_key_pair, exch_hash]),
+       ConfirmPacket};
     Error ->
       Error
   end.
