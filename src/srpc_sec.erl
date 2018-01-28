@@ -12,6 +12,7 @@
          client_conn_keys/2,
          server_conn_keys/1,
          process_client_challenge/2,
+         process_server_challenge/2,
          refresh_keys/2
         ]).
 
@@ -31,7 +32,7 @@
     Bin1 :: binary(),
     Bin2 :: binary().
 %%------------------------------------------------------------------------------------------------
-const_compare(<<X/binary>>, <<Y/binary>>) ->
+const_compare(X, Y) when is_binary(X), is_binary(Y) ->
   case byte_size(X) == byte_size(Y) of
     true ->
       const_compare(X, Y, true);
@@ -219,8 +220,8 @@ process_client_challenge(#{exch_public_key := ClientPublicKey,
                            exch_hash       := ExchHash,
                            sha_alg         := ShaAlg},
                          ClientChallenge) ->
-  {ServerPublicKey, _PrivateKey} = ServerKeyPair,
 
+  {ServerPublicKey, _PrivateKey} = ServerKeyPair,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ExchHash/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
 
@@ -233,6 +234,28 @@ process_client_challenge(#{exch_public_key := ClientPublicKey,
     false ->
       {invalid, crypto:strong_rand_bytes(?SRPC_CHALLENGE_SIZE)}
   end.
+
+%%--------------------------------------------------------------------------------------------------
+%%  Process server challenge
+%%--------------------------------------------------------------------------------------------------
+-spec process_server_challenge(ConnInfo, ServerChallenge) -> boolean() when
+    ConnInfo        :: conn_info(),
+    ServerChallenge :: binary().
+%%--------------------------------------------------------------------------------------------------
+process_server_challenge(#{exch_public_key := ServerPublicKey,
+                           exch_key_pair   := ClientKeyPair,
+                           exch_hash       := ExchHash,
+                           sha_alg         := ShaAlg},
+                         ServerChallenge) ->
+  {ClientPublicKey, _PrivateKey} = ClientKeyPair,
+
+  ClientChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ExchHash/binary>>,
+  ClientChallenge = crypto:hash(ShaAlg, ClientChallengeData),
+
+  ServerChallengeData = <<ClientPublicKey/binary, ClientChallenge/binary, ExchHash/binary>>,
+  ChallengeCheck = crypto:hash(ShaAlg, ServerChallengeData),
+
+  const_compare(ChallengeCheck, ServerChallenge).
 
 %%------------------------------------------------------------------------------------------------
 %%  Refresh Keys
