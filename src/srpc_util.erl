@@ -17,12 +17,13 @@
 %% -export([debug_info/2]).
 
 %% debug_info(Description,
-%%            #{conn_id      := ConnId
-%%             ,conn_type    := ConnType
-%%             ,entity_id    := EntityId
-%%             ,req_sym_key  := ReqSymKey
-%%             ,resp_sym_key := RespSymKey
-%%             ,hmac_key     := HmacKey
+%%            #{conn_id       := ConnId,
+%%              conn_type     := ConnType,
+%%              entity_id     := EntityId,
+%%              req_sym_key   := ReqSymKey,
+%%              req_hmac_key  := ReqSymKey,
+%%              resp_sym_key  := RespSymKey,
+%%              resp_hmac_key := HmacKey
 %%             }) ->
 %%   io:format("~s~n", [Description]),
 %%   io:format("  Connection Id = ~p, Type = ~p~n", [ConnId, ConnType]),

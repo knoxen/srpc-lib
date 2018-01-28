@@ -195,14 +195,15 @@ conn_keys(#{conn_id         := ConnId,
   HkdfSalt = crypto:hash(ShaAlg, SaltData),
   
   case hkdf_keys({SymAlg, ShaAlg}, HkdfSalt, ConnId, Secret) of
-    {ReqSymKey, RespSymKey, HmacKey} ->
+    {ReqSymKey, ReqHmacKey, RespSymKey, RespHmacKey} ->
       HashSecret = crypto:hash(ShaAlg, Secret),
-      {ok, maps:merge(ConnInfo, #{exch_hash    => HashSecret,
-                                  sym_alg      => SymAlg,
-                                  req_sym_key  => ReqSymKey,
-                                  resp_sym_key => RespSymKey,
-                                  hmac_key     => HmacKey,
-                                  sha_alg      => ShaAlg})};
+      {ok, maps:merge(ConnInfo, #{exch_hash     => HashSecret,
+                                  sym_alg       => SymAlg,
+                                  req_sym_key   => ReqSymKey,
+                                  req_hmac_key  => ReqHmacKey,
+                                  resp_sym_key  => RespSymKey,
+                                  resp_hmac_key => RespHmacKey,
+                                  sha_alg       => ShaAlg})};
     Error ->
       Error
   end.
@@ -267,22 +268,23 @@ process_server_challenge(#{exch_public_key := ServerPublicKey,
     Salt       :: binary(),
     Result     :: {ok, conn_info()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-refresh_keys(#{conn_id      := ConnId
-              ,sym_alg      := SymAlg
-              ,req_sym_key  := ReqSymKey
-              ,resp_sym_key := RespSymKey
-              ,sha_alg      := ShaAlg
-              ,hmac_key     := HmacKey
-              } = ConnInfo
-            ,Salt) ->
+refresh_keys(#{conn_id       := ConnId,
+               sym_alg       := SymAlg,
+               req_sym_key   := ReqSymKey,
+               req_hmac_key  := ReqHmacKey,
+               resp_sym_key  := RespSymKey,
+               resp_hmac_key := RespHmacKey,
+               sha_alg       := ShaAlg
+              } = ConnInfo, Salt) ->
 
-  IKM = <<ReqSymKey/binary, RespSymKey/binary, HmacKey/binary>>,
+  IKM = <<ReqSymKey/binary, ReqHmacKey/binary, RespSymKey/binary, RespHmacKey/binary>>,
   case hkdf_keys({SymAlg, ShaAlg}, Salt, ConnId, IKM) of
-    {NewReqSymKey, NewRespSymKey, NewHmacKey} ->
+    {NewReqSymKey, NewReqHmacKey, NewRespSymKey, NewRespHmacKey} ->
       maps:merge(ConnInfo,
-                 #{req_sym_key  => NewReqSymKey
-                  ,resp_sym_key => NewRespSymKey
-                  ,hmac_key     => NewHmacKey});
+                 #{req_sym_key   => NewReqSymKey,
+                   req_hmac_key  => NewReqHmacKey,
+                   resp_sym_key  => NewRespSymKey,
+                   resp_hmac_key => NewRespHmacKey});
     Error ->
       Error
   end.
@@ -320,15 +322,15 @@ sha_size(sha512) -> ?SRPC_HMAC_512_SIZE.
 hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
   SymKeySize = sym_key_size(SymAlg),
   HmacKeySize = sha_size(ShaAlg),
-  Len = 2 * SymKeySize + HmacKeySize,
+  Len = 2 * SymKeySize + 2 * HmacKeySize,
 
   case hkdf(ShaAlg, Salt, Info, IKM, Len) of
     {ok, KeyingMaterial} ->
       <<ReqSymKey:SymKeySize/binary,
+        ReqHmacKey:HmacKeySize/binary,
         RespSymKey:SymKeySize/binary,
-        HmacKey:HmacKeySize/binary>>
-        = KeyingMaterial,
-      {ReqSymKey, RespSymKey, HmacKey};
+        RespHmacKey:HmacKeySize/binary>> = KeyingMaterial,
+      {ReqSymKey, ReqHmacKey, RespSymKey, RespHmacKey};
     Error ->
       Error
   end.

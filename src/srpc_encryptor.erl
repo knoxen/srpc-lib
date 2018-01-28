@@ -30,14 +30,14 @@
     Data     :: binary(),
     Result   :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-encrypt(origin_requester, #{conn_id     := ConnId,
-                            req_sym_key := SymKey,
-                            hmac_key    := HmacKey},
+encrypt(origin_requester, #{conn_id      := ConnId,
+                            req_sym_key  := SymKey,
+                            req_hmac_key := HmacKey},
         Data) ->
   encrypt_keys(SymKey, HmacKey, ConnId, Data);
-encrypt(origin_responder, #{conn_id      := ConnId,
-                            resp_sym_key := SymKey,
-                            hmac_key      := HmacKey}, Data) ->
+encrypt(origin_responder, #{conn_id       := ConnId,
+                            resp_sym_key  := SymKey,
+                            resp_hmac_key := HmacKey}, Data) ->
   encrypt_keys(SymKey, HmacKey, ConnId, Data);
 encrypt(_Origin, _ConnInfo, _Data) ->
   {error, <<"Mismatch origin and keys for encrypt">>}.
@@ -53,13 +53,13 @@ encrypt(_Origin, _ConnInfo, _Data) ->
     Packet   :: binary(),
     Result   :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-decrypt(origin_requester, #{conn_id     := ConnId, 
-                            req_sym_key := SymKey,
-                            hmac_key    := HmacKey}, Packet) ->
+decrypt(origin_requester, #{conn_id      := ConnId, 
+                            req_sym_key  := SymKey,
+                            req_hmac_key := HmacKey}, Packet) ->
   decrypt_keys(SymKey, HmacKey, ConnId, Packet);
-decrypt(origin_responder, #{conn_id      := ConnId,
-                            resp_sym_key := SymKey,
-                            hmac_key     := HmacKey}, Packet) ->
+decrypt(origin_responder, #{conn_id       := ConnId,
+                            resp_sym_key  := SymKey,
+                            resp_hmac_key := HmacKey}, Packet) ->
   decrypt_keys(SymKey, HmacKey, ConnId, Packet);
 
 decrypt(_Origin, _ConnInfo, _Packet) ->
