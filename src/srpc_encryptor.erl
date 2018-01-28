@@ -30,12 +30,17 @@
     Data     :: binary(),
     Result   :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-encrypt(origin_requester, #{req_sym_key := SymKey} = ConnInfo, Data) ->
-  encrypt_with_key(SymKey, ConnInfo, Data);
-encrypt(origin_responder, #{resp_sym_key := SymKey} = ConnInfo, Data) ->
-  encrypt_with_key(SymKey, ConnInfo, Data);
+encrypt(origin_requester, #{conn_id     := ConnId,
+                            req_sym_key := SymKey,
+                            hmac_key    := HmacKey},
+        Data) ->
+  encrypt_keys(SymKey, HmacKey, ConnId, Data);
+encrypt(origin_responder, #{conn_id      := ConnId,
+                            resp_sym_key := SymKey,
+                            hmac_key      := HmacKey}, Data) ->
+  encrypt_keys(SymKey, HmacKey, ConnId, Data);
 encrypt(_Origin, _ConnInfo, _Data) ->
-  {error, <<"Mismatch origin and key for encrypt">>}.
+  {error, <<"Mismatch origin and keys for encrypt">>}.
 
 %%------------------------------------------------------------------------------------------------
 %% Decrypt
@@ -48,12 +53,17 @@ encrypt(_Origin, _ConnInfo, _Data) ->
     Packet   :: binary(),
     Result   :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-decrypt(origin_requester, #{req_sym_key := SymKey} = ConnInfo, Packet) ->
-  decrypt_key(SymKey, ConnInfo, Packet);
-decrypt(origin_responder, #{resp_sym_key := SymKey} = ConnInfo, Packet) ->
-  decrypt_key(SymKey, ConnInfo, Packet);
+decrypt(origin_requester, #{conn_id     := ConnId, 
+                            req_sym_key := SymKey,
+                            hmac_key    := HmacKey}, Packet) ->
+  decrypt_keys(SymKey, HmacKey, ConnId, Packet);
+decrypt(origin_responder, #{conn_id      := ConnId,
+                            resp_sym_key := SymKey,
+                            hmac_key     := HmacKey}, Packet) ->
+  decrypt_keys(SymKey, HmacKey, ConnId, Packet);
+
 decrypt(_Origin, _ConnInfo, _Packet) ->
-  {error, <<"Mismatch origin and key for decrypt">>}.
+  {error, <<"Mismatch origin and keys for decrypt">>}.
 
 %%================================================================================================
 %%
@@ -66,18 +76,17 @@ decrypt(_Origin, _ConnInfo, _Packet) ->
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec encrypt_with_key(SymKey, ConnInfo, Data) -> {ok, Packet} | error_msg() when
-    SymKey   :: sym_key(),
-    ConnInfo :: conn_info(),
-    Data     :: binary(),
-    Packet   :: binary().
+-spec encrypt_keys(SymKey, HmacKey, ConnId, Data) -> {ok, Packet} | error_msg() when
+    SymKey  :: sym_key(),
+    HmacKey :: sym_key(),
+    ConnId  :: binary(),
+    Data    :: binary(),
+    Packet  :: binary().
 %%------------------------------------------------------------------------------------------------
-encrypt_with_key(SymKey, #{conn_id := ConnId, hmac_key  := HmacKey}, Data) ->
+encrypt_keys(SymKey, HmacKey, ConnId, Data) ->
   SrpcDataHdr = srpc_data_hdr(ConnId),
   LibData = <<SrpcDataHdr/binary, Data/binary>>,
-  encrypt_data(SymKey, HmacKey, LibData);
-encrypt_with_key(_Key, _Map, _Data) ->
-  {error, <<"Invalid encrypt client info: Missing conn_id or hmac_key">>}.
+  encrypt_data(SymKey, HmacKey, LibData).
 
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
@@ -131,13 +140,14 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
 %% @doc Decrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec decrypt_key(SymKey, ConnInfo, Packet) -> {ok, Data} | error_msg() when
+-spec decrypt_keys(SymKey, HmacKey, ConnId, Packet) -> {ok, Data} | error_msg() when
     SymKey   :: sym_key(),
-    ConnInfo :: map(),
+    HmacKey  :: sym_key(),
+    ConnId   :: binary(),
     Packet   :: binary(),
     Data     :: binary().
 %%------------------------------------------------------------------------------------------------
-decrypt_key(SymKey, #{conn_id := ConnId, hmac_key := HmacKey}, Packet) ->
+decrypt_keys(SymKey, HmacKey, ConnId, Packet) ->
   PacketSize = byte_size(Packet),
   CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_HMAC_256_SIZE}),
   PacketHmac   = binary_part(Packet, {PacketSize, -?SRPC_HMAC_256_SIZE}),
@@ -165,10 +175,7 @@ decrypt_key(SymKey, #{conn_id := ConnId, hmac_key := HmacKey}, Packet) ->
       end;
     false ->
       {error, <<"Invalid hmac">>}
-  end;
-
-decrypt_key(_SymKey, _ConnInfo, _Packet) ->
-  {error, <<"Invalid decrypt client info">>}.
+  end.
 
 %%------------------------------------------------------------------------------------------------
 %%
