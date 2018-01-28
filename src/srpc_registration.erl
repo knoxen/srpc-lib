@@ -27,7 +27,7 @@
     Result     :: {ok, {integer(), map(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_registration_request(ConnInfo, Request) ->
-  case srpc_encryptor:decrypt(origin_client, ConnInfo, Request) of
+  case srpc_encryptor:decrypt(origin_requester, ConnInfo, Request) of
     {ok, <<UserIdLen:?USER_ID_LEN_BITS, RequestData/binary>>} ->
       VerifierSize = erlang:byte_size(?SRPC_GROUP_MODULUS),
       case RequestData of
@@ -67,5 +67,5 @@ process_registration_request(ConnInfo, Request) ->
 create_registration_response(ConnInfo, RegCode, undefined) ->
   create_registration_response(ConnInfo, RegCode, <<>>);
 create_registration_response(ConnInfo,  RegCode, RespData) ->
-  srpc_encryptor:encrypt(origin_server, ConnInfo,
+  srpc_encryptor:encrypt(origin_responder, ConnInfo,
                          <<RegCode:?REG_CODE_BITS,  RespData/binary>>).

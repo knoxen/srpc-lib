@@ -195,14 +195,14 @@ conn_keys(#{conn_id         := ConnId,
   HkdfSalt = crypto:hash(ShaAlg, SaltData),
   
   case hkdf_keys({SymAlg, ShaAlg}, HkdfSalt, ConnId, Secret) of
-    {ClientSymKey, ServerSymKey, HmacKey} ->
+    {ReqSymKey, RespSymKey, HmacKey} ->
       HashSecret = crypto:hash(ShaAlg, Secret),
-      {ok, maps:merge(ConnInfo, #{exch_hash      => HashSecret,
-                                  sym_alg        => SymAlg,
-                                  client_sym_key => ClientSymKey,
-                                  server_sym_key => ServerSymKey,
-                                  hmac_key       => HmacKey,
-                                  sha_alg        => ShaAlg})};
+      {ok, maps:merge(ConnInfo, #{exch_hash    => HashSecret,
+                                  sym_alg      => SymAlg,
+                                  req_sym_key  => ReqSymKey,
+                                  resp_sym_key => RespSymKey,
+                                  hmac_key     => HmacKey,
+                                  sha_alg      => ShaAlg})};
     Error ->
       Error
   end.
@@ -267,22 +267,22 @@ process_server_challenge(#{exch_public_key := ServerPublicKey,
     Salt       :: binary(),
     Result     :: {ok, conn_info()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-refresh_keys(#{conn_id        := ConnId
-              ,sym_alg        := SymAlg
-              ,client_sym_key := ClientSymKey
-              ,server_sym_key := ServerSymKey
-              ,sha_alg        := ShaAlg
-              ,hmac_key       := HmacKey
+refresh_keys(#{conn_id      := ConnId
+              ,sym_alg      := SymAlg
+              ,req_sym_key  := ReqSymKey
+              ,resp_sym_key := RespSymKey
+              ,sha_alg      := ShaAlg
+              ,hmac_key     := HmacKey
               } = ConnInfo
             ,Salt) ->
 
-  IKM = <<ClientSymKey/binary, ServerSymKey/binary, HmacKey/binary>>,
+  IKM = <<ReqSymKey/binary, RespSymKey/binary, HmacKey/binary>>,
   case hkdf_keys({SymAlg, ShaAlg}, Salt, ConnId, IKM) of
-    {NewClientSymKey, NewServerSymKey, NewHmacKey} ->
+    {NewReqSymKey, NewRespSymKey, NewHmacKey} ->
       maps:merge(ConnInfo,
-                 #{client_sym_key => NewClientSymKey
-                  ,server_sym_key => NewServerSymKey
-                  ,hmac_key       => NewHmacKey});
+                 #{req_sym_key  => NewReqSymKey
+                  ,resp_sym_key => NewRespSymKey
+                  ,hmac_key     => NewHmacKey});
     Error ->
       Error
   end.
@@ -324,11 +324,11 @@ hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
 
   case hkdf(ShaAlg, Salt, Info, IKM, Len) of
     {ok, KeyingMaterial} ->
-      <<ClientSymKey:SymKeySize/binary,
-        ServerSymKey:SymKeySize/binary,
+      <<ReqSymKey:SymKeySize/binary,
+        RespSymKey:SymKeySize/binary,
         HmacKey:HmacKeySize/binary>>
         = KeyingMaterial,
-      {ClientSymKey, ServerSymKey, HmacKey};
+      {ReqSymKey, RespSymKey, HmacKey};
     Error ->
       Error
   end.

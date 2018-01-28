@@ -25,7 +25,7 @@
     Result     :: {ok, {conn_id(), exch_key(), binary()}} | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_exchange_request(ConnInfo, Request) ->
-  case srpc_encryptor:decrypt(origin_client, ConnInfo, Request) of
+  case srpc_encryptor:decrypt(origin_requester, ConnInfo, Request) of
     {ok, <<IdSize:8, RequestData/binary>>} ->
       case RequestData of
         <<UserId:IdSize/binary, PublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, ExchangeData/binary>> ->
@@ -103,7 +103,7 @@ create_exchange_response(ConnId, ExchConnInfo, Registration, ClientPublicKey, Ex
 %%------------------------------------------------------------------------------------------------
 process_confirm_request(ConnInfo, Request) ->
   %% srpc_util:debug_info({?MODULE, process_confirm_request}, ConnInfo),
-  case srpc_encryptor:decrypt(origin_client, ConnInfo, Request) of
+  case srpc_encryptor:decrypt(origin_requester, ConnInfo, Request) of
     {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
       {ok, {Challenge, ConfirmData}};
     {ok, _} ->
@@ -126,7 +126,7 @@ process_confirm_request(ConnInfo, Request) ->
 create_confirm_response(LibConnInfo, invalid, _ClientChallenge, ConfirmData) ->
   ServerChallenge = crypto:strong_rand_bytes(?SRPC_CHALLENGE_SIZE),
   ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
-  case srpc_encryptor:encrypt(origin_server, LibConnInfo, ConfirmResponse) of
+  case srpc_encryptor:encrypt(origin_responder, LibConnInfo, ConfirmResponse) of
     {ok, ConfirmPacket} ->
       {invalid, #{}, ConfirmPacket};
     Error ->
@@ -136,7 +136,7 @@ create_confirm_response(LibConnInfo, invalid, _ClientChallenge, ConfirmData) ->
 create_confirm_response(LibConnInfo, UserConnInfo, ClientChallenge, ConfirmData) ->
   {Atom, ServerChallenge} = srpc_sec:process_client_challenge(UserConnInfo, ClientChallenge),
   ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
-  case srpc_encryptor:encrypt(origin_server, LibConnInfo, ConfirmResponse) of
+  case srpc_encryptor:encrypt(origin_responder, LibConnInfo, ConfirmResponse) of
     {ok, ConfirmPacket} ->
       {Atom,
        srpc_util:remove_keys(UserConnInfo, [exch_public_key, exch_key_pair, exch_hash]),
@@ -170,4 +170,4 @@ encrypt_response_data(ConnId, ConnInfo, UserCode,
   ConnIdLen = byte_size(ConnId),
   ResponseData = <<UserCode, ConnIdLen, ConnId/binary,
                    KdfSalt/binary, SrpSalt/binary, ServerPublicKey/binary, ExchangeData/binary>>,
-  srpc_encryptor:encrypt(origin_server, ConnInfo, ResponseData).
+  srpc_encryptor:encrypt(origin_responder, ConnInfo, ResponseData).

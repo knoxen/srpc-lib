@@ -17,18 +17,18 @@
 %% -export([debug_info/2]).
 
 %% debug_info(Description,
-%%            #{conn_id := ConnId
-%%             ,conn_type := ConnType
-%%             ,entity_id := EntityId
-%%             ,client_sym_key := ClientSymKey
-%%             ,server_sym_key := ServerSymKey
-%%             ,hmac_key := HmacKey
+%%            #{conn_id      := ConnId
+%%             ,conn_type    := ConnType
+%%             ,entity_id    := EntityId
+%%             ,req_sym_key  := ReqSymKey
+%%             ,resp_sym_key := RespSymKey
+%%             ,hmac_key     := HmacKey
 %%             }) ->
 %%   io:format("~s~n", [Description]),
 %%   io:format("  Connection Id = ~p, Type = ~p~n", [ConnId, ConnType]),
 %%   io:format("  EntityId = ~p~n", [EntityId]),
-%%   io:format("  ClientSymKey = ~p~n", [srpc_util:bin_to_hex(ClientSymKey)]),
-%%   io:format("  ServerSymKey = ~p~n", [srpc_util:bin_to_hex(ServerSymKey)]),
+%%   io:format("  ReqSymKey = ~p~n", [srpc_util:bin_to_hex(ReqSymKey)]),
+%%   io:format("  RespSymKey = ~p~n", [srpc_util:bin_to_hex(RespSymKey)]),
 %%   io:format("  HmacKey =   ~p~n", [srpc_util:bin_to_hex(HmacKey)]).
 
 %%================================================================================================

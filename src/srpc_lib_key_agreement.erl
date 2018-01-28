@@ -149,7 +149,7 @@ create_exchange_response(ExchConnInfo, ExchangeData) ->
     Result   :: {ok, {binary(), binary()}} | {invalid, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 process_confirm_request(ConnInfo, Request) ->
-  case srpc_encryptor:decrypt(origin_client, ConnInfo, Request) of
+  case srpc_encryptor:decrypt(origin_requester, ConnInfo, Request) of
     {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
       case srpc_sec:process_client_challenge(ConnInfo, Challenge) of
         {ok, ServerChallenge} ->
@@ -175,7 +175,7 @@ process_confirm_request(ConnInfo, Request) ->
 %%------------------------------------------------------------------------------------------------
 create_confirm_response(ConnInfo, ServerChallenge, OptionalData) ->
   ConfirmResponse = <<ServerChallenge/binary, OptionalData/binary>>,
-  case srpc_encryptor:encrypt(origin_server, ConnInfo, ConfirmResponse) of
+  case srpc_encryptor:encrypt(origin_responder, ConnInfo, ConfirmResponse) of
     {ok, ConfirmPacket} ->
       {ok, 
        srpc_util:remove_keys(ConnInfo, [exch_public_key, exch_key_pair, exch_hash]),

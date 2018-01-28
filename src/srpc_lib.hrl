@@ -97,8 +97,8 @@
                           ,entity_id       => binary()
                           ,sym_alg         => sym_alg()
                           ,sha_alg         => sha_alg()
-                          ,client_sym_key  => sym_key()
-                          ,server_sym_key  => sym_key()
+                          ,req_sym_key     => sym_key()
+                          ,resp_sym_key    => sym_key()
                           ,hmac_key        => hmac_key()
                           }.
 
@@ -108,4 +108,4 @@
                          ,verifier => binary()
                          }.
 
--type origin()      :: origin_client | origin_server.
+-type origin()      :: origin_requester | origin_responder.

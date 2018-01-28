@@ -30,9 +30,9 @@
     Data     :: binary(),
     Result   :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-encrypt(origin_client, #{client_sym_key := SymKey} = ConnInfo, Data) ->
+encrypt(origin_requester, #{req_sym_key := SymKey} = ConnInfo, Data) ->
   encrypt_with_key(SymKey, ConnInfo, Data);
-encrypt(origin_server, #{server_sym_key := SymKey} = ConnInfo, Data) ->
+encrypt(origin_responder, #{resp_sym_key := SymKey} = ConnInfo, Data) ->
   encrypt_with_key(SymKey, ConnInfo, Data);
 encrypt(_Origin, _ConnInfo, _Data) ->
   {error, <<"Mismatch origin and key for encrypt">>}.
@@ -48,9 +48,9 @@ encrypt(_Origin, _ConnInfo, _Data) ->
     Packet   :: binary(),
     Result   :: {ok, binary()} | error_msg().
 %%------------------------------------------------------------------------------------------------
-decrypt(origin_client, #{client_sym_key := SymKey} = ConnInfo, Packet) ->
+decrypt(origin_requester, #{req_sym_key := SymKey} = ConnInfo, Packet) ->
   decrypt_key(SymKey, ConnInfo, Packet);
-decrypt(origin_server, #{server_sym_key := SymKey} = ConnInfo, Packet) ->
+decrypt(origin_responder, #{resp_sym_key := SymKey} = ConnInfo, Packet) ->
   decrypt_key(SymKey, ConnInfo, Packet);
 decrypt(_Origin, _ConnInfo, _Packet) ->
   {error, <<"Mismatch origin and key for decrypt">>}.
