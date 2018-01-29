@@ -265,8 +265,8 @@ process_server_challenge(#{exch_public_key := ServerPublicKey,
 %%
 -spec refresh_keys(ConnInfo, Salt) -> Result when
     ConnInfo :: conn_info(),
-    Salt       :: binary(),
-    Result     :: {ok, conn_info()} | error_msg().
+    Salt     :: binary(),
+    Result   :: {ok, conn_info()} | error_msg().
 %%------------------------------------------------------------------------------------------------
 refresh_keys(#{conn_id       := ConnId,
                sym_alg       := SymAlg,
@@ -280,11 +280,11 @@ refresh_keys(#{conn_id       := ConnId,
   IKM = <<ReqSymKey/binary, ReqHmacKey/binary, RespSymKey/binary, RespHmacKey/binary>>,
   case hkdf_keys({SymAlg, ShaAlg}, Salt, ConnId, IKM) of
     {NewReqSymKey, NewReqHmacKey, NewRespSymKey, NewRespHmacKey} ->
-      maps:merge(ConnInfo,
-                 #{req_sym_key   => NewReqSymKey,
-                   req_hmac_key  => NewReqHmacKey,
-                   resp_sym_key  => NewRespSymKey,
-                   resp_hmac_key => NewRespHmacKey});
+      {ok, maps:merge(ConnInfo,
+                      #{req_sym_key   => NewReqSymKey,
+                        req_hmac_key  => NewReqHmacKey,
+                        resp_sym_key  => NewRespSymKey,
+                        resp_hmac_key => NewRespHmacKey})};
     Error ->
       Error
   end.
