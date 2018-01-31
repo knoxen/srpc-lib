@@ -32,7 +32,9 @@ process_confirm_response(ConnInfo,
                          <<ServerChallenge:?SRPC_CHALLENGE_SIZE/binary, OptionalData/binary>>) ->
   case srpc_sec:process_server_challenge(ConnInfo, ServerChallenge) of
     true ->
-      {ok, OptionalData};
+      {ok,
+       srpc_util:remove_keys(ConnInfo, [exch_public_key, exch_key_pair, exch_hash]),
+       OptionalData};
     false ->
       {invalid, <<"Invalid server challenge">>}
   end;

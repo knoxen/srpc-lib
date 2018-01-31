@@ -47,7 +47,7 @@ process_exchange_response(UserId, Password, ClientKeys,
                             KdfSalt:?SRPC_KDF_SALT_SIZE/binary,
                             SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
                             ServerPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
-                            Data/binary>>) ->
+                            OptionalData/binary>>) ->
 
   ConnInfo = #{conn_id         => ConnId,
                entity_id       => UserId,
@@ -58,7 +58,7 @@ process_exchange_response(UserId, Password, ClientKeys,
 
   case srpc_sec:server_conn_keys(ConnInfo, {UserId, Password}, {KdfRounds, KdfSalt, SrpSalt}) of
     {ok, UserConnInfo} ->
-      {ok, UserConnInfo, UserCode, Data};
+      {ok, UserConnInfo, UserCode, OptionalData};
     Error ->
       Error
   end;
@@ -119,11 +119,12 @@ create_exchange_response(ConnId, ExchConnInfo, invalid, _ClientPublicKey, ExchDa
                         crypto:strong_rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
                         ExchData);
 
-create_exchange_response(ConnId, ExchConnInfo, Registration, ClientPublicKey, ExchData) ->
-  #{user_id  := UserId
-   ,kdf_salt := KdfSalt
-   ,srp_salt := SrpSalt
-   ,verifier := Verifier} = Registration,
+create_exchange_response(ConnId, ExchConnInfo,
+                         #{user_id  := UserId,
+                           kdf_salt := KdfSalt,
+                           srp_salt := SrpSalt,
+                           verifier := Verifier},
+                         ClientPublicKey, ExchData) ->
 
   case srpc_sec:client_conn_keys(#{conn_id         => ConnId
                                   ,exch_public_key => ClientPublicKey
@@ -221,11 +222,11 @@ create_confirm_response(LibConnInfo, UserConnInfo, ClientChallenge, ConfirmData)
     Result          :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 encrypt_response_data(ConnId, ConnInfo, UserCode,
-                      KdfSalt, SrpSalt, ServerPublicKey, ExchangeData) ->
+                      KdfSalt, SrpSalt, ServerPublicKey, Data) ->
   ConnIdLen = byte_size(ConnId),
   ResponseData = <<UserCode:8,
                    ConnIdLen:8, ConnId/binary,
                    KdfSalt/binary, SrpSalt/binary, 
                    ServerPublicKey/binary,
-                   ExchangeData/binary>>,
+                   Data/binary>>,
   srpc_encryptor:encrypt(origin_responder, ConnInfo, ResponseData).
