@@ -6,9 +6,7 @@
 
 %% Client Lib Key Agreement
 -export([create_exchange_request/2,
-         process_exchange_response/2,
-         create_confirm_request/2,
-         process_confirm_response/2
+         process_exchange_response/2
         ]).
 
 %% Server Lib Key Agreement
@@ -60,38 +58,6 @@ process_exchange_response(ClientKeys,
   {ok, SrpSalt}   = application:get_env(srpc_lib, lib_srp_salt),
 
   srpc_sec:server_conn_keys(ConnInfo, {LibId, Passcode}, {KdfRounds, KdfSalt, SrpSalt}).
-
-%%--------------------------------------------------------------------------------------------------
-%%  Create Lib Key Confirm Request
-%%    Client Challenge | <Optional Data>
-%%
-%%  Client Challenge: H(SPub | CPub | H(Secret))
-%%--------------------------------------------------------------------------------------------------
-create_confirm_request(#{exch_public_key := ExchPublicKey,
-                         exch_key_pair   := ExchKeyPair,
-                         exch_hash       := ExchHash,
-                         sha_alg         := ShaAlg},
-                       OptionalData) ->
-  {PairPublicKey, _} = ExchKeyPair,
-  ChallengeData = <<PairPublicKey/binary, ExchPublicKey/binary, ExchHash/binary>>,
-  Challenge = crypto:hash(ShaAlg, ChallengeData),
-  <<Challenge/binary, OptionalData/binary>>.
-
-%%--------------------------------------------------------------------------------------------------
-%%  Process Key Confirm Response
-%%    
-%%--------------------------------------------------------------------------------------------------
-process_confirm_response(ConnInfo,
-                         <<ServerChallenge:?SRPC_CHALLENGE_SIZE/binary, OptionalData/binary>>) ->
-  case srpc_sec:process_server_challenge(ConnInfo, ServerChallenge) of
-    true ->
-      {ok, OptionalData};
-    false ->
-      {invalid, <<"Invalid server challenge">>}
-  end;
-
-process_confirm_response(_ConnInfo, _ResponseData) ->
-  {error, <<"Invalid lib key confirm response packet format">>}.
 
 %%==================================================================================================
 %%
@@ -169,7 +135,7 @@ process_confirm_request(ConnInfo, Request) ->
   end.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Create Key Confirm Response
+%%  Create Lib Key Confirm Response
 %%    Server Challenge | <Confirm Data>
 %%--------------------------------------------------------------------------------------------------
 -spec create_confirm_response(ConnInfo, ServerChallenge, OptionalData) -> Result when

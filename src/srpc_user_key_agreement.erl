@@ -6,9 +6,7 @@
 
 %% Client User Key Agreement
 -export([create_exchange_request/2,
-         process_exchange_response/4,
-         create_confirm_request/2,
-         process_confirm_response/2
+         process_exchange_response/4
         ]).
 
 %% Server User Key Agreement
@@ -67,38 +65,6 @@ process_exchange_response(UserId, Password, ClientKeys,
 
 process_exchange_response(_UserId, _Password, _ClientKeys, _ExchangeResponse) ->
   {error, <<"Invalid exchange response packet">>}.
-
-%%--------------------------------------------------------------------------------------------------
-%%  Create User Key Confirm Request
-%%    Client Challenge | <Optional Data>
-%%--------------------------------------------------------------------------------------------------
-create_confirm_request(#{exch_public_key := ExchPublicKey,
-                         exch_key_pair   := ExchKeyPair,
-                         exch_hash       := ExchHash,
-                         sha_alg         := ShaAlg},
-                       OptionalData) ->
-  {PairPublicKey, _} = ExchKeyPair,
-  ChallengeData = <<PairPublicKey/binary, ExchPublicKey/binary, ExchHash/binary>>,
-  Challenge = crypto:hash(ShaAlg, ChallengeData),
-  <<Challenge/binary, OptionalData/binary>>.
-
-%%--------------------------------------------------------------------------------------------------
-%%  Process User Key Confirm Response
-%%--------------------------------------------------------------------------------------------------
-process_confirm_response(ConnInfo,
-                         <<ServerChallenge:?SRPC_CHALLENGE_SIZE/binary, OptionalData/binary>>) ->
-  case srpc_sec:process_server_challenge(ConnInfo, ServerChallenge) of
-    true ->
-      {ok,
-       srpc_util:remove_keys(ConnInfo, [exch_public_key, exch_key_pair, exch_hash]),
-       OptionalData};
-    false ->
-      {invalid, <<"Invalid server challenge">>}
-  end;
-
-process_confirm_response(_ConnInfo, _ResponseData) ->
-  {error, <<"Invalid lib key confirm response packet format">>}.
-  
 
 %%==================================================================================================
 %%
@@ -192,7 +158,6 @@ create_exchange_response(ConnId, ExchConnInfo, Registration, ClientPublicKey, Ex
     Result   :: {ok, {binary(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_confirm_request(ConnInfo, Request) ->
-  %% srpc_util:debug_info({?MODULE, process_confirm_request}, ConnInfo),
   case srpc_encryptor:decrypt(origin_requester, ConnInfo, Request) of
     {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
       {ok, {Challenge, ConfirmData}};

@@ -201,7 +201,7 @@ create_lib_key_confirm_request(ConnInfo) ->
     Result      :: binary().
 %%--------------------------------------------------------------------------------------------------
 create_lib_key_confirm_request(ConnInfo, ConfirmData) when is_binary(ConfirmData) ->
-  srpc_lib_key_agreement:create_confirm_request(ConnInfo, ConfirmData).
+  srpc_key_agreement:create_confirm_request(ConnInfo, ConfirmData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process lib key exchange response
@@ -212,7 +212,7 @@ create_lib_key_confirm_request(ConnInfo, ConfirmData) when is_binary(ConfirmData
     Result       :: binary().
 %%--------------------------------------------------------------------------------------------------
 process_lib_key_confirm_response(ConnInfo, ConfirmResponse)  when is_binary(ConfirmResponse) ->
-  srpc_lib_key_agreement:process_confirm_response(ConnInfo, ConfirmResponse).
+  srpc_key_agreement:process_confirm_response(ConnInfo, ConfirmResponse).
 
 %%==================================================================================================
 %%
@@ -345,7 +345,7 @@ create_user_key_confirm_request(ConnInfo) ->
     Result      :: binary().
 %%--------------------------------------------------------------------------------------------------
 create_user_key_confirm_request(ConnInfo, ConfirmData) when is_binary(ConfirmData) ->
-  srpc_user_key_agreement:create_confirm_request(ConnInfo, ConfirmData).
+  srpc_key_agreement:create_confirm_request(ConnInfo, ConfirmData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process user key exchange response
@@ -356,7 +356,7 @@ create_user_key_confirm_request(ConnInfo, ConfirmData) when is_binary(ConfirmDat
     Result       :: binary().
 %%--------------------------------------------------------------------------------------------------
 process_user_key_confirm_response(ConnInfo, ConfirmResponse)  when is_binary(ConfirmResponse) ->
-  srpc_user_key_agreement:process_confirm_response(ConnInfo, ConfirmResponse).
+  srpc_key_agreement:process_confirm_response(ConnInfo, ConfirmResponse).
 
 %%==================================================================================================
 %%
