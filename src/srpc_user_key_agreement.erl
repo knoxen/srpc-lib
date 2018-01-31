@@ -114,9 +114,9 @@ process_exchange_request(ConnInfo, Request) ->
 %%--------------------------------------------------------------------------------------------------
 create_exchange_response(ConnId, ExchConnInfo, invalid, _ClientPublicKey, ExchData) ->
   encrypt_response_data(ConnId, ExchConnInfo, ?SRPC_USER_INVALID_IDENTITY,
-                        crypto:strong_rand_bytes(?SRPC_KDF_SALT_SIZE),
-                        crypto:strong_rand_bytes(?SRPC_SRP_SALT_SIZE),
-                        crypto:strong_rand_bytes(?SRPC_PUBLIC_KEY_SIZE),
+                        << 0:(8*?SRPC_KDF_SALT_SIZE) >>,
+                        << 0:(8*?SRPC_SRP_SALT_SIZE) >>,
+                        << 0:(8*?SRPC_PUBLIC_KEY_SIZE) >>,
                         ExchData);
 
 create_exchange_response(ConnId, ExchConnInfo,

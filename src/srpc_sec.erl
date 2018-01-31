@@ -228,7 +228,7 @@ process_client_challenge(#{exch_public_key := ClientPublicKey,
       ServerChallenge = crypto:hash(ShaAlg, ServerChallengeData),
       {ok, ServerChallenge};
     false ->
-      {invalid, crypto:strong_rand_bytes(?SRPC_CHALLENGE_SIZE)}
+      {invalid, << 0:(8*?SRPC_CHALLENGE_SIZE) >>}
   end.
 
 %%--------------------------------------------------------------------------------------------------
