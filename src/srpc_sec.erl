@@ -10,7 +10,7 @@
          generate_server_keys/1,
          validate_public_key/1,
          client_conn_keys/2,
-         server_conn_keys/1,
+         server_conn_keys/3,
          process_client_challenge/2,
          process_server_challenge/2,
          refresh_keys/2
@@ -21,17 +21,17 @@
 %%  Public API
 %%
 %%==================================================================================================
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %% Compare binaries for equality
 %%
 %% @doc Compare two binaries for equality, bit-by-bit, without short-circuits to avoid timing
 %% differences. Note this function does short-circuit to <code>false</code> if the binaries are
 %% not of equal size.
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 -spec const_compare(Bin1, Bin2) -> boolean() when
     Bin1 :: binary(),
     Bin2 :: binary().
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 const_compare(X, Y) when is_binary(X), is_binary(Y) ->
   case byte_size(X) == byte_size(Y) of
     true ->
@@ -48,15 +48,15 @@ const_compare(<<X:1/bitstring, XT/bitstring>>, <<Y:1/bitstring, YT/bitstring>>, 
 const_compare(<<>>, <<>>, Acc) ->
   Acc.
 
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %%  Compute PBKDF2 passkey.
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 -spec pbkdf2(Password, Salt, Iterations) -> PassKey when
     Password   :: binary(),
     Salt       :: binary(),
     Iterations :: integer(),
     PassKey    :: binary().
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 pbkdf2(Password, Salt, Iterations) ->
   pbkdf2(Password, Salt, Iterations, ?SRPC_HMAC_256_SIZE, 1, []).
 
@@ -152,24 +152,19 @@ client_conn_keys(#{conn_id         := _ConnId,
 %%--------------------------------------------------------------------------------------------------
 %%  Server Connection Keys
 %%--------------------------------------------------------------------------------------------------
--spec server_conn_keys(ConnInfo) -> Result when
+-spec server_conn_keys(ConnInfo, IdPass, SaltInfo) -> Result when
     ConnInfo :: conn_info(),
+    IdPass   :: {binary(), binary()},
+    SaltInfo :: {integer(), binary(), binary()},
     Result   :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-server_conn_keys(ConnInfo) ->
-  {ok, Id}        = application:get_env(srpc_lib, lib_id),
-  {ok, Passcode}  = application:get_env(srpc_lib, lib_passcode),
-  {ok, KdfSalt}   = application:get_env(srpc_lib, lib_kdf_salt),
-  {ok, KdfRounds} = application:get_env(srpc_lib, lib_kdf_rounds),
-  {ok, SrpSalt}   = application:get_env(srpc_lib, lib_srp_salt),
-
+server_conn_keys(ConnInfo, {Id, Password}, {KdfRounds, KdfSalt, SrpSalt}) ->
   %% X = Sha1( S | Sha1(Id | : | P))
-  Passkey = pbkdf2(Passcode, KdfSalt, KdfRounds),
-  IP = crypto:hash(sha, <<Id/binary, ":", Passkey/binary>>),
-  X  = crypto:hash(sha, <<SrpSalt/binary, IP/binary>>),
+  Passkey = pbkdf2(Password, KdfSalt, KdfRounds),
+  I_P = crypto:hash(sha, <<Id/binary, ":", Passkey/binary>>),
+  X   = crypto:hash(sha, <<SrpSalt/binary, I_P/binary>>),
 
-  SrpUserParams = {user, [X, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]},
-  conn_keys(ConnInfo, SrpUserParams).
+  conn_keys(ConnInfo, {user, [X, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]}).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Connection Keys
@@ -258,16 +253,16 @@ process_server_challenge(#{exch_public_key := ServerPublicKey,
 
   const_compare(ChallengeCheck, ServerChallenge).
 
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %%  Refresh Keys
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %% @doc Refresh client keys using data
 %%
 -spec refresh_keys(ConnInfo, Salt) -> Result when
     ConnInfo :: conn_info(),
     Salt     :: binary(),
     Result   :: {ok, conn_info()} | error_msg().
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 refresh_keys(#{conn_id       := ConnId,
                sym_alg       := SymAlg,
                req_sym_key   := ReqSymKey,
@@ -289,36 +284,36 @@ refresh_keys(#{conn_id       := ConnId,
       Error
   end.
 
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %%  Sym key size
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 -spec sym_key_size(SymAlg) -> non_neg_integer() when
     SymAlg :: sym_alg().
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 sym_key_size(aes128) -> ?SRPC_AES_128_KEY_SIZE;
 sym_key_size(aes192) -> ?SRPC_AES_192_KEY_SIZE;
 sym_key_size(aes256) -> ?SRPC_AES_256_KEY_SIZE.
 
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %%  HMAC size
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 -spec sha_size(ShaAlg) -> non_neg_integer() when
     ShaAlg :: sha_alg().
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 sha_size(sha256) -> ?SRPC_HMAC_256_SIZE;
 sha_size(sha384) -> ?SRPC_HMAC_384_SIZE;
 sha_size(sha512) -> ?SRPC_HMAC_512_SIZE.
 
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %%  Keys using HKDF
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 -spec hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) -> keys() | error_msg() when
     SymAlg :: sym_alg(),
     ShaAlg :: sha_alg(),
     Salt   :: binary(),
     Info   :: binary(),
     IKM    :: binary().
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
   SymKeySize = sym_key_size(SymAlg),
   HmacKeySize = sha_size(ShaAlg),
@@ -335,32 +330,32 @@ hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
       Error
   end.
 
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %%
 %% HMAC-based Key Derivation Function (RFC 5869)
 %%
 %% This is NOT a general implementation of HKDF.
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 -spec hkdf(ShaAlg, Salt, Info, IKM, Len) -> {ok, binary()} | error_msg() when
     ShaAlg :: sha_alg(),
     Salt   :: binary(),
     Info   :: binary(),
     IKM    :: binary(),
     Len    :: non_neg_integer().
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 hkdf(ShaAlg, Salt, Info, IKM, Len) ->
   PRK = crypto:hmac(ShaAlg, Salt, IKM),
   expand(ShaAlg, Info, PRK, Len).
 
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %% Expand phase
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 -spec expand(ShaAlg, Info, PRK, Len) -> {ok, binary()} | error_msg() when
     ShaAlg :: sha_alg(),
     Info   :: binary(),
     PRK    :: binary(),
     Len    :: non_neg_integer().
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 expand(ShaAlg, Info, PRK, Len) ->
   case {Len, sha_size(ShaAlg) * 255} of
     {Len, MaxLen} when Len =< MaxLen ->
@@ -376,13 +371,13 @@ expand(ShaAlg, PRK, Info, I, N, Tp, Acc) ->
   Ti = crypto:hmac(ShaAlg, PRK, <<Tp/binary, Info/binary, I:8>>),
   expand(ShaAlg, PRK, Info, I+1, N, Ti, <<Acc/binary, Ti/binary>>).
 
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 %%  Number of octets
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 -spec num_octets(ShaAlg, Len) -> non_neg_integer() when
     ShaAlg :: sha_alg(),
     Len    :: non_neg_integer().
-%%------------------------------------------------------------------------------------------------
+%%--------------------------------------------------------------------------------------------------
 num_octets(ShaAlg, Len) ->
   Octets = sha_size(ShaAlg),
   NumOctets = Len div Octets,

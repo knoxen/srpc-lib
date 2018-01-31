@@ -30,13 +30,19 @@
          create_lib_key_confirm_response/3
         ]).
 
-
 %% User Registration
 -export([process_registration_request/2,
          create_registration_response/3
         ]).
 
-%% User Connection
+%% Client User Key Agreement
+-export([create_user_key_exchange_request/1, create_user_key_exchange_request/2,
+         process_user_key_exchange_response/4,
+         create_user_key_confirm_request/1, create_user_key_confirm_request/2,
+         process_user_key_confirm_response/2
+        ]).
+
+%% Server User Key Agreement
 -export([process_user_key_exchange_request/2,
          create_user_key_exchange_response/5,
          process_user_key_confirm_request/2,
@@ -148,11 +154,12 @@ srpc_info() ->
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  Create lib key exchange data
+%%  Create lib key exchange request
 %%--------------------------------------------------------------------------------------------------
 -spec create_lib_key_exchange_request(LibId) -> Result when
-    LibId  :: binary(),
-    Result :: binary().
+    LibId      :: binary(),
+    ClientKeys :: exch_key_pair(),
+    Result     :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
 create_lib_key_exchange_request(LibId) -> 
   create_lib_key_exchange_request(LibId, <<>>).
@@ -160,7 +167,8 @@ create_lib_key_exchange_request(LibId) ->
 -spec create_lib_key_exchange_request(LibId, OptionalData) -> Result when
     LibId        :: binary(),
     OptionalData :: binary(),
-    Result       :: binary().
+    ClientKeys   :: exch_key_pair(),
+    Result       :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
 create_lib_key_exchange_request(LibId, OptionalData) when is_binary(OptionalData) -> 
   srpc_lib_key_agreement:create_exchange_request(LibId, OptionalData).
@@ -255,6 +263,11 @@ process_lib_key_confirm_request(ConnInfo, Request) ->
 create_lib_key_confirm_response(ConnInfo, ClientChallenge, ConfirmData) ->
   srpc_lib_key_agreement:create_confirm_response(ConnInfo, ClientChallenge, ConfirmData).
 
+%%==================================================================================================
+%%
+%%  Registration
+%%
+%%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 %%  Process registration request
 %%--------------------------------------------------------------------------------------------------
@@ -278,6 +291,78 @@ process_registration_request(ConnInfo, Request) ->
 create_registration_response(ConnInfo, RegCode, Data) ->
   srpc_registration:create_registration_response(ConnInfo, RegCode, Data).
 
+%%==================================================================================================
+%%
+%%  Client User Key Agreement
+%%
+%%==================================================================================================
+%%--------------------------------------------------------------------------------------------------
+%%  Create user key exchange request
+%%--------------------------------------------------------------------------------------------------
+-spec create_user_key_exchange_request(UserId) -> Result when
+    UserId     :: binary(),
+    ClientKeys :: exch_key_pair(),
+    Result     :: {ClientKeys, binary()}.
+%%--------------------------------------------------------------------------------------------------
+create_user_key_exchange_request(LibId) -> 
+  create_user_key_exchange_request(LibId, <<>>).
+%%--------------------------------------------------------------------------------------------------
+-spec create_user_key_exchange_request(UserId, OptionalData) -> Result when
+    UserId       :: binary(),
+    OptionalData :: binary(),
+    ClientKeys   :: exch_key_pair(),
+    Result       :: {ClientKeys, binary()}.
+%%--------------------------------------------------------------------------------------------------
+create_user_key_exchange_request(UserId, OptionalData) when is_binary(OptionalData) -> 
+  srpc_user_key_agreement:create_exchange_request(UserId, OptionalData).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Process user key exchange response
+%%--------------------------------------------------------------------------------------------------
+-spec process_user_key_exchange_response(UserId, Password, ClientKeys, Response) -> Result when
+    UserId     :: binary(),
+    Password   :: binary(),
+    ClientKeys :: exch_key_pair(),
+    Response   :: binary(),
+    Result     :: {ok, conn_info()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+process_user_key_exchange_response(UserId, Password, ClientKeys, Response) ->
+  srpc_user_key_agreement:process_exchange_response(UserId, Password, ClientKeys, Response).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Create user key confirm request
+%%--------------------------------------------------------------------------------------------------
+-spec create_user_key_confirm_request(ConnInfo) -> Result when
+    ConnInfo   :: conn_info(),
+    Result     :: binary().
+%%--------------------------------------------------------------------------------------------------
+create_user_key_confirm_request(ConnInfo) ->
+  create_user_key_confirm_request(ConnInfo, <<>>).
+%%--------------------------------------------------------------------------------------------------
+-spec create_user_key_confirm_request(ConnInfo, ConfirmData) -> Result when
+    ConnInfo    :: conn_info(),
+    ConfirmData :: binary(),
+    Result      :: binary().
+%%--------------------------------------------------------------------------------------------------
+create_user_key_confirm_request(ConnInfo, ConfirmData) when is_binary(ConfirmData) ->
+  srpc_user_key_agreement:create_confirm_request(ConnInfo, ConfirmData).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Process user key exchange response
+%%--------------------------------------------------------------------------------------------------
+-spec process_user_key_confirm_response(ClientKeys, ExchangeData) -> Result when
+    ClientKeys   :: exch_key_pair(),
+    ExchangeData :: binary(),
+    Result       :: binary().
+%%--------------------------------------------------------------------------------------------------
+process_user_key_confirm_response(ConnInfo, ConfirmResponse)  when is_binary(ConfirmResponse) ->
+  srpc_user_key_agreement:process_confirm_response(ConnInfo, ConfirmResponse).
+
+%%==================================================================================================
+%%
+%%  Server User Key Agreement
+%%
+%%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 %%  User key exchange request
 %%--------------------------------------------------------------------------------------------------
