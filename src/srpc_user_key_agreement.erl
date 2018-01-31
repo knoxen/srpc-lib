@@ -164,6 +164,8 @@ process_confirm_request(ConnInfo, Request) ->
       {ok, {Challenge, ConfirmData}};
     {ok, _} ->
       {error, <<"Invalid User Key confirm packet: Incorrect format">>};
+    {invalid, _} ->
+      {invalid, << 0:(8*?SRPC_CHALLENGE_SIZE) >>};
     Error ->
       Error
   end.

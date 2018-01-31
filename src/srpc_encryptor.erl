@@ -140,12 +140,13 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
 %% @doc Decrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec decrypt_keys(SymKey, HmacKey, ConnId, Packet) -> {ok, Data} | error_msg() when
+-spec decrypt_keys(SymKey, HmacKey, ConnId, Packet) -> Result when
     SymKey   :: sym_key(),
     HmacKey  :: sym_key(),
     ConnId   :: binary(),
     Packet   :: binary(),
-    Data     :: binary().
+    Data     :: binary(),
+    Result   :: {ok, Data} | error_msg() | invalid_msg().
 %%--------------------------------------------------------------------------------------------------
 decrypt_keys(SymKey, HmacKey, ConnId, Packet) ->
   PacketSize = byte_size(Packet),
@@ -174,7 +175,7 @@ decrypt_keys(SymKey, HmacKey, ConnId, Packet) ->
           {error, <<"Invalid cryptor text">>}
       end;
     false ->
-      {error, <<"Invalid hmac">>}
+      {invalid, <<"Invalid hmac">>}
   end.
 
 %%--------------------------------------------------------------------------------------------------
