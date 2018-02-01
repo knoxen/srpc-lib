@@ -17,12 +17,13 @@
 create_confirm_request(#{exch_public_key := ExchPublicKey,
                          exch_key_pair   := ExchKeyPair,
                          exch_hash       := ExchHash,
-                         sha_alg         := ShaAlg},
+                         sha_alg         := ShaAlg} = ConnInfo,
                        OptionalData) ->
   {PairPublicKey, _} = ExchKeyPair,
   ChallengeData = <<PairPublicKey/binary, ExchPublicKey/binary, ExchHash/binary>>,
   Challenge = crypto:hash(ShaAlg, ChallengeData),
-  <<Challenge/binary, OptionalData/binary>>.
+  RequestData = <<Challenge/binary, OptionalData/binary>>,
+  srpc_encryptor:encrypt(origin_requester, ConnInfo, RequestData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process Key Confirm Response
