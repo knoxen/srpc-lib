@@ -5,7 +5,7 @@
 -include("srpc_lib.hrl").
 
 %% Client User Key Agreement
--export([create_exchange_request/2,
+-export([create_exchange_request/3,
          process_exchange_response/4
         ]).
 
@@ -25,17 +25,19 @@
 %%  Create User Key Exchange Request
 %%    L | UserId | Client Pub Key | <Data>
 %%--------------------------------------------------------------------------------------------------
--spec create_exchange_request(UserId, OptionalData) -> Result when
+-spec create_exchange_request(ConnInfo, UserId, OptionalData) -> Result when
+    ConnInfo     :: conn_info(),
     UserId       :: binary(),
     OptionalData :: binary(),
     ClientKeys   :: exch_key_pair(),
     Result       :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_exchange_request(UserId, OptionalData) ->
+create_exchange_request(ConnInfo, UserId, OptionalData) ->
   Len = erlang:byte_size(UserId),
   ClientKeys = srpc_sec:generate_client_keys(),
   {ClientPublicKey, _} = ClientKeys,
-  {ClientKeys, << Len:8, UserId/binary, ClientPublicKey/binary, OptionalData/binary >>}.
+  ExchangeData = << Len:8, UserId/binary, ClientPublicKey/binary, OptionalData/binary >>,
+  {ClientKeys, srpc_encryptor:encrypt(origin_requester, ConnInfo, ExchangeData)}.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process User Key Exchange Response

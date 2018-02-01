@@ -37,7 +37,7 @@
         ]).
 
 %% Client User Key Agreement
--export([create_user_key_exchange_request/1, create_user_key_exchange_request/2,
+-export([create_user_key_exchange_request/2, create_user_key_exchange_request/3,
          process_user_key_exchange_response/4,
          create_user_key_confirm_request/1, create_user_key_confirm_request/2,
          process_user_key_confirm_response/2
@@ -315,22 +315,24 @@ create_registration_response(ConnInfo, RegCode, Data) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Create user key exchange request
 %%--------------------------------------------------------------------------------------------------
--spec create_user_key_exchange_request(UserId) -> Result when
+-spec create_user_key_exchange_request(ConnInfo, UserId) -> Result when
+    ConnInfo   :: conn_info(),
     UserId     :: binary(),
     ClientKeys :: exch_key_pair(),
     Result     :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_user_key_exchange_request(LibId) -> 
-  create_user_key_exchange_request(LibId, <<>>).
+create_user_key_exchange_request(ConnInfo, LibId) -> 
+  create_user_key_exchange_request(ConnInfo, LibId, <<>>).
 %%--------------------------------------------------------------------------------------------------
--spec create_user_key_exchange_request(UserId, OptionalData) -> Result when
+-spec create_user_key_exchange_request(ConnInfo, UserId, OptionalData) -> Result when
+    ConnInfo     :: conn_info(),
     UserId       :: binary(),
     OptionalData :: binary(),
     ClientKeys   :: exch_key_pair(),
     Result       :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_user_key_exchange_request(UserId, OptionalData) when is_binary(OptionalData) -> 
-  srpc_user_key_agreement:create_exchange_request(UserId, OptionalData).
+create_user_key_exchange_request(ConnInfo, UserId, OptionalData) when is_binary(OptionalData) -> 
+  srpc_user_key_agreement:create_exchange_request(ConnInfo, UserId, OptionalData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process user key exchange response
