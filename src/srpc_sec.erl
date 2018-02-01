@@ -11,6 +11,7 @@
          validate_public_key/1,
          client_conn_keys/2,
          server_conn_keys/3,
+         calc_verifier/3, calc_verifier/4, calc_verifier/5,
          process_client_challenge/2,
          process_server_challenge/2,
          refresh_keys/2
@@ -51,34 +52,34 @@ const_compare(<<>>, <<>>, Acc) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Compute PBKDF2 passkey.
 %%--------------------------------------------------------------------------------------------------
--spec pbkdf2(Password, Salt, Iterations) -> PassKey when
+-spec pbkdf2(Password, Salt, Rounds) -> PassKey when
     Password   :: binary(),
     Salt       :: binary(),
-    Iterations :: integer(),
+    Rounds :: integer(),
     PassKey    :: binary().
 %%--------------------------------------------------------------------------------------------------
-pbkdf2(Password, Salt, Iterations) ->
-  pbkdf2(Password, Salt, Iterations, ?SRPC_HMAC_256_SIZE, 1, []).
+pbkdf2(Password, Salt, Rounds) when is_binary(Password), is_binary(Salt), is_integer(Rounds) ->
+  pbkdf2(Password, Salt, Rounds, ?SRPC_HMAC_256_SIZE, 1, []).
 
 %% @private
-pbkdf2(Password, Salt, Iterations, Length, Block, Value) ->
+pbkdf2(Password, Salt, Rounds, Length, Block, Value) ->
   case iolist_size(Value) > Length of
     true ->
       <<Data:Length/binary, _/binary>> = iolist_to_binary(lists:reverse(Value)),
       Data;
     false ->
-      Data = pbkdf2(Password, Salt, Iterations, Block, 1, <<>>, <<>>),
-      pbkdf2(Password, Salt, Iterations, Length, Block + 1, [Data | Value])
+      Data = pbkdf2(Password, Salt, Rounds, Block, 1, <<>>, <<>>),
+      pbkdf2(Password, Salt, Rounds, Length, Block + 1, [Data | Value])
   end.
 
-pbkdf2(_Password, _Salt, Iterations, _Block, Iteration, _Prev, Value) when Iteration > Iterations ->
+pbkdf2(_Password, _Salt, Rounds, _Block, Iteration, _Prev, Value) when Iteration > Rounds ->
   Value;
-pbkdf2(Password, Salt, Iterations, Block, 1, _Prev, _Value) ->
+pbkdf2(Password, Salt, Rounds, Block, 1, _Prev, _Value) ->
   Data = crypto:hmac(sha256, Password, <<Salt/binary, Block:32/integer>>, ?SRPC_HMAC_256_SIZE),
-  pbkdf2(Password, Salt, Iterations, Block, 2, Data, Data);
-pbkdf2(Password, Salt, Iterations, Block, Iteration, Current, Value) ->
+  pbkdf2(Password, Salt, Rounds, Block, 2, Data, Data);
+pbkdf2(Password, Salt, Rounds, Block, Iteration, Current, Value) ->
   More = crypto:hmac(sha256, Password, Current, ?SRPC_HMAC_256_SIZE),
-  pbkdf2(Password, Salt, Iterations, Block, Iteration + 1, More, crypto:exor(More, Value)).
+  pbkdf2(Password, Salt, Rounds, Block, Iteration + 1, More, crypto:exor(More, Value)).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Validate public key
@@ -143,8 +144,7 @@ pad_value(PublicKey, Size) ->
     Verifier :: verifier(),
     Result   :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-client_conn_keys(#{conn_id         := _ConnId,
-                   exch_public_key := _ExchPublicKey} = ConnInfo, Verifier) ->
+client_conn_keys(ConnInfo, Verifier) ->
   ExchKeyPair = srpc_sec:generate_server_keys(Verifier),
   SrpServerParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
   conn_keys(maps:put(exch_key_pair, ExchKeyPair, ConnInfo), SrpServerParams).
@@ -159,11 +159,7 @@ client_conn_keys(#{conn_id         := _ConnId,
     Result   :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 server_conn_keys(ConnInfo, {Id, Password}, {KdfRounds, KdfSalt, SrpSalt}) ->
-  %% X = Sha1( S | Sha1(Id | : | P))
-  Passkey = pbkdf2(Password, KdfSalt, KdfRounds),
-  I_P = crypto:hash(sha, <<Id/binary, ":", Passkey/binary>>),
-  X   = crypto:hash(sha, <<SrpSalt/binary, I_P/binary>>),
-
+  X = user_private_key(Id, Password, KdfRounds, KdfSalt, SrpSalt),
   conn_keys(ConnInfo, {user, [X, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]}).
 
 %%--------------------------------------------------------------------------------------------------
@@ -202,6 +198,64 @@ conn_keys(#{conn_id         := ConnId,
     Error ->
       Error
   end.
+
+%%--------------------------------------------------------------------------------------------------
+%%  Calculate SRP verifier
+%%--------------------------------------------------------------------------------------------------
+-spec calc_verifier(Id, Password, KdfRounds) -> Result when
+    Id        :: binary(),
+    Password  :: binary(),
+    KdfRounds :: integer(),
+    KdfSalt   :: binary(),
+    SrpSalt   :: binary(),
+    Verifier  :: binary(),
+    Result    :: {KdfSalt, SrpSalt, Verifier}.
+%%--------------------------------------------------------------------------------------------------
+calc_verifier(Id, Password, KdfRounds) ->
+  KdfSalt = crypto:strong_rand_bytes(?SRPC_KDF_SALT_SIZE),
+  {SrpSalt, Verifier} = calc_verifier(Id, Password, KdfRounds, KdfSalt),
+  {KdfSalt, SrpSalt, Verifier}.
+
+%%--------------------------------------------------------------------------------------------------
+%%  Calculate SRP verifier
+%%--------------------------------------------------------------------------------------------------
+-spec calc_verifier(Id, Password, KdfRounds, KdfSalt) -> Result when
+    Id        :: binary(),
+    Password  :: binary(),
+    KdfRounds :: integer(),
+    KdfSalt   :: binary(),
+    SrpSalt   :: binary(),
+    Verifier  :: binary(),
+    Result    :: {SrpSalt, Verifier}.
+%%--------------------------------------------------------------------------------------------------
+calc_verifier(Id, Password, KdfRounds, KdfSalt) ->
+  SrpSalt = crypto:strong_rand_bytes(?SRPC_SRP_SALT_SIZE),
+  {SrpSalt, calc_verifier(Id, Password, KdfRounds, KdfSalt, SrpSalt)}.
+
+%%--------------------------------------------------------------------------------------------------
+%%  Calculate SRP verifier
+%%--------------------------------------------------------------------------------------------------
+-spec calc_verifier(Id, Password, KdfRounds, KdfSalt, SrpSalt) -> Verifier when
+    Id        :: binary(),
+    Password  :: binary(),
+    KdfRounds :: integer(),
+    KdfSalt   :: binary(),
+    SrpSalt   :: binary(),
+    Verifier  :: binary().
+%%--------------------------------------------------------------------------------------------------
+calc_verifier(Id, Password, KdfRounds, KdfSalt, SrpSalt) ->
+  X = user_private_key(Id, Password, KdfRounds, KdfSalt, SrpSalt),
+  crypto:mod_pow(?SRPC_GROUP_GENERATOR, X, ?SRPC_GROUP_MODULUS).
+
+%%--------------------------------------------------------------------------------------------------
+%%  SRP user private key (exponent for verifier calculation)
+%%    X = Sha1( Salt | Sha1(Id | : | Pasword))
+%%--------------------------------------------------------------------------------------------------
+user_private_key(Id, Password, KdfRounds, KdfSalt, SrpSalt) ->
+  %% X = Sha1( S | Sha1(Id | : | P))
+  Passkey = pbkdf2(Password, KdfSalt, KdfRounds),
+  I_P = crypto:hash(sha, <<Id/binary, ":", Passkey/binary>>),
+  crypto:hash(sha, <<SrpSalt/binary, I_P/binary>>).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process client challenge

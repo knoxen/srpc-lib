@@ -31,7 +31,8 @@
         ]).
 
 %% User Registration
--export([process_registration_request/2,
+-export([create_registration_request/5,
+         process_registration_request/2,
          create_registration_response/3
         ]).
 
@@ -71,10 +72,11 @@
 %%--------------------------------------------------------------------------------------------------
 server_per_file(PerFile) ->
   case parse_server_per_file(PerFile) of
-    {ok, Id, Verifier} ->
+    {ok, Id, Verifier, KdfRounds} ->
       Persistent = [{persistent, true}],
-      application:set_env(srpc_lib, lib_id, Id, Persistent),
-      application:set_env(srpc_lib, lib_verifier, Verifier, Persistent),
+      application:set_env(srpc_lib, lib_id,         Id,        Persistent),
+      application:set_env(srpc_lib, lib_verifier,   Verifier,  Persistent),
+      application:set_env(srpc_lib, lib_kdf_rounds, KdfRounds, Persistent),
       ok;
     Error ->
       Error
@@ -269,6 +271,20 @@ create_lib_key_confirm_response(ConnInfo, ClientChallenge, ConfirmData) ->
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
+%%  Create registration request
+%%--------------------------------------------------------------------------------------------------
+-spec create_registration_request(ConnInfo, Code, UserId, Password, OptionalData) -> Result when
+    ConnInfo     :: conn_info(),
+    Code         :: integer(),
+    UserId       :: binary(),
+    Password     :: binary(),
+    OptionalData :: binary(),
+    Result       :: binary().
+%%--------------------------------------------------------------------------------------------------
+create_registration_request(ConnInfo, Code, UserId, Password, OptionalData) ->
+  srpc_registration:create_registration_request(ConnInfo, Code, UserId, Password, OptionalData).
+
+%%--------------------------------------------------------------------------------------------------
 %%  Process registration request
 %%--------------------------------------------------------------------------------------------------
 -spec process_registration_request(ConnInfo, Request) -> Result when
@@ -454,17 +470,19 @@ refresh_keys(ConnInfo, Data) ->
 %%  Parse SRPC server PER file
 %%--------------------------------------------------------------------------------------------------
 -spec parse_server_per_file(PerFile) -> Result when
-    PerFile  :: string(),
-    Id       :: binary(),
-    Verifier :: binary(),
-    Result   :: {ok, Id, Verifier} | error_msg().
+    PerFile   :: string(),
+    Id        :: binary(),
+    Verifier  :: binary(),
+    KdfRounds :: integer(),
+    Result    :: {ok, Id, Verifier, KdfRounds} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 parse_server_per_file(PerFile) ->
   case file:read_file(PerFile) of
     {ok, Data} ->
       case parse_per_data(Data) of
-        [Id, Verifier] ->
-          {ok, Id, Verifier};
+        [Id, Verifier, BinKdfRounds] ->
+          KdfRounds = srpc_util:bin_to_int(BinKdfRounds),
+          {ok, Id, Verifier, KdfRounds};
         _ ->
           Reason = io_lib:format("Failed processing server PER file ~p: wrong format", [PerFile]),
           {error, erlang:list_to_binary(Reason)}
