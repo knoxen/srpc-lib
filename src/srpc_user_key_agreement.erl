@@ -6,7 +6,7 @@
 
 %% Client User Key Agreement
 -export([create_exchange_request/3,
-         process_exchange_response/4
+         process_exchange_response/5
         ]).
 
 %% Server User Key Agreement
@@ -43,30 +43,33 @@ create_exchange_request(ConnInfo, UserId, OptionalData) ->
 %%  Process User Key Exchange Response
 %%    User Code | L | ConnId | Kdf Salt | Srp Salt | Server Pub Key | <Data>
 %%--------------------------------------------------------------------------------------------------
-process_exchange_response(UserId, Password, ClientKeys,
-                          <<UserCode:8, 
-                            ConnIdLen:8, ConnId:ConnIdLen/binary, 
-                            KdfSalt:?SRPC_KDF_SALT_SIZE/binary,
-                            SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
-                            ServerPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
-                            OptionalData/binary>>) ->
+process_exchange_response(ConnInfo, UserId, Password, ClientKeys, EncryptedResponse) ->
+  case srpc_encryptor:decrypt(origin_responder, ConnInfo, EncryptedResponse) of
+    {ok, <<UserCode:8, 
+           ConnIdLen:8, ConnId:ConnIdLen/binary, 
+           KdfSalt:?SRPC_KDF_SALT_SIZE/binary,
+           SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
+           ServerPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
+           OptionalData/binary>>} ->
 
-  ConnInfo = #{conn_id         => ConnId,
-               entity_id       => UserId,
-               exch_public_key => ServerPublicKey,
-               exch_key_pair   => ClientKeys
-              },
-  {ok, KdfRounds} = application:get_env(srpc_lib, lib_kdf_rounds),
-
-  case srpc_sec:server_conn_keys(ConnInfo, {UserId, Password}, {KdfRounds, KdfSalt, SrpSalt}) of
-    {ok, UserConnInfo} ->
-      {ok, UserConnInfo, UserCode, OptionalData};
+      UserConnInfo = #{conn_id         => ConnId,
+                       entity_id       => UserId,
+                       exch_public_key => ServerPublicKey,
+                       exch_key_pair   => ClientKeys
+                      },
+      {ok, KdfRounds} = application:get_env(srpc_lib, lib_kdf_rounds),
+      case srpc_sec:server_conn_keys(UserConnInfo, {UserId, Password},
+                                     {KdfRounds, KdfSalt, SrpSalt}) of
+        {ok, UserConnInfo2} ->
+          {ok, UserConnInfo2, UserCode, OptionalData};
+        Error ->
+          Error
+      end;
+    {ok, _} ->
+      {error, <<"Invalid exchange response packet">>};
     Error ->
       Error
-  end;
-
-process_exchange_response(_UserId, _Password, _ClientKeys, _ExchangeResponse) ->
-  {error, <<"Invalid exchange response packet">>}.
+  end.
 
 %%==================================================================================================
 %%

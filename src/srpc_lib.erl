@@ -38,7 +38,7 @@
 
 %% Client User Key Agreement
 -export([create_user_key_exchange_request/2, create_user_key_exchange_request/3,
-         process_user_key_exchange_response/4,
+         process_user_key_exchange_response/5,
          create_user_key_confirm_request/1, create_user_key_confirm_request/2,
          process_user_key_confirm_response/2
         ]).
@@ -337,15 +337,18 @@ create_user_key_exchange_request(ConnInfo, UserId, OptionalData) when is_binary(
 %%--------------------------------------------------------------------------------------------------
 %%  Process user key exchange response
 %%--------------------------------------------------------------------------------------------------
--spec process_user_key_exchange_response(UserId, Password, ClientKeys, Response) -> Result when
+-spec process_user_key_exchange_response(ConnInfo, UserId, Password, 
+                                         ClientKeys, Response) -> Result when
+    ConnInfo   :: conn_info(),
     UserId     :: binary(),
     Password   :: binary(),
     ClientKeys :: exch_key_pair(),
     Response   :: binary(),
     Result     :: {ok, conn_info()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_user_key_exchange_response(UserId, Password, ClientKeys, Response) ->
-  srpc_user_key_agreement:process_exchange_response(UserId, Password, ClientKeys, Response).
+process_user_key_exchange_response(ConnInfo, UserId, Password, ClientKeys, Response) ->
+  srpc_user_key_agreement:process_exchange_response(ConnInfo, UserId, Password, 
+                                                    ClientKeys, Response).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Create user key confirm request

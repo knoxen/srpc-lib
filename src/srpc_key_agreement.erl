@@ -29,17 +29,19 @@ create_confirm_request(#{exch_public_key := ExchPublicKey,
 %%  Process Key Confirm Response
 %%    
 %%--------------------------------------------------------------------------------------------------
-process_confirm_response(ConnInfo,
-                         <<ServerChallenge:?SRPC_CHALLENGE_SIZE/binary, OptionalData/binary>>) ->
-  case srpc_sec:process_server_challenge(ConnInfo, ServerChallenge) of
-    true ->
-      {ok,
-       srpc_util:remove_keys(ConnInfo, [exch_public_key, exch_key_pair, exch_hash]),
-       OptionalData};
-    false ->
-      {invalid, <<"Invalid server challenge">>}
-  end;
-
-process_confirm_response(_ConnInfo, _ResponseData) ->
-  {error, <<"Invalid lib key confirm response packet format">>}.
-
+process_confirm_response(ConnInfo, EncryptedResponse) ->
+  case srpc_encryptor:decrypt(origin_responder, ConnInfo, EncryptedResponse) of
+    {ok, <<ServerChallenge:?SRPC_CHALLENGE_SIZE/binary, OptionalData/binary>>} ->
+      case srpc_sec:process_server_challenge(ConnInfo, ServerChallenge) of
+        true ->
+          {ok,
+           srpc_util:remove_keys(ConnInfo, [exch_public_key, exch_key_pair, exch_hash]),
+           OptionalData};
+        false ->
+          {invalid, <<"Invalid server challenge">>}
+      end;
+    {ok, _} ->
+      {error, <<"Invalid lib key confirm response packet format">>};
+    Error ->
+      Error
+  end.
