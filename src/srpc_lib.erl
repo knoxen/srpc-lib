@@ -33,7 +33,8 @@
 %% User Registration
 -export([create_registration_request/4, create_registration_request/5,
          process_registration_request/2,
-         create_registration_response/3
+         create_registration_response/3,
+         process_registration_response/2
         ]).
 
 %% Client User Key Agreement
@@ -316,6 +317,17 @@ process_registration_request(Conn, Request) ->
 %%--------------------------------------------------------------------------------------------------
 create_registration_response(Conn, RegCode, Data) ->
   srpc_registration:create_registration_response(Conn, RegCode, Data).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Processs registration response
+%%--------------------------------------------------------------------------------------------------
+-spec process_registration_response(Conn, RegResponse) -> Result when
+    Conn        :: conn(),
+    RegResponse :: binary(),
+    Result      :: {integer(), binary()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+process_registration_response(Conn, RegResponse) ->
+  srpc_registration:process_registration_response(Conn, RegResponse).
 
 %%==================================================================================================
 %%

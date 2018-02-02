@@ -17,8 +17,8 @@
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  Create User Registration Request
-%%    L | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Optional Data>
+%%  Create user registration request
+%%    l | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Optional Data>
 %%--------------------------------------------------------------------------------------------------
 create_registration_request(Conn, Code, UserId, Password, Data) ->
   KdfSalt = crypto:strong_rand_bytes(?SRPC_KDF_SALT_SIZE),
@@ -36,7 +36,7 @@ create_registration_request(Conn, Code, UserId, Password, Data) ->
   srpc_encryptor:encrypt(origin_requester, Conn, RegData).
 
 %%--------------------------------------------------------------------------------------------------
-%%  Process User Registration Request
+%%  Process user registration request
 %%    L | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Optional Data>
 %%--------------------------------------------------------------------------------------------------
 -spec process_registration_request(Conn, Request) -> Result when
@@ -67,7 +67,7 @@ process_registration_request(Conn, Request) ->
   end.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Create User Registration Response
+%%  Create user registration response
 %%    Code | <Registration Data>
 %%--------------------------------------------------------------------------------------------------
 -spec create_registration_response(Conn, RegCode, Data) -> Result when
@@ -82,10 +82,19 @@ create_registration_response(Conn,  RegCode, RespData) ->
   srpc_encryptor:encrypt(origin_responder, Conn,
                          <<RegCode:8,  RespData/binary>>).
 
+%%--------------------------------------------------------------------------------------------------
+%%  Processs user registration response
+%%    Code | <Registration Data>
+%%--------------------------------------------------------------------------------------------------
+-spec process_registration_response(Conn, RegResponse) -> Result when
+    Conn        :: conn(),
+    RegResponse :: binary(),
+    Result      :: {ok, {integer(), binary()}} | error_msg().
+%%--------------------------------------------------------------------------------------------------
 process_registration_response(Conn, RegResponse) ->
   case srpc_encryptor:decrypt(origin_responder, Conn, RegResponse) of
     {ok, << RegCode:8, RespData/binary >>} ->
-      {RegCode, RespData};
+      {ok, {RegCode, RespData}};
     Error ->
       Error
   end.
