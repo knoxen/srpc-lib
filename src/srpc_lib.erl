@@ -31,7 +31,7 @@
         ]).
 
 %% User Registration
--export([create_registration_request/5,
+-export([create_registration_request/4, create_registration_request/5,
          process_registration_request/2,
          create_registration_response/3
         ]).
@@ -272,6 +272,16 @@ create_lib_key_confirm_response(Conn, ClientChallenge, ConfirmData) ->
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 %%  Create registration request
+%%--------------------------------------------------------------------------------------------------
+-spec create_registration_request(Conn, Code, UserId, Password) -> Result when
+    Conn         :: conn(),
+    Code         :: integer(),
+    UserId       :: binary(),
+    Password     :: binary(),
+    Result       :: binary().
+%%--------------------------------------------------------------------------------------------------
+create_registration_request(Conn, Code, UserId, Password) ->
+  create_registration_request(Conn, Code, UserId, Password, <<>>).
 %%--------------------------------------------------------------------------------------------------
 -spec create_registration_request(Conn, Code, UserId, Password, OptionalData) -> Result when
     Conn         :: conn(),
