@@ -10,10 +10,10 @@
         ]).
 
 %% Server User Key Agreement
--export([process_exchange_request/2
-        ,create_exchange_response/5
-        ,process_confirm_request/2
-        ,create_confirm_response/4
+-export([process_exchange_request/2,
+         create_exchange_response/5,
+         process_confirm_request/2,
+         create_confirm_response/4
         ]).
 
 %%==================================================================================================
