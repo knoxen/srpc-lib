@@ -20,7 +20,7 @@
 %%  Create User Registration Request
 %%    L | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Optional Data>
 %%--------------------------------------------------------------------------------------------------
-create_registration_request(ConnInfo, Code, UserId, Password, Data) ->
+create_registration_request(Conn, Code, UserId, Password, Data) ->
   KdfSalt = crypto:strong_rand_bytes(?SRPC_KDF_SALT_SIZE),
   {ok, KdfRounds} = application:get_env(srpc_lib, lib_kdf_rounds),
 
@@ -33,20 +33,20 @@ create_registration_request(ConnInfo, Code, UserId, Password, Data) ->
                KdfSalt/binary, SrpSalt/binary, SrpValue/binary, 
                Data/binary >>,
 
-  srpc_encryptor:encrypt(origin_requester, ConnInfo, RegData).
+  srpc_encryptor:encrypt(origin_requester, Conn, RegData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process User Registration Request
 %%    L | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Optional Data>
 %%--------------------------------------------------------------------------------------------------
--spec process_registration_request(ConnInfo, Request) -> Result when
-    ConnInfo :: conn_info(),
-    Request  :: binary(),
-    Result   :: {ok, {integer(), map(), binary()}} | error_msg().
+-spec process_registration_request(Conn, Request) -> Result when
+    Conn    :: conn(),
+    Request :: binary(),
+    Result  :: {ok, {integer(), map(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_registration_request(ConnInfo, Request) ->
+process_registration_request(Conn, Request) ->
   VerifierSize = erlang:byte_size(?SRPC_GROUP_MODULUS),
-  case srpc_encryptor:decrypt(origin_requester, ConnInfo, Request) of
+  case srpc_encryptor:decrypt(origin_requester, Conn, Request) of
     {ok, <<UserIdLen:8, 
            UserId:UserIdLen/binary,
            RegistrationCode:8,
@@ -70,20 +70,20 @@ process_registration_request(ConnInfo, Request) ->
 %%  Create User Registration Response
 %%    Code | <Registration Data>
 %%--------------------------------------------------------------------------------------------------
--spec create_registration_response(ConnInfo, RegCode, Data) -> Result when
-    ConnInfo :: conn_info(),
-    RegCode  :: integer(),
-    Data     :: binary() | undefined,
-    Result   :: {ok, binary()} | error_msg().
+-spec create_registration_response(Conn, RegCode, Data) -> Result when
+    Conn    :: conn(),
+    RegCode :: integer(),
+    Data    :: binary() | undefined,
+    Result  :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-create_registration_response(ConnInfo, RegCode, undefined) ->
-  create_registration_response(ConnInfo, RegCode, <<>>);
-create_registration_response(ConnInfo,  RegCode, RespData) ->
-  srpc_encryptor:encrypt(origin_responder, ConnInfo,
+create_registration_response(Conn, RegCode, undefined) ->
+  create_registration_response(Conn, RegCode, <<>>);
+create_registration_response(Conn,  RegCode, RespData) ->
+  srpc_encryptor:encrypt(origin_responder, Conn,
                          <<RegCode:8,  RespData/binary>>).
 
-process_registration_response(ConnInfo, RegResponse) ->
-  case srpc_encryptor:decrypt(origin_responder, ConnInfo, RegResponse) of
+process_registration_response(Conn, RegResponse) ->
+  case srpc_encryptor:decrypt(origin_responder, Conn, RegResponse) of
     {ok, << RegCode:8, RespData/binary >>} ->
       {RegCode, RespData};
     Error ->

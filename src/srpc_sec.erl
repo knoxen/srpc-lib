@@ -53,10 +53,10 @@ const_compare(<<>>, <<>>, Acc) ->
 %%  Compute PBKDF2 passkey.
 %%--------------------------------------------------------------------------------------------------
 -spec pbkdf2(Password, Salt, Rounds) -> PassKey when
-    Password   :: binary(),
-    Salt       :: binary(),
-    Rounds :: integer(),
-    PassKey    :: binary().
+    Password :: binary(),
+    Salt     :: binary(),
+    Rounds   :: integer(),
+    PassKey  :: binary().
 %%--------------------------------------------------------------------------------------------------
 pbkdf2(Password, Salt, Rounds) when is_binary(Password), is_binary(Salt), is_integer(Rounds) ->
   pbkdf2(Password, Salt, Rounds, ?SRPC_HMAC_256_SIZE, 1, []).
@@ -139,35 +139,35 @@ pad_value(PublicKey, Size) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Client Connection Keys
 %%--------------------------------------------------------------------------------------------------
--spec client_conn_keys(ConnInfo, Verifier) -> Result when
-    ConnInfo :: conn_info(),
+-spec client_conn_keys(Conn, Verifier) -> Result when
+    Conn     :: conn(),
     Verifier :: verifier(),
-    Result   :: {ok, conn_info()} | error_msg().
+    Result   :: {ok, conn()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-client_conn_keys(ConnInfo, Verifier) ->
+client_conn_keys(Conn, Verifier) ->
   ExchKeyPair = srpc_sec:generate_server_keys(Verifier),
   SrpServerParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
-  conn_keys(maps:put(exch_key_pair, ExchKeyPair, ConnInfo), SrpServerParams).
+  conn_keys(maps:put(exch_key_pair, ExchKeyPair, Conn), SrpServerParams).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Server Connection Keys
 %%--------------------------------------------------------------------------------------------------
--spec server_conn_keys(ConnInfo, IdPass, SaltInfo) -> Result when
-    ConnInfo :: conn_info(),
+-spec server_conn_keys(Conn, IdPass, SaltInfo) -> Result when
+    Conn     :: conn(),
     IdPass   :: {binary(), binary()},
     SaltInfo :: {integer(), binary(), binary()},
-    Result   :: {ok, conn_info()} | error_msg().
+    Result   :: {ok, conn()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-server_conn_keys(ConnInfo, {Id, Password}, {KdfRounds, KdfSalt, SrpSalt}) ->
+server_conn_keys(Conn, {Id, Password}, {KdfRounds, KdfSalt, SrpSalt}) ->
   X = user_private_key(Id, Password, KdfRounds, KdfSalt, SrpSalt),
-  conn_keys(ConnInfo, {user, [X, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]}).
+  conn_keys(Conn, {user, [X, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]}).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Connection Keys
 %%--------------------------------------------------------------------------------------------------
 conn_keys(#{conn_id         := ConnId,
             exch_public_key := ExchPublicKey,
-            exch_key_pair   := ExchKeyPair} = ConnInfo, SrpParams) ->
+            exch_key_pair   := ExchKeyPair} = Conn, SrpParams) ->
   CalcSecret = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, SrpParams),
   Secret = pad_value(CalcSecret, erlang:byte_size(?SRPC_GROUP_MODULUS)),
 
@@ -188,7 +188,7 @@ conn_keys(#{conn_id         := ConnId,
   case hkdf_keys({SymAlg, ShaAlg}, HkdfSalt, ConnId, Secret) of
     {ReqSymKey, ReqHmacKey, RespSymKey, RespHmacKey} ->
       HashSecret = crypto:hash(ShaAlg, Secret),
-      {ok, maps:merge(ConnInfo, #{exch_hash     => HashSecret,
+      {ok, maps:merge(Conn, #{exch_hash     => HashSecret,
                                   sym_alg       => SymAlg,
                                   req_sym_key   => ReqSymKey,
                                   req_hmac_key  => ReqHmacKey,
@@ -260,8 +260,8 @@ user_private_key(Id, Password, KdfRounds, KdfSalt, SrpSalt) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Process client challenge
 %%--------------------------------------------------------------------------------------------------
--spec process_client_challenge(ConnInfo, ClientChallenge) -> Result when
-    ConnInfo        :: conn_info(),
+-spec process_client_challenge(Conn, ClientChallenge) -> Result when
+    Conn            :: conn(),
     ClientChallenge :: binary(),
     Result          :: {ok, binary()} | {invalid, binary()}.
 %%--------------------------------------------------------------------------------------------------
@@ -288,8 +288,8 @@ process_client_challenge(#{exch_public_key := ClientPublicKey,
 %%--------------------------------------------------------------------------------------------------
 %%  Process server challenge
 %%--------------------------------------------------------------------------------------------------
--spec process_server_challenge(ConnInfo, ServerChallenge) -> boolean() when
-    ConnInfo        :: conn_info(),
+-spec process_server_challenge(Conn, ServerChallenge) -> boolean() when
+    Conn            :: conn(),
     ServerChallenge :: binary().
 %%--------------------------------------------------------------------------------------------------
 process_server_challenge(#{exch_public_key := ServerPublicKey,
@@ -312,10 +312,10 @@ process_server_challenge(#{exch_public_key := ServerPublicKey,
 %%--------------------------------------------------------------------------------------------------
 %% @doc Refresh client keys using data
 %%
--spec refresh_keys(ConnInfo, Salt) -> Result when
-    ConnInfo :: conn_info(),
-    Salt     :: binary(),
-    Result   :: {ok, conn_info()} | error_msg().
+-spec refresh_keys(Conn, Salt) -> Result when
+    Conn   :: conn(),
+    Salt   :: binary(),
+    Result :: {ok, conn()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 refresh_keys(#{conn_id       := ConnId,
                sym_alg       := SymAlg,
@@ -324,12 +324,12 @@ refresh_keys(#{conn_id       := ConnId,
                resp_sym_key  := RespSymKey,
                resp_hmac_key := RespHmacKey,
                sha_alg       := ShaAlg
-              } = ConnInfo, Salt) ->
+              } = Conn, Salt) ->
 
   IKM = <<ReqSymKey/binary, ReqHmacKey/binary, RespSymKey/binary, RespHmacKey/binary>>,
   case hkdf_keys({SymAlg, ShaAlg}, Salt, ConnId, IKM) of
     {NewReqSymKey, NewReqHmacKey, NewRespSymKey, NewRespHmacKey} ->
-      {ok, maps:merge(ConnInfo,
+      {ok, maps:merge(Conn,
                       #{req_sym_key   => NewReqSymKey,
                         req_hmac_key  => NewReqHmacKey,
                         resp_sym_key  => NewRespSymKey,

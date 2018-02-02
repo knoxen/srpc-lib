@@ -91,7 +91,7 @@
 -type keys()          :: {sym_key(), sym_key(), hmac_key()}.
 -type sym_alg()       :: aes128 | aes192 | aes256.
 -type sha_alg()       :: sha256 | sha384 | sha512.
--type conn_info()     :: #{conn_id         => conn_id()
+-type conn()     :: #{conn_id         => conn_id()
                           ,exch_public_key => exch_key()
                           ,exch_key_pair   => exch_key_pair()
                           ,entity_id       => binary()

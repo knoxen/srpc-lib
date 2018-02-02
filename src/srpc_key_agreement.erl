@@ -17,25 +17,25 @@
 create_confirm_request(#{exch_public_key := ExchPublicKey,
                          exch_key_pair   := ExchKeyPair,
                          exch_hash       := ExchHash,
-                         sha_alg         := ShaAlg} = ConnInfo,
+                         sha_alg         := ShaAlg} = Conn,
                        OptionalData) ->
   {PairPublicKey, _} = ExchKeyPair,
   ChallengeData = <<PairPublicKey/binary, ExchPublicKey/binary, ExchHash/binary>>,
   Challenge = crypto:hash(ShaAlg, ChallengeData),
   ConfirmData = <<Challenge/binary, OptionalData/binary>>,
-  srpc_encryptor:encrypt(origin_requester, ConnInfo, ConfirmData).
+  srpc_encryptor:encrypt(origin_requester, Conn, ConfirmData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process Key Confirm Response
 %%    
 %%--------------------------------------------------------------------------------------------------
-process_confirm_response(ConnInfo, EncryptedResponse) ->
-  case srpc_encryptor:decrypt(origin_responder, ConnInfo, EncryptedResponse) of
+process_confirm_response(Conn, EncryptedResponse) ->
+  case srpc_encryptor:decrypt(origin_responder, Conn, EncryptedResponse) of
     {ok, <<ServerChallenge:?SRPC_CHALLENGE_SIZE/binary, OptionalData/binary>>} ->
-      case srpc_sec:process_server_challenge(ConnInfo, ServerChallenge) of
+      case srpc_sec:process_server_challenge(Conn, ServerChallenge) of
         true ->
           {ok,
-           srpc_util:remove_keys(ConnInfo, [exch_public_key, exch_key_pair, exch_hash]),
+           srpc_util:remove_keys(Conn, [exch_public_key, exch_key_pair, exch_hash]),
            OptionalData};
         false ->
           {invalid, <<"Invalid server challenge">>}

@@ -24,11 +24,11 @@
 %%--------------------------------------------------------------------------------------------------
 %% @doc Encrypt data using client information
 %%
--spec encrypt(Origin, ConnInfo, Data) -> Result when
-    Origin   :: origin(),
-    ConnInfo :: conn_info(),
-    Data     :: binary(),
-    Result   :: {ok, binary()} | error_msg().
+-spec encrypt(Origin, Conn, Data) -> Result when
+    Origin :: origin(),
+    Conn   :: conn(),
+    Data   :: binary(),
+    Result :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 encrypt(origin_requester, #{conn_id      := ConnId,
                             req_sym_key  := SymKey,
@@ -39,7 +39,7 @@ encrypt(origin_responder, #{conn_id       := ConnId,
                             resp_sym_key  := SymKey,
                             resp_hmac_key := HmacKey}, Data) ->
   encrypt_keys(SymKey, HmacKey, ConnId, Data);
-encrypt(_Origin, _ConnInfo, _Data) ->
+encrypt(_Origin, _Conn, _Data) ->
   {error, <<"Mismatch origin and keys for encrypt">>}.
 
 %%--------------------------------------------------------------------------------------------------
@@ -47,9 +47,9 @@ encrypt(_Origin, _ConnInfo, _Data) ->
 %%--------------------------------------------------------------------------------------------------
 %% @doc Decrypt packet using client information
 %%
--spec decrypt(Origin, ConnInfo, Packet) -> Result when
+-spec decrypt(Origin, Conn, Packet) -> Result when
     Origin   :: origin(),
-    ConnInfo :: conn_info(),
+    Conn :: conn(),
     Packet   :: binary(),
     Result   :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
@@ -62,7 +62,7 @@ decrypt(origin_responder, #{conn_id       := ConnId,
                             resp_hmac_key := HmacKey}, Packet) ->
   decrypt_keys(SymKey, HmacKey, ConnId, Packet);
 
-decrypt(_Origin, _ConnInfo, _Packet) ->
+decrypt(_Origin, _Conn, _Packet) ->
   {error, <<"Mismatch origin and keys for decrypt">>}.
 
 %%==================================================================================================
@@ -141,12 +141,12 @@ encrypt_data(_SymKey, _IV, _HmacKey, _PlainText) ->
 %% @private
 %%
 -spec decrypt_keys(SymKey, HmacKey, ConnId, Packet) -> Result when
-    SymKey   :: sym_key(),
-    HmacKey  :: sym_key(),
-    ConnId   :: binary(),
-    Packet   :: binary(),
-    Data     :: binary(),
-    Result   :: {ok, Data} | error_msg() | invalid_msg().
+    SymKey  :: sym_key(),
+    HmacKey :: sym_key(),
+    ConnId  :: binary(),
+    Packet  :: binary(),
+    Data    :: binary(),
+    Result  :: {ok, Data} | error_msg() | invalid_msg().
 %%--------------------------------------------------------------------------------------------------
 decrypt_keys(SymKey, HmacKey, ConnId, Packet) ->
   PacketSize = byte_size(Packet),

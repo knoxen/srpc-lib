@@ -46,7 +46,7 @@ process_exchange_response(ClientKeys,
                             ServerPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
                             _OptionalData/binary>>) ->
 
-  ConnInfo = #{conn_id         => ConnId,
+  Conn = #{conn_id         => ConnId,
                entity_id       => srpc_lib:srpc_id(),
                exch_public_key => ServerPublicKey,
                exch_key_pair   => ClientKeys
@@ -57,7 +57,7 @@ process_exchange_response(ClientKeys,
   {ok, KdfRounds} = application:get_env(srpc_lib, lib_kdf_rounds),
   {ok, SrpSalt}   = application:get_env(srpc_lib, lib_srp_salt),
 
-  srpc_sec:server_conn_keys(ConnInfo, {LibId, Passcode}, {KdfRounds, KdfSalt, SrpSalt}).
+  srpc_sec:server_conn_keys(Conn, {LibId, Passcode}, {KdfRounds, KdfSalt, SrpSalt}).
 
 %%==================================================================================================
 %%
@@ -94,18 +94,18 @@ process_exchange_request(_) ->
 %%  Create Lib Key Exchange Response
 %%    Server Pub Key | <Optional Data>
 %%--------------------------------------------------------------------------------------------------
--spec create_exchange_response(ConnInfo, ExchangeData) -> Response when
-    ConnInfo     :: conn_info(),
+-spec create_exchange_response(Conn, ExchangeData) -> Response when
+    Conn         :: conn(),
     ExchangeData :: binary(),
-    Response     :: {ok, {conn_info(), binary()}} | error_msg().
+    Response     :: {ok, {conn(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-create_exchange_response(ExchConnInfo, ExchangeData) -> 
+create_exchange_response(ExchConn, ExchangeData) -> 
   {ok, LibVerifier} = application:get_env(srpc_lib, lib_verifier),
-  case srpc_sec:client_conn_keys(ExchConnInfo, LibVerifier) of
-    {ok, ConnInfo} ->
-      {ServerPublicKey, _ServerPrivateKey} = maps:get(exch_key_pair, ConnInfo),
+  case srpc_sec:client_conn_keys(ExchConn, LibVerifier) of
+    {ok, Conn} ->
+      {ServerPublicKey, _ServerPrivateKey} = maps:get(exch_key_pair, Conn),
       ExchangeResponse = <<ServerPublicKey/binary, ExchangeData/binary>>,
-      {ok, {ConnInfo, ExchangeResponse}};
+      {ok, {Conn, ExchangeResponse}};
     Error ->
       Error
   end.
@@ -114,15 +114,15 @@ create_exchange_response(ExchConnInfo, ExchangeData) ->
 %%  Process Lib Key Confirm Request
 %%    Client Challenge | <Confirm Data>
 %%--------------------------------------------------------------------------------------------------
--spec process_confirm_request(ConnInfo, Request) -> Result when
-    ConnInfo :: conn_info(),
-    Request  :: binary(),
-    Result   :: {ok, {binary(), binary()}} | {invalid, binary()} | error_msg().
+-spec process_confirm_request(Conn, Request) -> Result when
+    Conn    :: conn(),
+    Request :: binary(),
+    Result  :: {ok, {binary(), binary()}} | {invalid, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_confirm_request(ConnInfo, Request) ->
-  case srpc_encryptor:decrypt(origin_requester, ConnInfo, Request) of
+process_confirm_request(Conn, Request) ->
+  case srpc_encryptor:decrypt(origin_requester, Conn, Request) of
     {ok, <<Challenge:?SRPC_CHALLENGE_SIZE/binary, ConfirmData/binary>>} ->
-      case srpc_sec:process_client_challenge(ConnInfo, Challenge) of
+      case srpc_sec:process_client_challenge(Conn, Challenge) of
         {ok, ServerChallenge} ->
           {ok, {ServerChallenge, ConfirmData}};
         Invalid ->
@@ -138,18 +138,18 @@ process_confirm_request(ConnInfo, Request) ->
 %%  Create Lib Key Confirm Response
 %%    Server Challenge | <Confirm Data>
 %%--------------------------------------------------------------------------------------------------
--spec create_confirm_response(ConnInfo, ServerChallenge, OptionalData) -> Result when
-    ConnInfo :: conn_info(),
+-spec create_confirm_response(Conn, ServerChallenge, OptionalData) -> Result when
+    Conn            :: conn(),
     ServerChallenge :: binary(),
     OptionalData    :: binary(),
-    Result          :: {ok, conn_info(), binary()} | error_msg() | invalid_msg().
+    Result          :: {ok, conn(), binary()} | error_msg() | invalid_msg().
 %%--------------------------------------------------------------------------------------------------
-create_confirm_response(ConnInfo, ServerChallenge, OptionalData) ->
+create_confirm_response(Conn, ServerChallenge, OptionalData) ->
   ConfirmResponse = <<ServerChallenge/binary, OptionalData/binary>>,
-  case srpc_encryptor:encrypt(origin_responder, ConnInfo, ConfirmResponse) of
+  case srpc_encryptor:encrypt(origin_responder, Conn, ConfirmResponse) of
     {ok, ConfirmPacket} ->
       {ok, 
-       srpc_util:remove_keys(ConnInfo, [exch_public_key, exch_key_pair, exch_hash]),
+       srpc_util:remove_keys(Conn, [exch_public_key, exch_key_pair, exch_hash]),
        ConfirmPacket};
     Error ->
       Error
