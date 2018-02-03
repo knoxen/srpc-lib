@@ -45,7 +45,8 @@ create_registration_request(Conn, Code, UserId, Password, Data) ->
     Result  :: {ok, {integer(), map(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_registration_request(Conn, Request) ->
-  VerifierSize = erlang:byte_size(?SRPC_GROUP_MODULUS),
+  {_G, N} = srpc_sec:srp_group(),
+  VerifierSize = erlang:byte_size(N),
   case srpc_encryptor:decrypt(origin_requester, Conn, Request) of
     {ok, <<UserIdLen:8, 
            UserId:UserIdLen/binary,

@@ -14,7 +14,8 @@
          calc_verifier/3, calc_verifier/4, calc_verifier/5,
          process_client_challenge/2,
          process_server_challenge/2,
-         refresh_keys/2
+         refresh_keys/2,
+         srp_group/0
         ]).
 
 %%==================================================================================================
@@ -90,7 +91,8 @@ pbkdf2(Password, Salt, Rounds, Block, Iteration, Current, Value) ->
 %%--------------------------------------------------------------------------------------------------
 validate_public_key(PublicKey) when is_binary(PublicKey),
                                     byte_size(PublicKey) =:= ?SRPC_PUBLIC_KEY_SIZE ->
-  case crypto:mod_pow(PublicKey, 1, ?SRPC_GROUP_MODULUS) of
+  {_G, N} = srp_group(),
+  case crypto:mod_pow(PublicKey, 1, N) of
     <<>> ->
       {error, <<"Public Key mod N == 0">>};
     _ ->
@@ -108,7 +110,8 @@ validate_public_key(_PublicKey) ->
     PublicKeys :: exch_key_pair().
 %%--------------------------------------------------------------------------------------------------
 generate_client_keys() ->
-  SrpParams = [?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
+  {G, N} = srp_group(),
+  SrpParams = [G, N, ?SRPC_SRP_VERSION],
   {PublicKey, PrivateKey} = crypto:generate_key(srp, {user, SrpParams}),
   {pad_value(PublicKey, ?SRPC_PUBLIC_KEY_SIZE), PrivateKey}.
 
@@ -120,7 +123,8 @@ generate_client_keys() ->
     PublicKeys :: exch_key_pair().
 %%--------------------------------------------------------------------------------------------------
 generate_server_keys(Verifier) ->
-  SrpParams = [Verifier, ?SRPC_GROUP_GENERATOR, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION],
+  {G, N} = srp_group(),
+  SrpParams = [Verifier, G, N, ?SRPC_SRP_VERSION],
   {PublicKey, PrivateKey} = crypto:generate_key(srp, {host, SrpParams}),
   {pad_value(PublicKey, ?SRPC_PUBLIC_KEY_SIZE), PrivateKey}.
 
@@ -146,7 +150,8 @@ pad_value(PublicKey, Size) ->
 %%--------------------------------------------------------------------------------------------------
 client_conn_keys(Conn, Verifier) ->
   ExchKeyPair = srpc_sec:generate_server_keys(Verifier),
-  SrpServerParams = {host, [Verifier, ?SRPC_GROUP_MODULUS, ?SRPC_SRP_VERSION]},
+  {_G, N} = srp_group(),
+  SrpServerParams = {host, [Verifier, N, ?SRPC_SRP_VERSION]},
   conn_keys(maps:put(exch_key_pair, ExchKeyPair, Conn), SrpServerParams).
 
 %%--------------------------------------------------------------------------------------------------
@@ -160,7 +165,8 @@ client_conn_keys(Conn, Verifier) ->
 %%--------------------------------------------------------------------------------------------------
 server_conn_keys(Conn, {Id, Password}, {KdfRounds, KdfSalt, SrpSalt}) ->
   X = user_private_key(Id, Password, KdfRounds, KdfSalt, SrpSalt),
-  conn_keys(Conn, {user, [X, ?SRPC_GROUP_MODULUS, ?SRPC_GROUP_GENERATOR, ?SRPC_SRP_VERSION]}).
+  {G, N} = srp_group(),
+  conn_keys(Conn, {user, [X, N, G, ?SRPC_SRP_VERSION]}).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Connection Keys
@@ -169,7 +175,9 @@ conn_keys(#{conn_id         := ConnId,
             exch_public_key := ExchPublicKey,
             exch_key_pair   := ExchKeyPair} = Conn, SrpParams) ->
   CalcSecret = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, SrpParams),
-  Secret = pad_value(CalcSecret, erlang:byte_size(?SRPC_GROUP_MODULUS)),
+
+  {_G, N} = srp_group(),
+  Secret = pad_value(CalcSecret, erlang:byte_size(N)),
 
   %% Algorithms fixed for now
   {SymAlg, ShaAlg} = {aes256, sha256},
@@ -245,7 +253,8 @@ calc_verifier(Id, Password, KdfRounds, KdfSalt) ->
 %%--------------------------------------------------------------------------------------------------
 calc_verifier(Id, Password, KdfRounds, KdfSalt, SrpSalt) ->
   X = user_private_key(Id, Password, KdfRounds, KdfSalt, SrpSalt),
-  crypto:mod_pow(?SRPC_GROUP_GENERATOR, X, ?SRPC_GROUP_MODULUS).
+  {G, N} = srp_group(),
+  crypto:mod_pow(G, X, N).
 
 %%--------------------------------------------------------------------------------------------------
 %%  SRP user private key (exponent for verifier calculation)
@@ -440,3 +449,7 @@ num_octets(ShaAlg, Len) ->
     _ -> NumOctets + 1
   end.
 
+srp_group() ->
+  {ok, G} = application:get_env(srpc_lib, lib_g),
+  {ok, N} = application:get_env(srpc_lib, lib_N),
+  {G, N}.
