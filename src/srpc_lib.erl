@@ -4,10 +4,8 @@
 
 -include("srpc_lib.hrl").
 
-%% Srpc PER files
--export([server_per_file/1,
-         client_per_file/1
-        ]).
+%% Srpc Params
+-export([init/1]).
 
 %% Srpc info
 -export([srpc_id/0,
@@ -67,40 +65,44 @@
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  SRPC server PER file
+%%  Initialize Srpc lib parameters
 %%--------------------------------------------------------------------------------------------------
--spec server_per_file(PerFile :: string()) -> ok | error_msg().
+-spec init(SrpcParams) -> Result when
+    SrpcParams :: binary(),
+    Result     :: ok | error_msg().
 %%--------------------------------------------------------------------------------------------------
-server_per_file(PerFile) ->
-  case parse_server_per_file(PerFile) of
-    {ok, Id, Verifier, KdfRounds} ->
-      Persistent = [{persistent, true}],
-      application:set_env(srpc_lib, lib_id,         Id,        Persistent),
-      application:set_env(srpc_lib, lib_verifier,   Verifier,  Persistent),
-      application:set_env(srpc_lib, lib_kdf_rounds, KdfRounds, Persistent),
+init(SrpcParams) when is_binary(SrpcParams) ->
+  case srpc_util:parse_params(SrpcParams) of
+    {server, LibId, G, N, V} ->
+      set_param(lib_id, LibId),
+      set_param(lib_g, G),
+      set_param(lib_N, N),
+      set_param(lib_verifier, V),
+      ok;
+    {client, LibId, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt} ->
+      set_param(lib_id, LibId),
+      set_param(lib_g, G),
+      set_param(lib_N, N),
+      set_param(lib_passcode, Passcode),
+      set_param(lib_kdf_rounds, KdfRounds),
+      set_param(lib_kdf_salt, KdfSalt),
+      set_param(lib_srp_salt, SrpSalt),
       ok;
     Error ->
       Error
-  end.
-
+  end;
+init(_Params) ->
+  {error, <<"Invalid Srpc params">>}.
+      
 %%--------------------------------------------------------------------------------------------------
-%%  SRPC client PER file
+%%  
 %%--------------------------------------------------------------------------------------------------
--spec client_per_file(PerFile :: string()) -> ok | error_msg().
+-spec set_param(Param, Value) -> ok when
+    Param :: atom(),
+    Value :: any().
 %%--------------------------------------------------------------------------------------------------
-client_per_file(PerFile) ->
-  case parse_client_per_file(PerFile) of
-    {ok, Id, Passcode, KdfSalt, KdfRounds, SrpSalt} ->
-      Persistent = [{persistent, true}],
-      application:set_env(srpc_lib, lib_id,         Id,        Persistent),
-      application:set_env(srpc_lib, lib_passcode,   Passcode,  Persistent),
-      application:set_env(srpc_lib, lib_kdf_salt,   KdfSalt,   Persistent),
-      application:set_env(srpc_lib, lib_kdf_rounds, KdfRounds, Persistent),
-      application:set_env(srpc_lib, lib_srp_salt,   SrpSalt,   Persistent),
-      ok;
-    Error ->
-      Error
-  end.
+set_param(Param, Value) ->
+  application:set_env(srpc_lib, Param, Value, [{persistent, true}]).
 
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC Id
@@ -492,74 +494,3 @@ decrypt(Origin, Conn, Packet) ->
 %%--------------------------------------------------------------------------------------------------
 refresh_keys(Conn, Data) ->
   srpc_sec:refresh_keys(Conn, Data).
-
-%%--------------------------------------------------------------------------------------------------
-%%  Parse SRPC server PER file
-%%--------------------------------------------------------------------------------------------------
--spec parse_server_per_file(PerFile) -> Result when
-    PerFile   :: string(),
-    Id        :: binary(),
-    Verifier  :: binary(),
-    KdfRounds :: integer(),
-    Result    :: {ok, Id, Verifier, KdfRounds} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-parse_server_per_file(PerFile) ->
-  case file:read_file(PerFile) of
-    {ok, Data} ->
-      case parse_per_data(Data) of
-        [Id, Verifier, BinKdfRounds] ->
-          KdfRounds = srpc_util:bin_to_int(BinKdfRounds),
-          {ok, Id, Verifier, KdfRounds};
-        _ ->
-          Reason = io_lib:format("Failed processing server PER file ~p: wrong format", [PerFile]),
-          {error, erlang:list_to_binary(Reason)}
-      end;
-    {error, Error} ->
-      Reason = io_lib:format("Failed processing server PER file ~p: ~p", [PerFile, Error]),
-      {error, erlang:list_to_binary(Reason)}
-  end.
-
-%%--------------------------------------------------------------------------------------------------
-%%  Parse SRPC client PER file
-%%--------------------------------------------------------------------------------------------------
--spec parse_client_per_file(PerFile) -> Result when
-    PerFile   :: string(),
-    Id        :: binary(),
-    Passcode  :: binary(),
-    KdfSalt   :: binary(),
-    KdfRounds :: integer(),
-    SrpSalt   :: binary(),
-    Result    :: {ok, Id, Passcode, KdfSalt, KdfRounds, SrpSalt} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-parse_client_per_file(PerFile) ->
-  case file:read_file(PerFile) of
-    {ok, Data} ->
-      case parse_per_data(Data) of
-        [Id, Passcode, KdfSalt, BinKdfRounds, SrpSalt] ->
-          KdfRounds = srpc_util:bin_to_int(BinKdfRounds),
-          {ok, Id, Passcode, KdfSalt, KdfRounds, SrpSalt};
-        _ ->
-          Reason = io_lib:format("Failed processing client PER file ~p: wrong format", [PerFile]),
-          {error, erlang:list_to_binary(Reason)}
-      end;
-    {error, Error} ->
-      Reason = io_lib:format("Failed processing client PER file ~p: ~p", [PerFile, Error]),
-      {error, erlang:list_to_binary(Reason)}
-  end.
-
-%%--------------------------------------------------------------------------------------------------
-%%  Parse PER data
-%%--------------------------------------------------------------------------------------------------
-parse_per_data(Data) ->
-  lists:foldl(
-    fun(Hex, List) ->
-        case Hex of
-          <<>> -> 
-            List;
-          _ -> 
-            lists:append(List, [srpc_util:hex_to_bin(Hex)])
-        end
-    end,
-    [],
-    binary:split(Data, [<<"\n">>], [global])).
-

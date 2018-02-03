@@ -10,7 +10,10 @@
          hex_to_int/1,
          int_to_bin/1,
          bin_to_int/1,
-         remove_keys/2
+         remove_keys/2,
+         parse_params/1,
+         server_params/4,
+         client_params/7
         ]).
 
 %% CxDebug
@@ -142,3 +145,145 @@ bin_to_int(Bin) ->
 %%==================================================================================================
 remove_keys(Map, Keys) ->
   lists:foldl(fun(Key, NewMap) -> maps:remove(Key, NewMap) end, Map, Keys).
+
+%%==================================================================================================
+%%
+%%  Parse srpc parameters
+%%
+%%==================================================================================================
+%%--------------------------------------------------------------------------------------------------
+%%
+%%--------------------------------------------------------------------------------------------------
+-spec parse_params(Params) -> Result when
+    Params    :: binary(),
+    Type      :: server | client,
+    LibId     :: binary(),
+    G         :: binary(),
+    N         :: binary(),
+    Verifier  :: binary(),
+    Passcode  :: binary(),
+    KdfRounds :: integer(),
+    KdfSalt   :: binary(),
+    SrpSalt   :: binary(),
+    Result    :: {Type, LibId, G, N, Verifier} |
+                 {Type, LibId, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt} |
+                 error_msg().
+%%--------------------------------------------------------------------------------------------------
+parse_params(<< T, 
+                IdLen:8, Id:IdLen/binary,
+                G:1/binary, 
+                NLen:16, N:NLen/binary, 
+                Params/binary >>) ->
+  Shared = {Id, G, N},
+  case T of
+    0 ->
+      parse_server_params(Params, Shared);
+    1 ->
+      parse_client_params(Params, Shared);
+    _ ->
+      {error, <<"Invalid srpc params type">>}
+  end;
+parse_params(_Params) ->
+  {error, <<"Invalid srpc params packet">>}.
+
+%%--------------------------------------------------------------------------------------------------
+%%
+%%--------------------------------------------------------------------------------------------------
+-spec parse_server_params(Params, Shared) -> Result when
+    Params   :: binary(),
+    Shared   :: {Id, G, N} | error_msg(),
+    Id       :: binary(),
+    G        :: binary(),
+    N        :: binary(),
+    Verifier :: binary(),
+    Result   :: {server, Id, G, N, Verifier} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+parse_server_params(_Params, {error, _} = Error) ->
+  Error;
+parse_server_params(<< VLen:16, Verifier:VLen/binary >>, {Id, G, N}) ->
+  {server, Id, G, N, Verifier};
+parse_server_params(_Params, _Shared) ->
+  {error, <<"Invalid server params">>}.
+
+%%--------------------------------------------------------------------------------------------------
+%%
+%%--------------------------------------------------------------------------------------------------
+-spec parse_client_params(Params, Shared) -> Result when
+    Params    :: binary(),
+    Shared    :: {Id, G, N} | error_msg(),
+    Id        :: binary(),
+    G         :: binary(),
+    N         :: binary(),
+    Passcode  :: binary(),
+    KdfRounds :: integer(),
+    KdfSalt   :: binary(),
+    SrpSalt   :: binary(),
+    Result    :: {client, Id, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+parse_client_params(_Params, {error, _} = Error) ->
+  Error;
+parse_client_params(<< PcLen:8, Passcode:PcLen/binary,
+                       KdfRounds:32/integer,
+                       KdfLen:8, KdfSalt:KdfLen/binary,
+                       SrpLen:8, SrpSalt:SrpLen/binary>>,
+                    {Id, G, N}) ->
+  {client, Id, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt};
+parse_client_params(_Params, {ok, _Shared}) ->
+  {error, <<"Invalid client params">>}.
+
+%%==================================================================================================
+%%
+%%  Pack lib parameters
+%%
+%%==================================================================================================
+%%--------------------------------------------------------------------------------------------------
+%%  Srpc parameters for server
+%%--------------------------------------------------------------------------------------------------
+server_params(LibId, G, N, Verifier) ->
+  case shared_params(0, LibId, G, N) of
+    {ok, Shared} ->
+      VLen = erlang:byte_size(Verifier),
+      {ok, << Shared/binary,
+              VLen:16, Verifier/binary >>};
+    Error ->
+      Error
+  end.
+
+%%--------------------------------------------------------------------------------------------------
+%%  Srpc parameters for client
+%%--------------------------------------------------------------------------------------------------
+client_params(LibId, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt) ->
+  case shared_params(1, LibId, G, N) of
+    {ok, Shared} ->
+      PcLen = erlang:byte_size(Passcode),
+      KdfLen = erlang:byte_size(KdfSalt),
+      SrpLen = erlang:byte_size(SrpSalt),
+      {ok, << Shared/binary,
+              PcLen:8, Passcode/binary,
+              KdfRounds:32,
+              KdfLen:8, KdfSalt/binary,
+              SrpLen:8, SrpSalt/binary >>};
+    Error ->
+      Error
+  end.
+
+shared_params(T, LibId, G, N) when is_binary(LibId), erlang:byte_size(LibId) < 256, 
+                                   is_binary(G), 
+                                   is_binary(N) ->
+  IdLen = erlang:byte_size(LibId),
+  NLen  = erlang:byte_size(N),
+  {ok, << T:8, IdLen:8, LibId/binary, G:1/binary, NLen:16, N/binary >>};
+shared_params(_T, LibId, G, N) when is_binary(LibId),
+                                   is_binary(G), 
+                                   is_binary(N) ->
+  {error, <<"Invalid lib params LibId: greater than 255 bytes">>};
+shared_params(_T, _LibId, G, N) when is_binary(G),
+                                    is_binary(N) ->
+  {error, <<"Invalid lib params id">>};
+shared_params(_T, LibId, G, _N) when is_binary(LibId),
+                                    is_binary(G) ->
+  {error, <<"Invalid lib params modulus">>};
+shared_params(_T, LibId, _G, N) when is_binary(LibId), 
+                                   is_binary(N) ->
+  {error, <<"Invalid lib params generator">>}.
+
