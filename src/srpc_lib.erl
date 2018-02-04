@@ -130,17 +130,18 @@ srpc_version() ->
 -spec srpc_options() -> binary().
 %%--------------------------------------------------------------------------------------------------
 srpc_options() ->
-  case application:get_env(srpc_lib, lib_options) of
-    {ok, LibOptions} ->
-      case LibOptions of
-        srpc_pbkdf2_sha256_g2048_aes_256_cbc_hmac_sha256 ->
-          <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>;
-        _ ->
-          <<"Invalid lib_options for srpc_lib">>
-      end;
-    _ ->
-      <<"Missing lib_options for srpc_lib">>
-  end.      
+  <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>.
+  %% case application:get_env(srpc_lib, lib_options) of
+  %%   {ok, LibOptions} ->
+  %%     case LibOptions of
+  %%       srpc_pbkdf2_sha256_g2048_aes_256_cbc_hmac_sha256 ->
+  %%         <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>;
+  %%       _ ->
+  %%         <<"Invalid lib_options for srpc_lib">>
+  %%     end;
+  %%   _ ->
+  %%     <<"Missing lib_options for srpc_lib">>
+  %% end.      
 
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC info

@@ -267,14 +267,16 @@ depad(Bin) ->
 -spec srpc_options_hdr() -> binary().
 %%--------------------------------------------------------------------------------------------------
 srpc_options_hdr() ->
-  case application:get_env(srpc_lib, lib_options) of
-    {ok, LibOptions} ->
-      case LibOptions of
-        srpc_pbkdf2_sha256_g2048_aes_256_cbc_hmac_sha256 ->
-          <<16#00121311:32>>;
-        _ ->
-          throw(io_lib:format("Invalid srpc_lib setting for lib_options: ~p", [LibOptions]))
-      end;
-    _ ->
-      throw("Missing srpc_lib setting for lib_options")
-  end.
+  ?SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256.
+
+  %% case application:get_env(srpc_lib, lib_options) of
+  %%   {ok, LibOptions} ->
+  %%     case LibOptions of
+  %%       srpc_pbkdf2_sha256_g2048_aes_256_cbc_hmac_sha256 ->
+  %%         ?SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256;
+  %%       _ ->
+  %%         throw(io_lib:format("Invalid srpc_lib setting for lib_options: ~p", [LibOptions]))
+  %%     end;
+  %%   _ ->
+  %%     throw("Missing srpc_lib setting for lib_options")
+  %% end.
