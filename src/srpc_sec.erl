@@ -15,7 +15,8 @@
          process_client_challenge/2,
          process_server_challenge/2,
          refresh_keys/2,
-         srp_group/0
+         srp_group/0,
+         dummy_bytes/1
         ]).
 
 %%==================================================================================================
@@ -174,10 +175,17 @@ server_conn_keys(Conn, {Id, Password}, {KdfRounds, KdfSalt, SrpSalt}) ->
 conn_keys(#{conn_id         := ConnId,
             exch_public_key := ExchPublicKey,
             exch_key_pair   := ExchKeyPair} = Conn, SrpParams) ->
-  CalcSecret = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, SrpParams),
 
   {_G, N} = srp_group(),
-  Secret = pad_value(CalcSecret, erlang:byte_size(N)),
+  Size = erlang:byte_size(ExchPublicKey),
+  Secret = 
+    case srpc_sec:const_compare(ExchPublicKey, dummy_bytes(Size)) of
+      false ->
+        Computed = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, SrpParams),
+        pad_value(Computed, erlang:byte_size(N));
+      true ->
+        dummy_bytes(erlang:byte_size(N))
+    end,
 
   %% Algorithms fixed for now
   {SymAlg, ShaAlg} = {aes256, sha256},
@@ -192,17 +200,17 @@ conn_keys(#{conn_id         := ConnId,
                  <<B/binary, A/binary>>
              end,
   HkdfSalt = crypto:hash(ShaAlg, SaltData),
-  
+
   case hkdf_keys({SymAlg, ShaAlg}, HkdfSalt, ConnId, Secret) of
     {ReqSymKey, ReqHmacKey, RespSymKey, RespHmacKey} ->
       HashSecret = crypto:hash(ShaAlg, Secret),
       {ok, maps:merge(Conn, #{exch_hash     => HashSecret,
-                                  sym_alg       => SymAlg,
-                                  req_sym_key   => ReqSymKey,
-                                  req_hmac_key  => ReqHmacKey,
-                                  resp_sym_key  => RespSymKey,
-                                  resp_hmac_key => RespHmacKey,
-                                  sha_alg       => ShaAlg})};
+                              sym_alg       => SymAlg,
+                              req_sym_key   => ReqSymKey,
+                              req_hmac_key  => ReqHmacKey,
+                              resp_sym_key  => RespSymKey,
+                              resp_hmac_key => RespHmacKey,
+                              sha_alg       => ShaAlg})};
     Error ->
       Error
   end.
@@ -453,3 +461,6 @@ srp_group() ->
   {ok, G} = application:get_env(srpc_lib, lib_g),
   {ok, N} = application:get_env(srpc_lib, lib_N),
   {G, N}.
+
+dummy_bytes(Size) ->
+  << 0:(8*Size) >>.

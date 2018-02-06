@@ -53,10 +53,10 @@ process_exchange_response(Conn, UserId, Password, ClientKeys, EncryptedResponse)
            OptionalData/binary>>} ->
 
       UserConn = #{conn_id         => ConnId,
-                       entity_id       => UserId,
-                       exch_public_key => ServerPublicKey,
-                       exch_key_pair   => ClientKeys
-                      },
+                   entity_id       => UserId,
+                   exch_public_key => ServerPublicKey,
+                   exch_key_pair   => ClientKeys
+                  },
       {ok, KdfRounds} = application:get_env(srpc_lib, lib_kdf_rounds),
       case srpc_sec:server_conn_keys(UserConn, {UserId, Password},
                                      {KdfRounds, KdfSalt, SrpSalt}) of
@@ -119,9 +119,9 @@ process_exchange_request(Conn, Request) ->
 %%--------------------------------------------------------------------------------------------------
 create_exchange_response(ConnId, ExchConn, invalid, _ClientPublicKey, ExchData) ->
   encrypt_response_data(ConnId, ExchConn, ?SRPC_USER_INVALID_IDENTITY,
-                        << 0:(8*?SRPC_KDF_SALT_SIZE) >>,
-                        << 0:(8*?SRPC_SRP_SALT_SIZE) >>,
-                        << 0:(8*?SRPC_PUBLIC_KEY_SIZE) >>,
+                        srpc_sec:dummy_bytes(?SRPC_KDF_SALT_SIZE),
+                        srpc_sec:dummy_bytes(?SRPC_SRP_SALT_SIZE),
+                        srpc_sec:dummy_bytes(?SRPC_PUBLIC_KEY_SIZE),
                         ExchData);
 
 create_exchange_response(ConnId, ExchConn,
