@@ -72,38 +72,11 @@
     Result     :: ok | error_msg().
 %%--------------------------------------------------------------------------------------------------
 init(SrpcParams) when is_binary(SrpcParams) ->
-  case srpc_util:parse_params(SrpcParams) of
-    {server, LibId, G, N, V} ->
-      set_param(lib_id, LibId),
-      set_param(lib_g, G),
-      set_param(lib_N, N),
-      set_param(lib_verifier, V),
-      ok;
-    {client, LibId, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt} ->
-      set_param(lib_id, LibId),
-      set_param(lib_g, G),
-      set_param(lib_N, N),
-      set_param(lib_passcode, Passcode),
-      set_param(lib_kdf_rounds, KdfRounds),
-      set_param(lib_kdf_salt, KdfSalt),
-      set_param(lib_srp_salt, SrpSalt),
-      ok;
-    Error ->
-      Error
-  end;
+  application:set_env(srpc_lib, lib_init, erlang:monotonic_time(seconds), [{persistent, true}]),
+  srpc_util:parse_params(SrpcParams);
 init(_Params) ->
   {error, <<"Invalid Srpc params">>}.
       
-%%--------------------------------------------------------------------------------------------------
-%%  
-%%--------------------------------------------------------------------------------------------------
--spec set_param(Param, Value) -> ok when
-    Param :: atom(),
-    Value :: any().
-%%--------------------------------------------------------------------------------------------------
-set_param(Param, Value) ->
-  application:set_env(srpc_lib, Param, Value, [{persistent, true}]).
-
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC Id
 %%--------------------------------------------------------------------------------------------------
