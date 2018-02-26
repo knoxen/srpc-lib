@@ -21,7 +21,7 @@
 
 %% debug_info(Description,
 %%            #{conn_id      := ConnId,
-%%              conn_type    := ConnType,
+%%              type         := ConnType,
 %%              entity_id    := EntityId,
 %%              req_sym_key  := ReqSymKey,
 %%              req_mac_key  := ReqSymKey,

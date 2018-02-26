@@ -133,7 +133,7 @@ create_exchange_response(ConnId, ExchConn,
 
   case srpc_sec:client_conn_keys(#{conn_id         => ConnId
                                   ,exch_public_key => ClientPublicKey
-                                  ,conn_type       => user
+                                  ,type            => user
                                   ,entity_id       => UserId}
                                 ,Verifier) of
     {ok, Conn} ->
