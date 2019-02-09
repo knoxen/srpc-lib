@@ -4,10 +4,10 @@
 
 -include("srpc_lib.hrl").
 
-%% Srpc Params
+%% SRPC Params
 -export([init/1]).
 
-%% Srpc info
+%% SRPC info
 -export([srpc_id/0,
          srpc_version/0,
          srpc_options/0,
@@ -65,7 +65,7 @@
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  Initialize Srpc lib parameters
+%%  Initialize SRPC lib parameters
 %%--------------------------------------------------------------------------------------------------
 -spec init(SrpcParams) -> Result when
     SrpcParams :: binary(),
@@ -75,7 +75,7 @@ init(SrpcParams) when is_binary(SrpcParams) ->
   application:set_env(srpc_lib, lib_init, erlang:monotonic_time(seconds), [{persistent, true}]),
   srpc_util:parse_params(SrpcParams);
 init(_Params) ->
-  {error, <<"Invalid Srpc params">>}.
+  {error, <<"Invalid SRPC params">>}.
       
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC Id

@@ -166,7 +166,7 @@ decrypt_keys(SymKey, MacKey, ConnId, Packet) ->
                 <<SrpcDataHdr:HdrLen/binary, Data/binary>> ->
                   {ok, Data};
                 <<_SrpcDataHdr:HdrLen/binary, _Data/binary>> ->
-                  {error, <<"Invalid Srpc data header">>}
+                  {error, <<"Invalid SRPC data header">>}
               end;
             Error ->
               Error
@@ -262,7 +262,7 @@ depad(Bin) ->
 
 
 %%--------------------------------------------------------------------------------------------------
-%%  Binary value for Srpc options set in every encryption packet header.
+%%  Binary value for SRPC options set in every encryption packet header.
 %%--------------------------------------------------------------------------------------------------
 -spec srpc_options_hdr() -> binary().
 %%--------------------------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 %%
-%% Srpc Version
+%% SRPC Version
 %%
 -define(SRPC_VERSION_MAJOR, 1).
 -define(SRPC_VERSION_MINOR, 0).
@@ -8,7 +8,7 @@
 -define(SRPC_DATA_VERSION, 1).
 
 %%
-%% Srpc Lib Option Suites
+%% SRPC Lib Option Suites
 %%  32 Bits - Each field is 4 bits
 %%    Option Format Version  0
 %%    Reserved               0
@@ -27,7 +27,7 @@
 -define(SRPC_SRP_VERSION, '6a').
 
 %%
-%% Srpc Group  (RFC 5054)
+%% SRPC Group  (RFC 5054)
 %%
 -define(SRPC_GROUP_ID, <<"G2048">>).
 

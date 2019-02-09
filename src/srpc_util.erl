@@ -216,7 +216,7 @@ parse_client_params(_Params) ->
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  Srpc parameters for server
+%%  SRPC parameters for server
 %%--------------------------------------------------------------------------------------------------
 server_params(LibId, G, N, Verifier) ->
   case shared_params(0, LibId, G, N) of
@@ -229,7 +229,7 @@ server_params(LibId, G, N, Verifier) ->
   end.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Srpc parameters for client
+%%  SRPC parameters for client
 %%--------------------------------------------------------------------------------------------------
 client_params(LibId, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt) ->
   case shared_params(1, LibId, G, N) of
