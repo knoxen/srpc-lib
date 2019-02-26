@@ -159,10 +159,12 @@ remove_keys(Map, Keys) ->
 %%--------------------------------------------------------------------------------------------------
 parse_config(<< T:8,
                 IdLen:8, Id:IdLen/binary,
+                SecOpts:4/binary,
                 G:1/binary,
                 NLen:16, N:NLen/binary,
                 Config/binary >>) ->
   set_config(lib_id, Id),
+  set_config(lib_sec_opts, SecOpts),
   set_config(lib_g, G),
   set_config(lib_N, N),
 
