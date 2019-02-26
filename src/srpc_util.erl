@@ -11,9 +11,9 @@
          int_to_bin/1,
          bin_to_int/1,
          remove_keys/2,
-         parse_params/1,
-         server_params/4,
-         client_params/7
+         parse_config/1,
+         server_config/4,
+         client_config/7
         ]).
 
 %% CxDebug
@@ -48,8 +48,7 @@
     Hex :: string().
 %%--------------------------------------------------------------------------------------------------
 bin_to_hex(Bin) ->
-  lists:flatten([io_lib:format("~2.16.0B", [X]) ||
-                  X <- binary_to_list(Bin)]).
+  lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- binary_to_list(Bin)]).
 
 %%--------------------------------------------------------------------------------------------------
 %% @doc Convert hex string to binary.
@@ -154,61 +153,61 @@ remove_keys(Map, Keys) ->
 %%--------------------------------------------------------------------------------------------------
 %%
 %%--------------------------------------------------------------------------------------------------
--spec parse_params(Params) -> Result when
-    Params    :: binary(),
-    Result    :: ok | error_msg().
+-spec parse_config(Config) -> Result when
+    Config :: binary(),
+    Result :: ok | error_msg().
 %%--------------------------------------------------------------------------------------------------
-parse_params(<< T:8,
+parse_config(<< T:8,
                 IdLen:8, Id:IdLen/binary,
-                G:1/binary, 
-                NLen:16, N:NLen/binary, 
-                Params/binary >>) ->
-  set_param(lib_id, Id),
-  set_param(lib_g, G),
-  set_param(lib_N, N),
+                G:1/binary,
+                NLen:16, N:NLen/binary,
+                Config/binary >>) ->
+  set_config(lib_id, Id),
+  set_config(lib_g, G),
+  set_config(lib_N, N),
 
   case T of
     0 ->
-      parse_server_params(Params);
+      parse_server_config(Config);
     1 ->
-      parse_client_params(Params);
+      parse_client_config(Config);
     _ ->
-      {error, <<"Invalid srpc params type">>}
+      {error, <<"Invalid srpc config type">>}
   end;
-parse_params(_Params) ->
-  {error, <<"Invalid srpc params packet">>}.
+parse_config(_Config) ->
+  {error, <<"Invalid srpc config packet">>}.
 
 %%--------------------------------------------------------------------------------------------------
 %%
 %%--------------------------------------------------------------------------------------------------
--spec parse_server_params(Params) -> Result when
-    Params   :: binary(),
+-spec parse_server_config(Config) -> Result when
+    Config   :: binary(),
     Result   :: ok | error_msg().
 %%--------------------------------------------------------------------------------------------------
-parse_server_params(<< VLen:16, Verifier:VLen/binary >>) ->
-  set_param(lib_verifier, Verifier),
+parse_server_config(<< VLen:16, Verifier:VLen/binary >>) ->
+  set_config(lib_verifier, Verifier),
   ok;
-parse_server_params(_Params) ->
+parse_server_config(_Config) ->
   {error, <<"Invalid server param for verifier">>}.
 
 %%--------------------------------------------------------------------------------------------------
 %%
 %%--------------------------------------------------------------------------------------------------
--spec parse_client_params(Params) -> Result when
-    Params    :: binary(),
-    Result    :: ok | error_msg().
+-spec parse_client_config(Config) -> Result when
+    Config :: binary(),
+    Result :: ok | error_msg().
 %%--------------------------------------------------------------------------------------------------
-parse_client_params(<< PcLen:8, Passcode:PcLen/binary,
+parse_client_config(<< PcLen:8, Passcode:PcLen/binary,
                        KdfRounds:32/integer,
                        KdfLen:8, KdfSalt:KdfLen/binary,
                        SrpLen:8, SrpSalt:SrpLen/binary >>) ->
-  set_param(lib_passcode, Passcode),
-  set_param(lib_kdf_rounds, KdfRounds),
-  set_param(lib_kdf_salt, KdfSalt),
-  set_param(lib_srp_salt, SrpSalt),
+  set_config(lib_passcode, Passcode),
+  set_config(lib_kdf_rounds, KdfRounds),
+  set_config(lib_kdf_salt, KdfSalt),
+  set_config(lib_srp_salt, SrpSalt),
   ok;
-parse_client_params(_Params) ->
-  {error, <<"Invalid client params">>}.
+parse_client_config(_Config) ->
+  {error, <<"Invalid client config">>}.
 
 %%==================================================================================================
 %%
@@ -218,8 +217,8 @@ parse_client_params(_Params) ->
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC parameters for server
 %%--------------------------------------------------------------------------------------------------
-server_params(LibId, G, N, Verifier) ->
-  case shared_params(0, LibId, G, N) of
+server_config(LibId, G, N, Verifier) ->
+  case shared_config(0, LibId, G, N) of
     {ok, Shared} ->
       VLen = erlang:byte_size(Verifier),
       {ok, << Shared/binary,
@@ -231,8 +230,8 @@ server_params(LibId, G, N, Verifier) ->
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC parameters for client
 %%--------------------------------------------------------------------------------------------------
-client_params(LibId, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt) ->
-  case shared_params(1, LibId, G, N) of
+client_config(LibId, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt) ->
+  case shared_config(1, LibId, G, N) of
     {ok, Shared} ->
       PcLen = erlang:byte_size(Passcode),
       KdfLen = erlang:byte_size(KdfSalt),
@@ -246,33 +245,32 @@ client_params(LibId, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt) ->
       Error
   end.
 
-shared_params(T, LibId, G, N) when is_binary(LibId), erlang:byte_size(LibId) < 256, 
-                                   is_binary(G), 
+shared_config(T, LibId, G, N) when is_binary(LibId), erlang:byte_size(LibId) < 256,
+                                   is_binary(G),
                                    is_binary(N) ->
   IdLen = erlang:byte_size(LibId),
   NLen  = erlang:byte_size(N),
   {ok, << T:8, IdLen:8, LibId/binary, G:1/binary, NLen:16, N/binary >>};
-shared_params(_T, LibId, G, N) when is_binary(LibId),
-                                   is_binary(G), 
+shared_config(_T, LibId, G, N) when is_binary(LibId),
+                                   is_binary(G),
                                    is_binary(N) ->
-  {error, <<"Invalid lib params LibId: greater than 255 bytes">>};
-shared_params(_T, _LibId, G, N) when is_binary(G),
+  {error, <<"Invalid lib config LibId: greater than 255 bytes">>};
+shared_config(_T, _LibId, G, N) when is_binary(G),
                                     is_binary(N) ->
-  {error, <<"Invalid lib params id">>};
-shared_params(_T, LibId, G, _N) when is_binary(LibId),
+  {error, <<"Invalid lib config id">>};
+shared_config(_T, LibId, G, _N) when is_binary(LibId),
                                     is_binary(G) ->
-  {error, <<"Invalid lib params modulus">>};
-shared_params(_T, LibId, _G, N) when is_binary(LibId), 
+  {error, <<"Invalid lib config modulus">>};
+shared_config(_T, LibId, _G, N) when is_binary(LibId),
                                    is_binary(N) ->
-  {error, <<"Invalid lib params generator">>}.
+  {error, <<"Invalid lib config generator">>}.
 
 %%--------------------------------------------------------------------------------------------------
-%%  
+%%
 %%--------------------------------------------------------------------------------------------------
--spec set_param(Param, Value) -> ok when
-    Param :: atom(),
-    Value :: any().
+-spec set_config(Config, Value) -> ok when
+    Config :: atom(),
+    Value  :: any().
 %%--------------------------------------------------------------------------------------------------
-set_param(Param, Value) ->
-  application:set_env(srpc_lib, Param, Value, [{persistent, true}]).
-
+set_config(Config, Value) ->
+  application:set_env(srpc_lib, Config, Value, [{persistent, true}]).

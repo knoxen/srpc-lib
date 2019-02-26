@@ -73,7 +73,7 @@
 %%--------------------------------------------------------------------------------------------------
 init(SrpcConfig) when is_binary(SrpcConfig) ->
   application:set_env(srpc_lib, lib_init, erlang:monotonic_time(seconds), [{persistent, true}]),
-  srpc_util:parse_params(SrpcConfig);
+  srpc_util:parse_config(SrpcConfig);
 init(_Params) ->
   {error, <<"Invalid SRPC params">>}.
 
