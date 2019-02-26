@@ -67,16 +67,16 @@
 %%--------------------------------------------------------------------------------------------------
 %%  Initialize SRPC lib parameters
 %%--------------------------------------------------------------------------------------------------
--spec init(SrpcParams) -> Result when
-    SrpcParams :: binary(),
+-spec init(SrpcConfig) -> Result when
+    SrpcConfig :: binary(),
     Result     :: ok | error_msg().
 %%--------------------------------------------------------------------------------------------------
-init(SrpcParams) when is_binary(SrpcParams) ->
+init(SrpcConfig) when is_binary(SrpcConfig) ->
   application:set_env(srpc_lib, lib_init, erlang:monotonic_time(seconds), [{persistent, true}]),
-  srpc_util:parse_params(SrpcParams);
+  srpc_util:parse_params(SrpcConfig);
 init(_Params) ->
   {error, <<"Invalid SRPC params">>}.
-      
+
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC Id
 %%--------------------------------------------------------------------------------------------------
@@ -114,7 +114,7 @@ srpc_options() ->
   %%     end;
   %%   _ ->
   %%     <<"Missing lib_options for srpc_lib">>
-  %% end.      
+  %% end.
 
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC info
@@ -140,7 +140,7 @@ srpc_info() ->
     ClientKeys :: exch_key_pair(),
     Result     :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_lib_key_exchange_request(LibId) -> 
+create_lib_key_exchange_request(LibId) ->
   create_lib_key_exchange_request(LibId, <<>>).
 %%--------------------------------------------------------------------------------------------------
 -spec create_lib_key_exchange_request(LibId, OptionalData) -> Result when
@@ -149,7 +149,7 @@ create_lib_key_exchange_request(LibId) ->
     ClientKeys   :: exch_key_pair(),
     Result       :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_lib_key_exchange_request(LibId, OptionalData) when is_binary(OptionalData) -> 
+create_lib_key_exchange_request(LibId, OptionalData) when is_binary(OptionalData) ->
   srpc_lib_key_agreement:create_exchange_request(LibId, OptionalData).
 
 %%--------------------------------------------------------------------------------------------------
@@ -319,7 +319,7 @@ process_registration_response(Conn, RegResponse) ->
     ClientKeys :: exch_key_pair(),
     Result     :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_user_key_exchange_request(Conn, LibId) -> 
+create_user_key_exchange_request(Conn, LibId) ->
   create_user_key_exchange_request(Conn, LibId, <<>>).
 %%--------------------------------------------------------------------------------------------------
 -spec create_user_key_exchange_request(Conn, UserId, OptionalData) -> Result when
@@ -329,13 +329,13 @@ create_user_key_exchange_request(Conn, LibId) ->
     ClientKeys   :: exch_key_pair(),
     Result       :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_user_key_exchange_request(Conn, UserId, OptionalData) when is_binary(OptionalData) -> 
+create_user_key_exchange_request(Conn, UserId, OptionalData) when is_binary(OptionalData) ->
   srpc_user_key_agreement:create_exchange_request(Conn, UserId, OptionalData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process user key exchange response
 %%--------------------------------------------------------------------------------------------------
--spec process_user_key_exchange_response(Conn, UserId, Password, 
+-spec process_user_key_exchange_response(Conn, UserId, Password,
                                          ClientKeys, Response) -> Result when
     Conn       :: conn(),
     UserId     :: binary(),
@@ -345,7 +345,7 @@ create_user_key_exchange_request(Conn, UserId, OptionalData) when is_binary(Opti
     Result     :: {ok, conn()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_user_key_exchange_response(Conn, UserId, Password, ClientKeys, Response) ->
-  srpc_user_key_agreement:process_exchange_response(Conn, UserId, Password, 
+  srpc_user_key_agreement:process_exchange_response(Conn, UserId, Password,
                                                     ClientKeys, Response).
 
 %%--------------------------------------------------------------------------------------------------
@@ -396,7 +396,7 @@ process_user_key_exchange_request(Conn, Request) ->
 %%--------------------------------------------------------------------------------------------------
 %%  User key exchange response
 %%--------------------------------------------------------------------------------------------------
--spec create_user_key_exchange_response(ConnId, Conn, Registration, 
+-spec create_user_key_exchange_response(ConnId, Conn, Registration,
                                         PubKey, ExchData) -> Result when
     ConnId       :: conn_id(),
     Conn         :: conn(),
@@ -431,7 +431,7 @@ process_user_key_confirm_request(Conn, Request) ->
     Result    :: {ok, binary()} | {invalid, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 create_user_key_confirm_response(LibConn, UserConn, ClientChallenge, Data) ->
-  srpc_user_key_agreement:create_confirm_response(LibConn, UserConn, 
+  srpc_user_key_agreement:create_confirm_response(LibConn, UserConn,
                                                   ClientChallenge, Data).
 
 %%--------------------------------------------------------------------------------------------------
