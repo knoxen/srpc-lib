@@ -53,7 +53,7 @@ encrypt(_Origin, _Conn, _Data) ->
     Packet   :: binary(),
     Result   :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-decrypt(origin_requester, #{conn_id     := ConnId, 
+decrypt(origin_requester, #{conn_id     := ConnId,
                             req_sym_key := SymKey,
                             req_mac_key := MacKey}, Packet) ->
   decrypt_keys(SymKey, MacKey, ConnId, Packet);
@@ -191,7 +191,7 @@ decrypt_keys(SymKey, MacKey, ConnId, Packet) ->
 %%--------------------------------------------------------------------------------------------------
 srpc_data_hdr(ConnId) ->
   SrpcId = srpc_lib:srpc_id(),
-  SrpcOptionsHdr = srpc_options_hdr(),
+  SrpcOptionsHdr = srpc_sec_opts_hdr(),
   DataHdr = <<?SRPC_VERSION_MAJOR:8,
               ?SRPC_VERSION_MINOR:8,
               ?SRPC_VERSION_PATCH:8,
@@ -264,9 +264,9 @@ depad(Bin) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Binary value for SRPC options set in every encryption packet header.
 %%--------------------------------------------------------------------------------------------------
--spec srpc_options_hdr() -> binary().
+-spec srpc_sec_opts_hdr() -> binary().
 %%--------------------------------------------------------------------------------------------------
-srpc_options_hdr() ->
+srpc_sec_opts_hdr() ->
   ?SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256.
 
   %% case application:get_env(srpc_lib, lib_options) of

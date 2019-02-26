@@ -10,7 +10,7 @@
 %% SRPC info
 -export([srpc_id/0,
          srpc_version/0,
-         srpc_options/0,
+         srpc_sec_opts/0,
          srpc_info/0
         ]).
 
@@ -98,11 +98,11 @@ srpc_version() ->
   list_to_binary(Major ++ "." ++ Minor ++ "." ++ Patch).
 
 %%--------------------------------------------------------------------------------------------------
-%%  SRPC options
+%%  SRPC security options
 %%--------------------------------------------------------------------------------------------------
--spec srpc_options() -> binary().
+-spec srpc_sec_opts() -> binary().
 %%--------------------------------------------------------------------------------------------------
-srpc_options() ->
+srpc_sec_opts() ->
   <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>.
   %% case application:get_env(srpc_lib, lib_options) of
   %%   {ok, LibOptions} ->
@@ -124,7 +124,7 @@ srpc_options() ->
 srpc_info() ->
   Id = srpc_id(),
   Version = srpc_version(),
-  Options = srpc_options(),
+  Options = srpc_sec_opts(),
   << Id/binary, " | ",  Version/binary, " | ", Options/binary >>.
 
 %%==================================================================================================
