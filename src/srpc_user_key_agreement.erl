@@ -45,8 +45,8 @@ create_exchange_request(Conn, UserId, OptionalData) ->
 %%--------------------------------------------------------------------------------------------------
 process_exchange_response(Conn, UserId, Password, ClientKeys, EncryptedResponse) ->
   case srpc_encryptor:decrypt(origin_responder, Conn, EncryptedResponse) of
-    {ok, <<UserCode:8, 
-           ConnIdLen:8, ConnId:ConnIdLen/binary, 
+    {ok, <<UserCode:8,
+           ConnIdLen:8, ConnId:ConnIdLen/binary,
            KdfSalt:?SRPC_KDF_SALT_SIZE/binary,
            SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
            ServerPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
@@ -202,7 +202,7 @@ create_confirm_response(LibConn, UserConn, ClientChallenge, ConfirmData) ->
   case srpc_encryptor:encrypt(origin_responder, LibConn, ConfirmResponse) of
     {ok, ConfirmPacket} ->
       {Atom,
-       srpc_util:remove_keys(UserConn, [exch_public_key, exch_key_pair, exch_hash]),
+       srpc_util:remove_map_keys(UserConn, [exch_public_key, exch_key_pair, exch_hash]),
        ConfirmPacket};
     Error ->
       Error
@@ -224,7 +224,7 @@ create_confirm_response(LibConn, UserConn, ClientChallenge, ConfirmData) ->
     UserCode        :: integer(),
     KdfSalt         :: binary(),
     SrpSalt         :: binary(),
-    ServerPublicKey :: exch_key(),    
+    ServerPublicKey :: exch_key(),
     ExchangeData    :: binary(),
     Result          :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
@@ -233,7 +233,7 @@ encrypt_response_data(ConnId, Conn, UserCode,
   ConnIdLen = byte_size(ConnId),
   ResponseData = <<UserCode:8,
                    ConnIdLen:8, ConnId/binary,
-                   KdfSalt/binary, SrpSalt/binary, 
+                   KdfSalt/binary, SrpSalt/binary,
                    ServerPublicKey/binary,
                    Data/binary>>,
   srpc_encryptor:encrypt(origin_responder, Conn, ResponseData).

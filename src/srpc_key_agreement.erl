@@ -27,7 +27,7 @@ create_confirm_request(#{exch_public_key := ExchPublicKey,
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process Key Confirm Response
-%%    
+%%
 %%--------------------------------------------------------------------------------------------------
 process_confirm_response(Conn, EncryptedResponse) ->
   case srpc_encryptor:decrypt(origin_responder, Conn, EncryptedResponse) of
@@ -35,7 +35,7 @@ process_confirm_response(Conn, EncryptedResponse) ->
       case srpc_sec:process_server_challenge(Conn, ServerChallenge) of
         true ->
           {ok,
-           srpc_util:remove_keys(Conn, [exch_public_key, exch_key_pair, exch_hash]),
+           srpc_util:remove_map_keys(Conn, [exch_public_key, exch_key_pair, exch_hash]),
            OptionalData};
         false ->
           {invalid, <<"Invalid server challenge">>}

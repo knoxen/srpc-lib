@@ -74,7 +74,7 @@ process_exchange_response(ClientKeys,
 %%--------------------------------------------------------------------------------------------------
 process_exchange_request(<<IdSize:8,
                            SrpcId:IdSize/binary,
-                           ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary, 
+                           ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
                            OptionalData/binary>>) ->
   case srpc_lib:srpc_id() of
     SrpcId ->
@@ -84,7 +84,7 @@ process_exchange_request(<<IdSize:8,
         Error ->
           Error
       end;
-    InvalidId ->      
+    InvalidId ->
       {invalid, <<"Invalid SrpcId: ", InvalidId/binary>>}
   end;
 process_exchange_request(_) ->
@@ -99,7 +99,7 @@ process_exchange_request(_) ->
     ExchangeData :: binary(),
     Response     :: {ok, {conn(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-create_exchange_response(ExchConn, ExchangeData) -> 
+create_exchange_response(ExchConn, ExchangeData) ->
   {ok, LibVerifier} = application:get_env(srpc_lib, lib_verifier),
   case srpc_sec:client_conn_keys(ExchConn, LibVerifier) of
     {ok, Conn} ->
@@ -148,8 +148,8 @@ create_confirm_response(Conn, ServerChallenge, OptionalData) ->
   ConfirmResponse = <<ServerChallenge/binary, OptionalData/binary>>,
   case srpc_encryptor:encrypt(origin_responder, Conn, ConfirmResponse) of
     {ok, ConfirmPacket} ->
-      {ok, 
-       srpc_util:remove_keys(Conn, [exch_public_key, exch_key_pair, exch_hash]),
+      {ok,
+       srpc_util:remove_map_keys(Conn, [exch_public_key, exch_key_pair, exch_hash]),
        ConfirmPacket};
     Error ->
       Error
