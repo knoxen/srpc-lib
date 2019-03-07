@@ -4,9 +4,10 @@
 
 -include("srpc_lib.hrl").
 
--export([parse_config/1,
-         server_config/4,
-         client_config/7
+-export([parse_server_config/1,
+         parse_client_config/1,
+         create_server_config/4,
+         create_client_config/7
         ]).
 
 %%==================================================================================================
@@ -15,65 +16,74 @@
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%
+%%  Parse shared config data
+%%  <-------------------------  Shared Data  -------------------------->
+%%   1       1     lSize     4        2       gSize       2      nSize    moreSize
+%%  type | lSize | libId | secOpt | gSize | generator | nSize | modulus |  data
 %%--------------------------------------------------------------------------------------------------
--spec parse_config(Config) -> Result when
-    Config :: binary(),
-    Result :: ok | error_msg().
-%%--------------------------------------------------------------------------------------------------
-parse_config(<< T:8,
-                IdLen:8, Id:IdLen/binary,
-                SecOpts:4/binary,
-                G:1/binary,
-                NLen:16, N:NLen/binary,
-                Config/binary >>) ->
-  set_config(lib_id, Id),
-  set_config(lib_sec_opts, SecOpts),
-  set_config(lib_g, G),
-  set_config(lib_N, N),
-
-  case T of
-    0 ->
-      parse_server_config(Config);
-    1 ->
-      parse_client_config(Config);
-    _ ->
-      {error, <<"Invalid srpc config type">>}
-  end;
-parse_config(_Config) ->
-  {error, <<"Invalid srpc config packet">>}.
+parse_shared_config(<<T:8,
+                      LibIdLen:8, LibId:LibIdLen/binary,
+                      SecOpt:4/binary,
+                      GLen:16, G:GLen/binary,
+                      NLen:16, N:NLen/binary,
+                      Data/binary >>) ->
+  SharedConfig = #{srpc_type => T, lib_id => LibId, sec_opt => SecOpt, generator => G, modulus => N},
+  {ok, SharedConfig, Data};
+parse_shared_config(_Data) ->
+  {error, <<"Invalid SRPC config data">>}.
 
 %%--------------------------------------------------------------------------------------------------
-%%
+%%  Parse server config data
+%%              <-- Server data -->
+%%                  2       srpSize
+%%  SharedData | srpSize | srpValue
 %%--------------------------------------------------------------------------------------------------
--spec parse_server_config(Config) -> Result when
-    Config   :: binary(),
-    Result   :: ok | error_msg().
+-spec parse_server_config(Data) -> Result when
+    Data   :: binary(),
+    Result :: {ok, srpc_server_config()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-parse_server_config(<< VLen:16, Verifier:VLen/binary >>) ->
-  set_config(lib_verifier, Verifier),
-  ok;
-parse_server_config(_Config) ->
-  {error, <<"Invalid server config for verifier">>}.
+parse_server_config(Data) ->
+  case parse_shared_config(Data) of
+    {ok, #{srpc_type := 0} = SharedConfig, << VLen:16, Verifier:VLen/binary >>} ->
+      {ok, maps:put(verifier, Verifier, SharedConfig)};
+    {ok, #{srpc_type := 0}, _ServerData} ->
+      {error, <<"Parsing SRPC server config from client config data">>};
+    {ok, _SharedConfig, _ServerData} ->
+      {error, <<"Invalid SRPC server config data">>};
+    Error ->
+      Error
+  end.
 
 %%--------------------------------------------------------------------------------------------------
-%%
+%% Parse client config data
+%%              <------------------------- Client data ------------------------->
+%%                  1      pwSize      1      kSize        4         1      sSize
+%% shared data | pwSize | password | kSize | kdfSalt | kdfRounds | sSize | srpSalt
 %%--------------------------------------------------------------------------------------------------
--spec parse_client_config(Config) -> Result when
-    Config :: binary(),
-    Result :: ok | error_msg().
+-spec parse_client_config(Data) -> Result when
+    Data   :: binary(),
+    Result :: {ok, srpc_client_config()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-parse_client_config(<< PcLen:8, Passcode:PcLen/binary,
-                       KdfRounds:32/integer,
-                       KdfLen:8, KdfSalt:KdfLen/binary,
-                       SrpLen:8, SrpSalt:SrpLen/binary >>) ->
-  set_config(lib_passcode, Passcode),
-  set_config(lib_kdf_rounds, KdfRounds),
-  set_config(lib_kdf_salt, KdfSalt),
-  set_config(lib_srp_salt, SrpSalt),
-  ok;
-parse_client_config(_Config) ->
-  {error, <<"Invalid client config">>}.
+parse_client_config(Data) ->
+  case parse_shared_config(Data) of
+    {ok, #{srpc_type := 1} = SharedConfig,
+         << PcLen:8, Passcode:PcLen/binary,
+            KdfLen:8, KdfSalt:KdfLen/binary,
+            KdfRounds:32/integer,
+            SrpLen:8, SrpSalt:SrpLen/binary >>} ->
+      ClientConfig = #{passcode => Passcode,
+                       kdf_salt => KdfSalt,
+                       kdf_rounds => KdfRounds,
+                       srp_salt => SrpSalt
+                      },
+      {ok, maps:merge(SharedConfig, ClientConfig)};
+    {ok, #{srpc_type := 0}, _ClientData} ->
+      {error, <<"Parsing SRPC client config from server config data">>};
+    {ok, _SharedConfig, _ClientData} ->
+      {error, <<"Invalid SRPC client config data">>};
+    Error ->
+      Error
+  end.
 
 %%==================================================================================================
 %%
@@ -81,67 +91,73 @@ parse_client_config(_Config) ->
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  SRPC server config
+%%  Create shared config data
+%% <-------------------------  Shared Data  -------------------------->
+%%  1       1     lSize     4        2       gSize       2      nSize    moreSize
+%% type | lSize | libId | secOpt | gSize | generator | nSize | modulus | more data
 %%--------------------------------------------------------------------------------------------------
-server_config(LibId, G, N, Verifier) ->
-  case shared_config(0, LibId, G, N) of
-    {ok, Shared} ->
+create_shared_config(T, LibId, G, N)
+  when is_binary(LibId), erlang:byte_size(LibId) < 256,
+       is_binary(G),
+       is_binary(N) ->
+  LibIdLen = erlang:byte_size(LibId),
+  GLen = erlang:byte_size(G),
+  NLen = erlang:byte_size(N),
+  {ok, << T:8, LibIdLen:8, LibId/binary, GLen:16, G/binary, NLen:16, N/binary >>};
+
+create_shared_config(_T, LibId, G, N)
+  when is_binary(LibId),
+       is_binary(G),
+       is_binary(N) ->
+  {error, <<"Invalid lib config LibId: greater than 255 bytes">>};
+
+create_shared_config(_T, _LibId, G, N)
+  when is_binary(G),
+       is_binary(N) ->
+  {error, <<"Invalid lib config id">>};
+
+create_shared_config(_T, LibId, G, _N)
+  when is_binary(LibId),
+       is_binary(G) ->
+  {error, <<"Invalid lib config modulus">>};
+
+create_shared_config(_T, LibId, _G, N)
+  when is_binary(LibId),
+       is_binary(N) ->
+  {error, <<"Invalid lib config generator">>}.
+
+%%--------------------------------------------------------------------------------------------------
+%%  Create server config data
+%%               <-- Server data -->
+%%                   2       srpSize
+%%  shared data | srpSize | srpValue
+%%--------------------------------------------------------------------------------------------------
+create_server_config(LibId, G, N, Verifier) ->
+  case create_shared_config(0, LibId, G, N) of
+    {ok, SharedConfig} ->
       VLen = erlang:byte_size(Verifier),
-      {ok, << Shared/binary,
-              VLen:16, Verifier/binary >>};
+      {ok, << SharedConfig/binary, VLen:16, Verifier/binary >>};
     Error ->
       Error
   end.
 
 %%--------------------------------------------------------------------------------------------------
-%%  SRPC client config
+%%  Create client config data
+%%               <------------------------- Client data ------------------------->
+%%                   1      pwSize      1      kSize        4         1      sSize
+%%  shared data | pwSize | password | kSize | kdfSalt | kdfRounds | sSize | srpSalt
 %%--------------------------------------------------------------------------------------------------
-client_config(LibId, G, N, Passcode, KdfRounds, KdfSalt, SrpSalt) ->
-  case shared_config(1, LibId, G, N) of
-    {ok, Shared} ->
+create_client_config(LibId, G, N, Passcode, KdfSalt, KdfRounds, SrpSalt) ->
+  case create_shared_config(1, LibId, G, N) of
+    {ok, SharedConfig} ->
       PcLen = erlang:byte_size(Passcode),
       KdfLen = erlang:byte_size(KdfSalt),
       SrpLen = erlang:byte_size(SrpSalt),
-      {ok, << Shared/binary,
+      {ok, << SharedConfig/binary,
               PcLen:8, Passcode/binary,
-              KdfRounds:32,
               KdfLen:8, KdfSalt/binary,
+              KdfRounds:32,
               SrpLen:8, SrpSalt/binary >>};
     Error ->
       Error
   end.
-
-%%--------------------------------------------------------------------------------------------------
-%%  SRPC shared config
-%%--------------------------------------------------------------------------------------------------
-shared_config(T, LibId, G, N) when is_binary(LibId), erlang:byte_size(LibId) < 256,
-                                   is_binary(G),
-                                   is_binary(N) ->
-  IdLen = erlang:byte_size(LibId),
-  NLen  = erlang:byte_size(N),
-  {ok, << T:8, IdLen:8, LibId/binary, G:1/binary, NLen:16, N/binary >>};
-shared_config(_T, LibId, G, N) when is_binary(LibId),
-                                   is_binary(G),
-                                   is_binary(N) ->
-  {error, <<"Invalid lib config LibId: greater than 255 bytes">>};
-shared_config(_T, _LibId, G, N) when is_binary(G),
-                                    is_binary(N) ->
-  {error, <<"Invalid lib config id">>};
-shared_config(_T, LibId, G, _N) when is_binary(LibId),
-                                    is_binary(G) ->
-  {error, <<"Invalid lib config modulus">>};
-shared_config(_T, LibId, _G, N) when is_binary(LibId),
-                                   is_binary(N) ->
-  {error, <<"Invalid lib config generator">>}.
-
-%%--------------------------------------------------------------------------------------------------
-%%
-%%--------------------------------------------------------------------------------------------------
--spec set_config(Config, Value) -> ok when
-    Config :: atom(),
-    Value  :: any().
-%%--------------------------------------------------------------------------------------------------
-set_config(Config, Value) ->
-  application:set_env(srpc_lib, Config, Value, [{persistent, true}]).
-
-

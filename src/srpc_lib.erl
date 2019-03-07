@@ -4,13 +4,15 @@
 
 -include("srpc_lib.hrl").
 
-%% SRPC Params
--export([init/1]).
+%% SRPC config init
+-export([server_init/1,
+         server_config/0,
+         client_init/1,
+         client_config/0
+        ]).
 
 %% SRPC info
--export([srpc_id/0,
-         srpc_version/0,
-         srpc_sec_opts/0,
+-export([srpc_version/0,
          srpc_info/0
         ]).
 
@@ -65,26 +67,62 @@
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  Initialize SRPC lib parameters
+%%  Initialize SRPC lib for server
 %%--------------------------------------------------------------------------------------------------
--spec init(SrpcConfig) -> Result when
-    SrpcConfig :: binary(),
-    Result     :: ok | error_msg().
+-spec server_init(Data) -> Result when
+    Data   :: binary(),
+    Result :: ok | error_msg().
 %%--------------------------------------------------------------------------------------------------
-init(SrpcConfig) when is_binary(SrpcConfig) ->
+server_init(Data) when is_binary(Data) ->
   application:set_env(srpc_lib, lib_init, erlang:monotonic_time(seconds), [{persistent, true}]),
-  srpc_util:parse_config(SrpcConfig);
-init(_Params) ->
-  {error, <<"Invalid SRPC params">>}.
+  case srpc_config:parse_server_config(Data) of
+    {ok, ServerConfig} ->
+      application:set_env(srpc_lib, server_config, ServerConfig, [{persistent, true}]);
+    Error ->
+      Error
+  end.
 
 %%--------------------------------------------------------------------------------------------------
-%%  SRPC Id
+%%  Initialize SRPC lib for client
 %%--------------------------------------------------------------------------------------------------
--spec srpc_id() -> binary().
+-spec client_init(Data) -> Result when
+    Data   :: binary(),
+    Result :: ok | error_msg().
 %%--------------------------------------------------------------------------------------------------
-srpc_id() ->
-  {ok, LibId} = application:get_env(srpc_lib, lib_id),
-  LibId.
+client_init(Data) when is_binary(Data) ->
+  application:set_env(srpc_lib, lib_init, erlang:monotonic_time(seconds), [{persistent, true}]),
+  case srpc_config:parse_client_config(Data) of
+    {ok, ClientConfig} ->
+      application:set_env(srpc_lib, client_config, ClientConfig, [{persistent, true}]);
+    Error ->
+      Error
+  end.
+
+%%--------------------------------------------------------------------------------------------------
+%%  SRPC server config
+%%--------------------------------------------------------------------------------------------------
+-spec server_config() -> {ok, srpc_server_config()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+server_config() ->
+  case application:get_env(srpc_lib, server_config) of
+    undefined ->
+      {error, <<"SRPC server config not initialized">>};
+    ServerConfig ->
+      ServerConfig
+  end.
+
+%%--------------------------------------------------------------------------------------------------
+%%  SRPC client config
+%%--------------------------------------------------------------------------------------------------
+-spec client_config() -> {ok, srpc_client_config()} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+client_config() ->
+  case application:get_env(srpc_lib, client_config) of
+    undefined ->
+      {error, <<"SRPC client config not initialized">>};
+    ClientConfig ->
+      ClientConfig
+  end.
 
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC version
@@ -98,34 +136,32 @@ srpc_version() ->
   list_to_binary(Major ++ "." ++ Minor ++ "." ++ Patch).
 
 %%--------------------------------------------------------------------------------------------------
-%%  SRPC security options
-%%--------------------------------------------------------------------------------------------------
--spec srpc_sec_opts() -> binary().
-%%--------------------------------------------------------------------------------------------------
-srpc_sec_opts() ->
-  <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>.
-  %% case application:get_env(srpc_lib, lib_options) of
-  %%   {ok, LibOptions} ->
-  %%     case LibOptions of
-  %%       srpc_pbkdf2_sha256_g2048_aes_256_cbc_hmac_sha256 ->
-  %%         <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>;
-  %%       _ ->
-  %%         <<"Invalid lib_options for srpc_lib">>
-  %%     end;
-  %%   _ ->
-  %%     <<"Missing lib_options for srpc_lib">>
-  %% end.
-
-%%--------------------------------------------------------------------------------------------------
 %%  SRPC info
 %%--------------------------------------------------------------------------------------------------
 -spec srpc_info() -> binary().
 %%--------------------------------------------------------------------------------------------------
 srpc_info() ->
-  Id = srpc_id(),
+  case server_config() of
+    {ok, #{lib_id := LibId, sec_opt := SecOpt}} ->
+      srpc_info(LibId, SecOpt);
+    undefined ->
+      case client_config() of
+        {ok, #{lib_id := LibId, sec_opt := SecOpt}} ->
+          srpc_info(LibId, SecOpt);
+        undefined ->
+          <<"SRPC config not set">>
+      end
+  end.
+
+srpc_info(LibId, SecOpt) ->
   Version = srpc_version(),
-  Options = srpc_sec_opts(),
-  << Id/binary, " | ",  Version/binary, " | ", Options/binary >>.
+  SecOptInfo = sec_opt_info(SecOpt),
+  << LibId/binary, " | ",  Version/binary, " | ", SecOptInfo/binary >>.
+
+sec_opt_info(?SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256) ->
+  <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>;
+sec_opt_info(_SecOpt) ->
+  <<"SecOpt not recognized">>.
 
 %%==================================================================================================
 %%

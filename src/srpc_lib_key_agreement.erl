@@ -45,19 +45,21 @@ process_exchange_response(ClientKeys,
                           <<Len:8, ConnId:Len/binary,
                             ServerPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
                             _OptionalData/binary>>) ->
+  {ok, #{lib_id := LibId,
+         password := Password,
+         kdf_salt := KdfSalt,
+         kdf_round := KdfRounds,
+         srp_salt := SrpSalt
+        }
+   } = srpc_config:client_config(),
 
   Conn = #{conn_id         => ConnId,
-               entity_id       => srpc_lib:srpc_id(),
-               exch_public_key => ServerPublicKey,
-               exch_key_pair   => ClientKeys
-              },
-  {ok, LibId}     = application:get_env(srpc_lib, lib_id),
-  {ok, Passcode}  = application:get_env(srpc_lib, lib_passcode),
-  {ok, KdfSalt}   = application:get_env(srpc_lib, lib_kdf_salt),
-  {ok, KdfRounds} = application:get_env(srpc_lib, lib_kdf_rounds),
-  {ok, SrpSalt}   = application:get_env(srpc_lib, lib_srp_salt),
+           entity_id       => LibId,
+           exch_public_key => ServerPublicKey,
+           exch_key_pair   => ClientKeys
+          },
 
-  srpc_sec:server_conn_keys(Conn, {LibId, Passcode}, {KdfRounds, KdfSalt, SrpSalt}).
+  srpc_sec:server_conn_keys(Conn, {LibId, Password}, {KdfRounds, KdfSalt, SrpSalt}).
 
 %%==================================================================================================
 %%
@@ -76,7 +78,9 @@ process_exchange_request(<<IdSize:8,
                            SrpcId:IdSize/binary,
                            ClientPublicKey:?SRPC_PUBLIC_KEY_SIZE/binary,
                            OptionalData/binary>>) ->
-  case srpc_lib:srpc_id() of
+  {ok, #{lib_id := LibId}} = srpc_config:client_config(),
+
+  case LibId of
     SrpcId ->
       case srpc_sec:validate_public_key(ClientPublicKey) of
         ok ->
