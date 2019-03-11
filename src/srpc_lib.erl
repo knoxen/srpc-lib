@@ -4,30 +4,24 @@
 
 -include("srpc_lib.hrl").
 
-%% SRPC config init
--export([server_init/1,
-         server_config/0,
-         client_init/1,
-         client_config/0
-        ]).
-
 %% SRPC info
--export([srpc_version/0,
-         srpc_info/0
+-export([srpc_parse_config/1,
+         srpc_version/0,
+         srpc_info/1
         ]).
 
-%% Client Lib Key Agreement
+%% Lib Key Exchange
 -export([create_lib_key_exchange_request/1, create_lib_key_exchange_request/2,
-         process_lib_key_exchange_response/2,
-         create_lib_key_confirm_request/1, create_lib_key_confirm_request/2,
-         process_lib_key_confirm_response/2
+         process_lib_key_exchange_request/2,
+         create_lib_key_exchange_response/2,
+         process_lib_key_exchange_response/3
         ]).
 
-%% Server Lib Key Agreement
--export([process_lib_key_exchange_request/1,
-         create_lib_key_exchange_response/2,
+%% Lib Key Confirm
+-export([create_lib_key_confirm_request/1, create_lib_key_confirm_request/2,
          process_lib_key_confirm_request/2,
-         create_lib_key_confirm_response/3
+         create_lib_key_confirm_response/3,
+         process_lib_key_confirm_response/2
         ]).
 
 %% User Registration
@@ -67,62 +61,14 @@
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  Initialize SRPC lib for server
+%%  SRPC version
 %%--------------------------------------------------------------------------------------------------
--spec server_init(Data) -> Result when
-    Data   :: binary(),
-    Result :: ok | error_msg().
+-spec srpc_parse_config(Data) -> Result when
+  Data   :: binary(),
+  Result :: srpc_client_config() | srpc_server_config().
 %%--------------------------------------------------------------------------------------------------
-server_init(Data) when is_binary(Data) ->
-  application:set_env(srpc_lib, lib_init, erlang:monotonic_time(seconds), [{persistent, true}]),
-  case srpc_config:parse_server_config(Data) of
-    {ok, ServerConfig} ->
-      application:set_env(srpc_lib, server_config, ServerConfig, [{persistent, true}]);
-    Error ->
-      Error
-  end.
-
-%%--------------------------------------------------------------------------------------------------
-%%  Initialize SRPC lib for client
-%%--------------------------------------------------------------------------------------------------
--spec client_init(Data) -> Result when
-    Data   :: binary(),
-    Result :: ok | error_msg().
-%%--------------------------------------------------------------------------------------------------
-client_init(Data) when is_binary(Data) ->
-  application:set_env(srpc_lib, lib_init, erlang:monotonic_time(seconds), [{persistent, true}]),
-  case srpc_config:parse_client_config(Data) of
-    {ok, ClientConfig} ->
-      application:set_env(srpc_lib, client_config, ClientConfig, [{persistent, true}]);
-    Error ->
-      Error
-  end.
-
-%%--------------------------------------------------------------------------------------------------
-%%  SRPC server config
-%%--------------------------------------------------------------------------------------------------
--spec server_config() -> {ok, srpc_server_config()} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-server_config() ->
-  case application:get_env(srpc_lib, server_config) of
-    undefined ->
-      {error, <<"SRPC server config not initialized">>};
-    ServerConfig ->
-      ServerConfig
-  end.
-
-%%--------------------------------------------------------------------------------------------------
-%%  SRPC client config
-%%--------------------------------------------------------------------------------------------------
--spec client_config() -> {ok, srpc_client_config()} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-client_config() ->
-  case application:get_env(srpc_lib, client_config) of
-    undefined ->
-      {error, <<"SRPC client config not initialized">>};
-    ClientConfig ->
-      ClientConfig
-  end.
+srpc_parse_config(Data) ->
+  srpc_config:srpc_parse_config(Data).
 
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC version
@@ -138,111 +84,56 @@ srpc_version() ->
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC info
 %%--------------------------------------------------------------------------------------------------
--spec srpc_info() -> binary().
+-spec srpc_info(Config) -> Result when
+  Config :: srpc_client_config() | srpc_server_config(),
+  Result :: binary().
 %%--------------------------------------------------------------------------------------------------
-srpc_info() ->
-  case server_config() of
-    {ok, #{lib_id := LibId, sec_opt := SecOpt}} ->
-      srpc_info(LibId, SecOpt);
-    undefined ->
-      case client_config() of
-        {ok, #{lib_id := LibId, sec_opt := SecOpt}} ->
-          srpc_info(LibId, SecOpt);
-        undefined ->
-          <<"SRPC config not set">>
-      end
-  end.
-
-srpc_info(LibId, SecOpt) ->
+srpc_info(#{srpc_id  := SrpcId,
+            sec_opt := SecOpt}) ->
   Version = srpc_version(),
   SecOptInfo = sec_opt_info(SecOpt),
-  << LibId/binary, " | ",  Version/binary, " | ", SecOptInfo/binary >>.
+  << SrpcId/binary, " | ",  Version/binary, " | ", SecOptInfo/binary >>.
 
-sec_opt_info(?SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256) ->
+sec_opt_info(?SRPC_PBKDF2_SHA256_G2048_AES256_CBC_HMAC_SHA256) ->
   <<"PBKDF2-SHA256 : G2048 : AES-256-CBC : HMAC-SHA256">>;
 sec_opt_info(_SecOpt) ->
   <<"SecOpt not recognized">>.
 
 %%==================================================================================================
 %%
-%%  Client Lib Key Agreement
+%%  Lib Key Exchange
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 %%  Create lib key exchange request
 %%--------------------------------------------------------------------------------------------------
--spec create_lib_key_exchange_request(LibId) -> Result when
-    LibId      :: binary(),
-    ClientKeys :: exch_key_pair(),
+-spec create_lib_key_exchange_request(Config) -> Result when
+    Config     :: srpc_client_config(),
+    ClientKeys :: exch_keys(),
     Result     :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_lib_key_exchange_request(LibId) ->
-  create_lib_key_exchange_request(LibId, <<>>).
+create_lib_key_exchange_request(Config) ->
+  create_lib_key_exchange_request(Config, <<>>).
 %%--------------------------------------------------------------------------------------------------
--spec create_lib_key_exchange_request(LibId, OptionalData) -> Result when
-    LibId        :: binary(),
+-spec create_lib_key_exchange_request(Config, OptionalData) -> Result when
+    Config       :: srpc_client_config(),
     OptionalData :: binary(),
-    ClientKeys   :: exch_key_pair(),
+    ClientKeys   :: exch_keys(),
     Result       :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_lib_key_exchange_request(LibId, OptionalData) when is_binary(OptionalData) ->
-  srpc_lib_key_agreement:create_exchange_request(LibId, OptionalData).
+create_lib_key_exchange_request(Config, OptionalData) ->
+  srpc_lib_key_agreement:create_exchange_request(Config, OptionalData).
 
-%%--------------------------------------------------------------------------------------------------
-%%  Process lib key exchange response
-%%--------------------------------------------------------------------------------------------------
--spec process_lib_key_exchange_response(ClientKeys, ExchangeData) -> Result when
-    ClientKeys   :: exch_key_pair(),
-    ExchangeData :: binary(),
-    Result       :: binary().
-%%--------------------------------------------------------------------------------------------------
-process_lib_key_exchange_response(ClientKeys, ExchangeResponse)
-  when is_binary(ExchangeResponse) ->
-  srpc_lib_key_agreement:process_exchange_response(ClientKeys, ExchangeResponse).
-
-%%--------------------------------------------------------------------------------------------------
-%%  Create lib key confirm request
-%%--------------------------------------------------------------------------------------------------
--spec create_lib_key_confirm_request(Conn) -> Result when
-    Conn   :: conn(),
-    Result :: binary().
-%%--------------------------------------------------------------------------------------------------
-create_lib_key_confirm_request(Conn) ->
-  create_lib_key_confirm_request(Conn, <<>>).
-%%--------------------------------------------------------------------------------------------------
--spec create_lib_key_confirm_request(Conn, ConfirmData) -> Result when
-    Conn        :: conn(),
-    ConfirmData :: binary(),
-    Result      :: binary().
-%%--------------------------------------------------------------------------------------------------
-create_lib_key_confirm_request(Conn, ConfirmData) when is_binary(ConfirmData) ->
-  srpc_key_agreement:create_confirm_request(Conn, ConfirmData).
-
-%%--------------------------------------------------------------------------------------------------
-%%  Process lib key exchange response
-%%--------------------------------------------------------------------------------------------------
--spec process_lib_key_confirm_response(ClientKeys, ExchangeData) -> Result when
-    ClientKeys   :: exch_key_pair(),
-    ExchangeData :: binary(),
-    Result       :: binary().
-%%--------------------------------------------------------------------------------------------------
-process_lib_key_confirm_response(Conn, ConfirmResponse)  when is_binary(ConfirmResponse) ->
-  srpc_key_agreement:process_confirm_response(Conn, ConfirmResponse).
-
-%%==================================================================================================
-%%
-%%  Server Lib Key Agreement
-%%
-%%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 %%  Process lib key exchange request
 %%--------------------------------------------------------------------------------------------------
--spec process_lib_key_exchange_request(ExchangeRequest) -> Result when
-    ExchangeRequest :: binary(),
-    Result          :: {ok, {exch_key(), binary()}} | invalid_msg() | error_msg().
+-spec process_lib_key_exchange_request(Config, ExchReq) -> Result when
+  Config  :: srpc_server_config(),
+  ExchReq :: binary(),
+  Result  :: {ok, {exch_key(), binary()}} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_lib_key_exchange_request(ExchangeRequest) ->
-  srpc_lib_key_agreement:process_exchange_request(ExchangeRequest).
+process_lib_key_exchange_request(Config, ExchReq) ->
+  srpc_lib_key_agreement:process_exchange_request(Config, ExchReq).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Create lib key exchange response
@@ -256,7 +147,43 @@ create_lib_key_exchange_response(Conn, ExchangeData) ->
   srpc_lib_key_agreement:create_exchange_response(Conn, ExchangeData).
 
 %%--------------------------------------------------------------------------------------------------
-%%  Lib key confirm request
+%%  Process lib key exchange response
+%%--------------------------------------------------------------------------------------------------
+-spec process_lib_key_exchange_response(Config, ClientKeys, ExchData) -> Result when
+    Config     :: srpc_client_config(),
+    ClientKeys :: exch_keys(),
+    ExchData   :: binary(),
+    Result     :: {ok, conn()} | error_msg().
+%%-------------------------------------------------------------------------------------------------
+process_lib_key_exchange_response(Config, ClientKeys, ExchResp) ->
+  srpc_lib_key_agreement:process_exchange_response(Config, ClientKeys, ExchResp).
+
+%%==================================================================================================
+%%
+%%  Lib Key Confirm
+%%
+%%==================================================================================================
+%%--------------------------------------------------------------------------------------------------
+%%  Create lib key confirm request
+%%--------------------------------------------------------------------------------------------------
+-spec create_lib_key_confirm_request(Conn) -> Result when
+    Conn   :: conn(),
+    Result :: binary().
+%%--------------------------------------------------------------------------------------------------
+create_lib_key_confirm_request(Conn) ->
+  create_lib_key_confirm_request(Conn, <<>>).
+
+%%--------------------------------------------------------------------------------------------------
+-spec create_lib_key_confirm_request(Conn, ConfirmData) -> Result when
+    Conn        :: conn(),
+    ConfirmData :: binary(),
+    Result      :: binary().
+%%--------------------------------------------------------------------------------------------------
+create_lib_key_confirm_request(Conn, ConfirmData) when is_binary(ConfirmData) ->
+  srpc_key_agreement:create_confirm_request(Conn, ConfirmData).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Process lib key confirm request
 %%--------------------------------------------------------------------------------------------------
 -spec process_lib_key_confirm_request(Conn, Request) -> Result when
     Conn    :: conn(),
@@ -267,7 +194,7 @@ process_lib_key_confirm_request(Conn, Request) ->
   srpc_lib_key_agreement:process_confirm_request(Conn, Request).
 
 %%--------------------------------------------------------------------------------------------------
-%%  Lib key confirm response
+%%  Create lib key confirm response
 %%--------------------------------------------------------------------------------------------------
 -spec create_lib_key_confirm_response(Conn, ClientChallenge, ConfirmData) -> Result when
     Conn            :: conn(),
@@ -277,6 +204,17 @@ process_lib_key_confirm_request(Conn, Request) ->
 %%--------------------------------------------------------------------------------------------------
 create_lib_key_confirm_response(Conn, ClientChallenge, ConfirmData) ->
   srpc_lib_key_agreement:create_confirm_response(Conn, ClientChallenge, ConfirmData).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Process lib key confirm response
+%%--------------------------------------------------------------------------------------------------
+-spec process_lib_key_confirm_response(ClientKeys, ExchangeData) -> Result when
+    ClientKeys   :: exch_keys(),
+    ExchangeData :: binary(),
+    Result       :: binary().
+%%--------------------------------------------------------------------------------------------------
+process_lib_key_confirm_response(Conn, ConfirmResponse)  when is_binary(ConfirmResponse) ->
+  srpc_key_agreement:process_confirm_response(Conn, ConfirmResponse).
 
 %%==================================================================================================
 %%
@@ -352,17 +290,17 @@ process_registration_response(Conn, RegResponse) ->
 -spec create_user_key_exchange_request(Conn, UserId) -> Result when
     Conn       :: conn(),
     UserId     :: binary(),
-    ClientKeys :: exch_key_pair(),
+    ClientKeys :: exch_keys(),
     Result     :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_user_key_exchange_request(Conn, LibId) ->
-  create_user_key_exchange_request(Conn, LibId, <<>>).
+create_user_key_exchange_request(Conn, SrpcId) ->
+  create_user_key_exchange_request(Conn, SrpcId, <<>>).
 %%--------------------------------------------------------------------------------------------------
 -spec create_user_key_exchange_request(Conn, UserId, OptionalData) -> Result when
     Conn         :: conn(),
     UserId       :: binary(),
     OptionalData :: binary(),
-    ClientKeys   :: exch_key_pair(),
+    ClientKeys   :: exch_keys(),
     Result       :: {ClientKeys, binary()}.
 %%--------------------------------------------------------------------------------------------------
 create_user_key_exchange_request(Conn, UserId, OptionalData) when is_binary(OptionalData) ->
@@ -376,7 +314,7 @@ create_user_key_exchange_request(Conn, UserId, OptionalData) when is_binary(Opti
     Conn       :: conn(),
     UserId     :: binary(),
     Password   :: binary(),
-    ClientKeys :: exch_key_pair(),
+    ClientKeys :: exch_keys(),
     Response   :: binary(),
     Result     :: {ok, conn()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
@@ -406,7 +344,7 @@ create_user_key_confirm_request(Conn, ConfirmData) when is_binary(ConfirmData) -
 %%  Process user key exchange response
 %%--------------------------------------------------------------------------------------------------
 -spec process_user_key_confirm_response(ClientKeys, ExchangeData) -> Result when
-    ClientKeys   :: exch_key_pair(),
+    ClientKeys   :: exch_keys(),
     ExchangeData :: binary(),
     Result       :: binary().
 %%--------------------------------------------------------------------------------------------------

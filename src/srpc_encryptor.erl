@@ -9,8 +9,8 @@
 %% API exports
 %%
 %%==================================================================================================
--export([encrypt/4,
-        decrypt/4
+-export([encrypt/3,
+        decrypt/3
         ]).
 
 %%==================================================================================================
@@ -23,54 +23,72 @@
 %%--------------------------------------------------------------------------------------------------
 %% @doc Encrypt data using client information
 %%
--spec encrypt(Origin, Conn, Config, Data) -> Result when
+-spec encrypt(Origin, Conn, Data) -> Result when
     Origin :: origin(),
     Conn   :: conn(),
-    Config :: srpc_server_config() | srpc_client_config(),
     Data   :: binary(),
     Result :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-encrypt(origin_requester,
+encrypt(requester,
         #{conn_id     := ConnId,
           req_sym_key := SymKey,
-          req_mac_key := MacKey},
-        Config, Data) ->
+          req_mac_key := MacKey,
+          config      := Config},
+        Data) ->
   encrypt_keys(SymKey, MacKey, ConnId, Config, Data);
-encrypt(origin_responder,
+
+encrypt(requester, _Conn, _Data) ->
+  {error, <<"Invalid connection for requester encrypt">>};
+
+encrypt(responder,
         #{conn_id      := ConnId,
           resp_sym_key := SymKey,
-          resp_mac_key := MacKey},
-        Config, Data) ->
+          resp_mac_key := MacKey,
+          config       := Config},
+        Data) ->
   encrypt_keys(SymKey, MacKey, ConnId, Config, Data);
-encrypt(_Origin, _Conn, _Config, _Data) ->
-  {error, <<"Mismatch origin and keys for encrypt">>}.
+
+encrypt(responder, _Conn, _Data) ->
+  {error, <<"Invalid connection for responder encrypt">>};
+
+encrypt(_Origin, _Conn, _Data) ->
+  {error, <<"Invalid origin for encrypt">>}.
 
 %%--------------------------------------------------------------------------------------------------
 %% Decrypt
 %%--------------------------------------------------------------------------------------------------
 %% @doc Decrypt packet using client information
 %%
--spec decrypt(Origin, Conn, Config, Packet) -> Result when
+-spec decrypt(Origin, Conn, Packet) -> Result when
     Origin :: origin(),
     Conn   :: conn(),
-    Config :: srpc_server_config() | srpc_client_config(),
     Packet :: binary(),
     Result :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-decrypt(origin_requester, #{conn_id     := ConnId,
-                            req_sym_key := SymKey,
-                            req_mac_key := MacKey},
-        Config, Packet) ->
-  decrypt_keys(SymKey, MacKey, ConnId, Config, Packet);
-decrypt(origin_responder,
-        #{conn_id      := ConnId,
-          resp_sym_key := SymKey,
-          resp_mac_key := MacKey},
-        Config, Packet) ->
+decrypt(requester,
+       #{conn_id     := ConnId,
+         req_sym_key := SymKey,
+         req_mac_key := MacKey,
+         config      := Config},
+        Packet) ->
   decrypt_keys(SymKey, MacKey, ConnId, Config, Packet);
 
-decrypt(_Origin, _Conn, _Config, _Packet) ->
-  {error, <<"Mismatch origin and keys for decrypt">>}.
+decrypt(requester, _Conn, _Data) ->
+  {error, <<"Invalid connection for requester decrypt">>};
+
+decrypt(responder,
+        #{conn_id      := ConnId,
+          resp_sym_key := SymKey,
+          resp_mac_key := MacKey,
+          config       := Config},
+        Packet) ->
+  decrypt_keys(SymKey, MacKey, ConnId, Config, Packet);
+
+decrypt(responder, _Conn, _Data) ->
+  {error, <<"Invalid connection for responder decrypt">>};
+
+decrypt(_Origin, _Conn, _Packet) ->
+  {error, <<"Invalid origin for decrypt">>}.
 
 %%==================================================================================================
 %%
@@ -197,7 +215,7 @@ decrypt_keys(SymKey, MacKey, ConnId, Config, Packet) ->
 %%
 %%  SRPC Message Header
 %%     1       1     1     L
-%%   Major | Minor | L | LibId
+%%   Major | Minor | L | SrpcId
 %%--------------------------------------------------------------------------------------------------
 %% @doc Header for all SRPC messages
 %%
@@ -206,12 +224,12 @@ decrypt_keys(SymKey, MacKey, ConnId, Config, Packet) ->
     Config :: srpc_server_config() | srpc_client_config(),
     Header :: binary().
 %%--------------------------------------------------------------------------------------------------
-srpc_msg_hdr(ConnId, #{lib_id := LibId}) ->
-  LibIdLen = erlang:byte_size(LibId),
+srpc_msg_hdr(ConnId, #{srpc_id := SrpcId}) ->
+  SrpcIdLen = erlang:byte_size(SrpcId),
   DataHdr = <<?SRPC_VERSION_MAJOR:8,
               ?SRPC_VERSION_MINOR:8,
-              LibIdLen:8,
-              LibId/binary>>,
+              SrpcIdLen:8,
+              SrpcId/binary>>,
   ConnIdLen = byte_size(ConnId),
   <<DataHdr/binary, ConnIdLen, ConnId/binary>>.
 

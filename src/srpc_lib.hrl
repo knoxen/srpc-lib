@@ -19,41 +19,18 @@
 %%    Mode                   1  CBC
 %%    HMAC                   1  SHA256
 %%
--define(SRPC_PBKDF2_SHA256_G2048_AES_256_CBC_HMAC_SHA256, <<16#00121311:32>>).
+-define(SRPC_PBKDF2_SHA256_G2048_AES256_CBC_HMAC_SHA256, <<16#00121311:32>>).
 
 %%
 %% SRP Version
 %%
 -define(SRPC_SRP_VERSION, '6a').
 
-%%
-%% SRPC Group  (RFC 5054)
-%%
--define(SRPC_GROUP_ID, <<"G2048">>).
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%
 %%%%  CxTBD Pass kdf and srp salt sizes in message packets
 %%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%
-%% KDF
-%%
--define(SRPC_KDF_SALT_SIZE, 12).
--define(SRPC_KDF_KEY_SIZE,  32).
-
-%%
-%% SRP
-%%
--define(SRPC_SRP_SALT_SIZE,   20).
-
-%%
-%% SRPC
-%%
--define(SRPC_PUBLIC_KEY_SIZE,  256).
--define(SRPC_PRIVATE_KEY_SIZE,  32).
--define(SRPC_CHALLENGE_SIZE,    32).
 
 %%
 %% AES
@@ -83,61 +60,62 @@
 %%  Types
 %%
 %%==================================================================================================
--type error_msg()     :: {error, binary()}.
--type invalid_msg()   :: {invalid, binary()}.
--type lib_id()        :: binary().
--type bin_32()        :: <<_:32>>.
--type salt()          :: binary().
--type exch_key()      :: binary().
--type exch_key_pair() :: {exch_key(), exch_key()}.
--type verifier()      :: binary().
--type conn_id()       :: binary().
--type aes_block()     :: <<_:128>>.
--type sym_key()       :: <<_:128>> | <<_:192>> | <<_:256>>.
--type hmac_key()      :: <<_:256>>.
--type keys()          :: {sym_key(), sym_key(), hmac_key()}.
--type sym_alg()       :: aes128 | aes192 | aes256.
--type sha_alg()       :: sha256 | sha384 | sha512.
--type conn()          :: #{conn_id         => conn_id(),
-                           exch_public_key => exch_key(),
-                           exch_key_pair   => exch_key_pair(),
-                           entity_id       => binary(),
-                           sym_alg         => sym_alg(),
-                           sha_alg         => sha_alg(),
-                           req_sym_key     => sym_key(),
-                           req_hmac_key    => hmac_key(),
-                           resp_sym_key    => sym_key(),
-                           resp_hmac_key   => hmac_key()
-                          }.
+-type error_msg()   :: {error, binary()}.
+-type invalid_msg() :: {invalid, binary()}.
+-type srpc_id()     :: binary().
+-type bin_32()      :: <<_:32>>.
+-type salt()        :: binary().
+-type exch_key()    :: binary().
+-type exch_keys()   :: {exch_key(), exch_key()}.
+-type srp_value()   :: binary().
+-type conn_id()     :: binary().
+-type aes_block()   :: <<_:128>>.
+-type sym_key()     :: <<_:128>> | <<_:192>> | <<_:256>>.
+-type hmac_key()    :: <<_:256>>.
+-type keys()        :: {sym_key(), sym_key(), hmac_key()}.
+-type sym_alg()     :: aes128 | aes192 | aes256.
+-type sha_alg()     :: sha256 | sha384 | sha512.
+-type origin()      :: requester | responder.
 
--type registration() :: #{user_id  =>   binary(),
-                          kdf_salt =>   salt(),
-                          kdf_rounds => bin_32(),
-                          srp_salt =>   salt(),
-                          verifier =>   binary()
-                         }.
-
--type origin() :: origin_requester | origin_responder.
-
--type srpc_shared_config() :: #{lib_id => lib_id(),
-                                sec_opt => bin_32(),
+-type srpc_shared_config() :: #{srpc_id   => srpc_id(),
+                                sec_opt   => bin_32(),
                                 generator => binary(),
-                                modulus => binary()
+                                modulus   => binary()
                                }.
 
--type srpc_server_config() :: #{lib_id => lib_id(),
-                                sec_opt => bin_32(),
+-type srpc_server_config() :: #{srpc_id   => srpc_id(),
+                                sec_opt   => bin_32(),
                                 generator => binary(),
-                                modulus => binary(),
+                                modulus   => binary(),
                                 srp_value => binary()
                                }.
 
--type srpc_client_config() :: #{lib_id => lib_id(),
-                                sec_opt => bin_32(),
-                                generator => binary(),
-                                modulus => binary(),
-                                password => binary(),
-                                kdf_salt => salt(),
+-type srpc_client_config() :: #{srpc_id    => srpc_id(),
+                                sec_opt    => bin_32(),
+                                generator  => binary(),
+                                modulus    => binary(),
+                                password   => binary(),
+                                kdf_salt   => salt(),
                                 kdf_rounds => bin_32(),
-                                srp_salt => salt()
+                                srp_salt   => salt()
                                }.
+
+-type conn() :: #{conn_id       => conn_id(),
+                  exch_pubkey   => exch_key(),
+                  exch_keys     => exch_keys(),
+                  entity_id     => binary(),
+                  config        => srpc_client_config() | srpc_server_config(),
+                  sym_alg       => sym_alg(),
+                  sha_alg       => sha_alg(),
+                  req_sym_key   => sym_key(),
+                  req_hmac_key  => hmac_key(),
+                  resp_sym_key  => sym_key(),
+                  resp_hmac_key => hmac_key()
+                 }.
+
+-type registration() :: #{user_id    => binary(),
+                          kdf_salt   => salt(),
+                          kdf_rounds => bin_32(),
+                          srp_salt   => salt(),
+                          srp_value  => binary()
+                         }.

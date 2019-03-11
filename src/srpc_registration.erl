@@ -18,48 +18,68 @@
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 %%  Create user registration request
-%%    l | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Optional Data>
+%%    IdL | UserId | Code | KL | Kdf Salt | Kdf Rounds | SL | Srp Salt | Srp Value | <Data>
 %%--------------------------------------------------------------------------------------------------
+-spec create_registration_request(Conn, Code, UserId, Password, Data) -> Result when
+  Conn     :: conn(),
+  Code     :: byte(),
+  UserId   :: binary(),
+  Password :: binary(),
+  Data     :: binary(),
+  Result   :: binary().
 create_registration_request(Conn, Code, UserId, Password, Data) ->
-  KdfSalt = crypto:strong_rand_bytes(?SRPC_KDF_SALT_SIZE),
-  {ok, KdfRounds} = application:get_env(srpc_lib, lib_kdf_rounds),
+  {ok, #{generator := G,
+         modulus   := N,
+         kdf_salt  := KdfSalt,
+         kdf_round := KdfRounds,
+         srp_salt  := SrpSalt
+        }
+  } = srpc_config:client_config(),
 
-  SrpSalt = crypto:strong_rand_bytes(?SRPC_SRP_SALT_SIZE),  
-  SrpValue = srpc_sec:calc_verifier(UserId, Password, KdfRounds, KdfSalt, SrpSalt),
+  KL = byte_size(KdfSalt),
+  SL = byte_size(SrpSalt),
 
-  L = erlang:byte_size(UserId),
-  RegData = << L:8, UserId/binary, 
-               Code:8, 
-               KdfSalt/binary, SrpSalt/binary, SrpValue/binary, 
+  KdfSalt = crypto:strong_rand_bytes(KL),
+  SrpSalt = crypto:strong_rand_bytes(SL),
+  SrpValue = srpc_sec:calc_srp_value(UserId, Password, KdfSalt, KdfRounds, SrpSalt, G, N),
+
+  IdL = erlang:byte_size(UserId),
+  RegData = << IdL:8, UserId/binary,
+               Code:8,
+               KL:8, KdfSalt/binary,
+               KdfRounds:32,
+               SL:8, SrpSalt/binary,
+               SrpValue/binary,
                Data/binary >>,
 
-  srpc_encryptor:encrypt(origin_requester, Conn, RegData).
+  srpc_encryptor:encrypt(requester, Conn, RegData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process user registration request
-%%    L | UserId | Code | Kdf Salt | Srp Salt | Srp Value | <Optional Data>
+%%    IdLen | UserId | Code | KSLen | Kdf Salt | Kdf Rounds | SSLen | Srp Salt | Srp Value | <Data>
 %%--------------------------------------------------------------------------------------------------
 -spec process_registration_request(Conn, Request) -> Result when
-    Conn    :: conn(),
-    Request :: binary(),
-    Result  :: {ok, {integer(), map(), binary()}} | error_msg().
+  Conn    :: conn(),
+  Request :: binary(),
+  Result  :: {ok, {integer(), registration(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_registration_request(Conn, Request) ->
-  {_G, N} = srpc_sec:srp_group(),
-  VerifierSize = erlang:byte_size(N),
-  case srpc_encryptor:decrypt(origin_requester, Conn, Request) of
-    {ok, <<UserIdLen:8, 
-           UserId:UserIdLen/binary,
+process_registration_request(#{config := #{modulus := N}} = Conn, Request) ->
+  SVLen = erlang:byte_size(N),
+  case srpc_encryptor:decrypt(requester, Conn, Request) of
+    {ok, <<IdLen:8,
+           UserId:IdLen/binary,
            RegistrationCode:8,
-           KdfSalt:?SRPC_KDF_SALT_SIZE/binary,
-           SrpSalt:?SRPC_SRP_SALT_SIZE/binary,
-           Verifier:VerifierSize/binary,
+           KSLen:8, KdfSalt:KSLen/binary,
+           KdfRounds:32,
+           SSLen:8, SrpSalt:SSLen/binary,
+           SrpValue:SVLen/binary,
            RegistrationData/binary>>} ->
       {ok, {RegistrationCode,
-            #{user_id  => UserId,
+            #{user_id => UserId,
               kdf_salt => KdfSalt,
+              kdf_rounds => KdfRounds,
               srp_salt => SrpSalt,
-              verifier => Verifier
+              srp_value => SrpValue
              }, RegistrationData}};
     {ok, _Data} ->
       {error, <<"Process invalid registration data format">>};
@@ -72,28 +92,27 @@ process_registration_request(Conn, Request) ->
 %%    Code | <Registration Data>
 %%--------------------------------------------------------------------------------------------------
 -spec create_registration_response(Conn, RegCode, Data) -> Result when
-    Conn    :: conn(),
-    RegCode :: integer(),
-    Data    :: binary() | undefined,
-    Result  :: {ok, binary()} | error_msg().
+  Conn    :: conn(),
+  RegCode :: integer(),
+  Data    :: binary() | undefined,
+  Result  :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 create_registration_response(Conn, RegCode, undefined) ->
   create_registration_response(Conn, RegCode, <<>>);
 create_registration_response(Conn,  RegCode, RespData) ->
-  srpc_encryptor:encrypt(origin_responder, Conn,
-                         <<RegCode:8,  RespData/binary>>).
+  srpc_encryptor:encrypt(responder, Conn, <<RegCode:8, RespData/binary>>).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Processs user registration response
 %%    Code | <Registration Data>
 %%--------------------------------------------------------------------------------------------------
 -spec process_registration_response(Conn, RegResponse) -> Result when
-    Conn        :: conn(),
-    RegResponse :: binary(),
-    Result      :: {ok, {integer(), binary()}} | error_msg().
+  Conn        :: conn(),
+  RegResponse :: binary(),
+  Result      :: {ok, {integer(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_registration_response(Conn, RegResponse) ->
-  case srpc_encryptor:decrypt(origin_responder, Conn, RegResponse) of
+  case srpc_encryptor:decrypt(responder, Conn, RegResponse) of
     {ok, << RegCode:8, RespData/binary >>} ->
       {ok, {RegCode, RespData}};
     Error ->

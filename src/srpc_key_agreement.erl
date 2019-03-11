@@ -14,28 +14,30 @@
 %%
 %%  Challenge: H(SPub | CPub | H(Secret))
 %%--------------------------------------------------------------------------------------------------
-create_confirm_request(#{exch_public_key := ExchPublicKey,
-                         exch_key_pair   := ExchKeyPair,
-                         exch_hash       := ExchHash,
-                         sha_alg         := ShaAlg} = Conn,
+create_confirm_request(#{exch_pubkey := ExchPublicKey,
+                         exch_keys   := ExchKeys,
+                         exch_hash   := ExchHash,
+                         sha_alg     := ShaAlg
+                         } = Conn,
                        OptionalData) ->
-  {PairPublicKey, _} = ExchKeyPair,
+  {PairPublicKey, _} = ExchKeys,
   ChallengeData = <<PairPublicKey/binary, ExchPublicKey/binary, ExchHash/binary>>,
   Challenge = crypto:hash(ShaAlg, ChallengeData),
   ConfirmData = <<Challenge/binary, OptionalData/binary>>,
-  srpc_encryptor:encrypt(origin_requester, Conn, ConfirmData).
+  srpc_encryptor:encrypt(requester, Conn, ConfirmData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process Key Confirm Response
 %%
 %%--------------------------------------------------------------------------------------------------
-process_confirm_response(Conn, EncryptedResponse) ->
-  case srpc_encryptor:decrypt(origin_responder, Conn, EncryptedResponse) of
-    {ok, <<ServerChallenge:?SRPC_CHALLENGE_SIZE/binary, OptionalData/binary>>} ->
+process_confirm_response(#{sha_alg := ShaAlg} = Conn, EncryptedResponse) ->
+  ChallengeSize = srpc_sec:sha_size(ShaAlg),
+  case srpc_encryptor:decrypt(responder, Conn, EncryptedResponse) of
+    {ok, <<ServerChallenge:ChallengeSize/binary, OptionalData/binary>>} ->
       case srpc_sec:process_server_challenge(Conn, ServerChallenge) of
         true ->
           {ok,
-           srpc_util:remove_map_keys(Conn, [exch_public_key, exch_key_pair, exch_hash]),
+           srpc_util:remove_map_keys(Conn, [exch_pubkey, exch_keys, exch_hash]),
            OptionalData};
         false ->
           {invalid, <<"Invalid server challenge">>}
