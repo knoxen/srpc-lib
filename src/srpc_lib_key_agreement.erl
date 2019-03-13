@@ -48,25 +48,19 @@ create_exchange_request(Config, OptionalData) ->
   Request :: binary(),
   Result  :: {ok, {exch_key(), binary()}} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_exchange_request(#{srpc_id := SrpcId, modulus := N},
-                         <<IdSize:8, ExchId:IdSize/binary, Data/binary>>) ->
-  case ExchId of
-    SrpcId ->
-      PubKeySize = byte_size(N),
-      case Data of
-        <<ClientPublicKey:PubKeySize/binary, OptionalData/binary>> ->
-          case srpc_sec:validate_public_key(ClientPublicKey, N) of
-            ok ->
-              {ok, {ClientPublicKey, OptionalData}};
-            Error ->
-              Error
-          end;
-        _Data ->
-          {invalid, <<"Invalid client public key size">>}
+process_exchange_request(#{srpc_id := SrpcId, modulus := N} = _Config,
+                         <<IdSize:8, SrpcId:IdSize/binary, Data/binary>>) ->
+  PubKeySize = byte_size(N),
+  case Data of
+    <<ClientPublicKey:PubKeySize/binary, OptionalData/binary>> ->
+      case srpc_sec:validate_public_key(ClientPublicKey, N) of
+        ok ->
+          {ok, {ClientPublicKey, OptionalData}};
+        Error ->
+          Error
       end;
-
-    InvalidId ->
-      {invalid, <<"Invalid SrpcId: ", InvalidId/binary>>}
+    _Data ->
+      {invalid, <<"Invalid client public key size">>}
   end;
 
 process_exchange_request(_, _) ->
@@ -81,8 +75,8 @@ process_exchange_request(_, _) ->
     ExchangeData :: binary(),
     Response     :: {ok, {conn(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-create_exchange_response(ExchConn, ExchangeData) ->
-  case srpc_sec:client_conn_keys(ExchConn) of
+create_exchange_response(#{config := #{srp_value := SrpValue}} = ExchConn, ExchangeData) ->
+  case srpc_sec:client_conn_keys(ExchConn, SrpValue) of
     {ok, Conn} ->
       {ServerPublicKey, _ServerPrivateKey} = maps:get(exch_keys, Conn),
       ExchangeResponse = <<ServerPublicKey/binary, ExchangeData/binary>>,

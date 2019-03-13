@@ -8,7 +8,7 @@
          pbkdf2/3,
          generate_client_keys/1,
          validate_public_key/2,
-         client_conn_keys/1,
+         client_conn_keys/2,
          server_conn_keys/3,
          calc_srp_value/7,
          process_client_challenge/2,
@@ -146,11 +146,12 @@ pad_value(PublicKey, Size) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Client Connection Keys
 %%--------------------------------------------------------------------------------------------------
--spec client_conn_keys(Conn) -> Result when
-    Conn   :: conn(),
-    Result :: {ok, conn()} | error_msg().
+-spec client_conn_keys(Conn, SrpValue) -> Result when
+    Conn     :: conn(),
+    SrpValue :: binary(),
+    Result   :: {ok, conn()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-client_conn_keys(#{config := #{srp_value := SrpValue, generator := G, modulus := N}} = Conn) ->
+client_conn_keys(#{config := #{generator := G, modulus := N}} = Conn, SrpValue) ->
   ExchKeys = generate_server_keys(SrpValue, G, N),
   SrpServerParams = {host, [SrpValue, N, ?SRPC_SRP_VERSION]},
   conn_keys(maps:put(exch_keys, ExchKeys, Conn), SrpServerParams).

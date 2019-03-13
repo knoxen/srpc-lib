@@ -48,23 +48,20 @@ create_exchange_request(Conn, UserId, OptionalData) ->
     Request :: binary(),
     Result  :: {ok, {conn_id(), exch_key(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_exchange_request(#{config := #{modulus := N}} = Conn, Request) ->
+process_exchange_request(#{config := #{modulus := N}} = Conn, ExchRequest) ->
   PubKeySize = byte_size(N),
-  case srpc_encryptor:decrypt(requester, Conn, Request) of
-    {ok, <<IdSize:8, RequestData/binary>>} ->
-      case RequestData of
-        <<UserId:IdSize/binary, PublicKey:PubKeySize/binary, ExchangeData/binary>> ->
-          case srpc_sec:validate_public_key(PublicKey, N) of
-            ok ->
-              {ok, {UserId, PublicKey, ExchangeData}};
-            Error ->
-              Error
-          end;
-        _RequestData ->
-          {error, <<"Invalid user key exchange data">>}
+  case srpc_encryptor:decrypt(requester, Conn, ExchRequest) of
+    {ok, <<IdSize:8, UserId:IdSize/binary, PublicKey:PubKeySize/binary, ExchData/binary>>} ->
+      case srpc_sec:validate_public_key(PublicKey, N) of
+        ok ->
+          {ok, {UserId, PublicKey, ExchData}};
+        Error ->
+          Error
       end;
-    {ok, <<>>} ->
+
+    {ok, _} ->
       {error, <<"Invalid user key exchange data">>};
+
     Error ->
       Error
   end.
@@ -126,14 +123,13 @@ process_exchange_response(#{config := Config} = Conn,
     Result       :: {ok, {conn(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 create_exchange_response(ConnId,
-                         #{config := Config} = ExchConn,
+                         #{config := #{modulus   := N,
+                                       kdf_salt  := KdfSalt,
+                                       srp_salt  := SrpSalt
+                                      }} = ExchConn,
                          invalid,
                          _ClientPublicKey,
                          ExchData) ->
-  #{modulus   := N,
-    kdf_salt  := KdfSalt,
-    srp_salt  := SrpSalt
-  } = Config,
   KSLen = byte_size(KdfSalt),
   SSLen = byte_size(SrpSalt),
   PKLen = byte_size(N),
@@ -147,21 +143,22 @@ create_exchange_response(ConnId,
 
 create_exchange_response(ConnId,
                          #{config := Config} = ExchConn,
-                         #{user_id    := UserId,
+                         #{kdf_rounds := KdfRounds,
                            kdf_salt   := KdfSalt,
-                           kdf_rounds := KdfRounds,
                            srp_salt   := SrpSalt,
-                           srp_value  := SrpValue},
+                           srp_value  := SrpValue,
+                           user_id    := UserId
+                          } = _Registration,
                          ClientPublicKey,
                          ExchData) ->
-
-  case srpc_sec:client_conn_keys(#{conn_id     => ConnId,
+  case srpc_sec:client_conn_keys(#{type        => user,
+                                   entity_id   => UserId,
+                                   conn_id     => ConnId,
                                    exch_pubkey => ClientPublicKey,
-                                   type        => user,
-                                   entity_id   => UserId},
-                                 SrpValue) of
+                                   config      => Config
+                                  },
+                                  SrpValue) of
     {ok, Conn} ->
-      {ok, Config} = srpc_config:client_config(),
       {ServerPublicKey, _} = maps:get(exch_keys, Conn),
       case encrypt_response_data(ConnId, ExchConn,
                                  ?SRPC_USER_OK,
