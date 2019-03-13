@@ -21,7 +21,7 @@
 %%--------------------------------------------------------------------------------------------------
 %% Encrypt
 %%--------------------------------------------------------------------------------------------------
-%% @doc Encrypt data using client information
+%% @doc Encrypt data using connection information
 %%
 -spec encrypt(Origin, Conn, Data) -> Result when
     Origin :: origin(),
@@ -29,30 +29,17 @@
     Data   :: binary(),
     Result :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-encrypt(requester,
-        #{conn_id     := ConnId,
-          req_sym_key := SymKey,
-          req_mac_key := MacKey,
-          config      := Config},
-        Data) ->
-  encrypt_keys(SymKey, MacKey, ConnId, Config, Data);
+encrypt(Origin, #{conn_id := ConnId, config := Config} = Conn, Data) ->
+  MsgData = <<ConnId/binary, Data/binary>>,
+  case Origin of
+    requester ->
+      #{req_sym_key := SymKey, req_mac_key := MacKey} = Conn,
+      encrypt_data(SymKey, MacKey, Config, MsgData);
 
-encrypt(requester, _Conn, _Data) ->
-  {error, <<"Invalid connection for requester encrypt">>};
-
-encrypt(responder,
-        #{conn_id      := ConnId,
-          resp_sym_key := SymKey,
-          resp_mac_key := MacKey,
-          config       := Config},
-        Data) ->
-  encrypt_keys(SymKey, MacKey, ConnId, Config, Data);
-
-encrypt(responder, _Conn, _Data) ->
-  {error, <<"Invalid connection for responder encrypt">>};
-
-encrypt(_Origin, _Conn, _Data) ->
-  {error, <<"Invalid origin for encrypt">>}.
+    responder ->
+      #{resp_sym_key := SymKey, resp_mac_key := MacKey} = Conn,
+      encrypt_data(SymKey, MacKey, Config, MsgData)
+  end.
 
 %%--------------------------------------------------------------------------------------------------
 %% Decrypt
@@ -65,30 +52,16 @@ encrypt(_Origin, _Conn, _Data) ->
     Packet :: binary(),
     Result :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-decrypt(requester,
-       #{conn_id     := ConnId,
-         req_sym_key := SymKey,
-         req_mac_key := MacKey,
-         config      := Config},
-        Packet) ->
-  decrypt_keys(SymKey, MacKey, ConnId, Config, Packet);
+decrypt(Origin, #{conn_id := ConnId, config := Config} = Conn, Packet) ->
+  case Origin of
+    requester ->
+      #{req_sym_key := SymKey, req_mac_key := MacKey} = Conn,
+      decrypt_data(SymKey, MacKey, ConnId, Config, Packet);
 
-decrypt(requester, _Conn, _Data) ->
-  {error, <<"Invalid connection for requester decrypt">>};
-
-decrypt(responder,
-        #{conn_id      := ConnId,
-          resp_sym_key := SymKey,
-          resp_mac_key := MacKey,
-          config       := Config},
-        Packet) ->
-  decrypt_keys(SymKey, MacKey, ConnId, Config, Packet);
-
-decrypt(responder, _Conn, _Data) ->
-  {error, <<"Invalid connection for responder decrypt">>};
-
-decrypt(_Origin, _Conn, _Packet) ->
-  {error, <<"Invalid origin for decrypt">>}.
+    responder ->
+      #{resp_sym_key := SymKey, resp_mac_key := MacKey} = Conn,
+      decrypt_data(SymKey, MacKey, ConnId, Config, Packet)
+  end.
 
 %%==================================================================================================
 %%
@@ -101,22 +74,6 @@ decrypt(_Origin, _Conn, _Packet) ->
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec encrypt_keys(SymKey, MacKey, ConnId, Config, Data) -> {ok, Packet} | error_msg() when
-    SymKey :: sym_key(),
-    MacKey :: sym_key(),
-    ConnId :: binary(),
-    Config :: srpc_server_config() | srpc_client_config(),
-    Data   :: binary(),
-    Packet :: binary().
-%%--------------------------------------------------------------------------------------------------
-encrypt_keys(SymKey, MacKey, ConnId, Config, Data) ->
-  SrpcMsgHdr = srpc_msg_hdr(ConnId, Config),
-  LibData = <<SrpcMsgHdr/binary, Data/binary>>,
-  encrypt_data(SymKey, MacKey, Config, LibData).
-
-%% @doc Encrypt data with symmetric key and sign with hmac key.
-%% @private
-%%
 -spec encrypt_data(SymKey, MacKey, Config, Data) -> {ok, Packet} | error_msg() when
     SymKey :: sym_key(),
     MacKey :: hmac_key(),
@@ -124,45 +81,14 @@ encrypt_keys(SymKey, MacKey, ConnId, Config, Data) ->
     Data   :: binary(),
     Packet :: binary().
 %%--------------------------------------------------------------------------------------------------
-encrypt_data(SymKey, MacKey, Config, Data) ->
+encrypt_data(SymKey, MacKey, #{sec_opt := _SecOpt}, Data) ->
   IV = crypto:strong_rand_bytes(?SRPC_AES_BLOCK_SIZE),
-  encrypt_data(SymKey, IV, MacKey, Config, Data).
-
-%%--------------------------------------------------------------------------------------------------
-%% @doc Encrypt data with crypt key using iv, and sign with hmac key.
-%% @private
-%%
--spec encrypt_data(SymKey, IV, MacKey, Config, Data) -> {ok, Packet} | error_msg() when
-    Config :: srpc_server_config() | srpc_client_config(),
-    SymKey :: sym_key(),
-    IV     :: aes_block(),
-    MacKey :: hmac_key(),
-    Data   :: binary(),
-    Packet :: binary().
-%%--------------------------------------------------------------------------------------------------
-%% CxTBD Operate based on Config
-encrypt_data(<<SymKey/binary>>, <<IV:?SRPC_AES_BLOCK_SIZE/binary>>, <<MacKey/binary>>,
-             _Config,
-             <<Data/binary>>)
-  when byte_size(SymKey) =:= ?SRPC_AES_128_KEY_SIZE;
-       byte_size(SymKey) =:= ?SRPC_AES_192_KEY_SIZE;
-       byte_size(SymKey) =:= ?SRPC_AES_256_KEY_SIZE ->
+  % CxTBD Get mode from SecOpt
   CipherText = crypto:block_encrypt(aes_cbc256, SymKey, IV, enpad(Data)),
   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
+  % CxTBD Get sha alg from SecOpt
   Hmac = crypto:hmac(sha256, MacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
-  {ok, <<CryptorText/binary, Hmac/binary>>};
-encrypt_data(_Config, <<_SymKey/binary>>, <<_IV/binary>>, <<_MacKey/binary>>, <<_Data/binary>>) ->
-  {error, <<"Invalid key size">>};
-encrypt_data(_Config, _SymKey, <<_IV/binary>>, <<_MacKey/binary>>, <<_Data/binary>>) ->
-  {error, <<"Invalid key: Not binary">>};
-encrypt_data(_Config, <<_SymKey/binary>>, _IV, <<_MacKey/binary>>, <<_Data/binary>>) ->
-  {error, <<"Invalid iv: Not binary">>};
-encrypt_data(_Config, <<_SymKey/binary>>, <<_IV/binary>>, _MacKey, <<_Data/binary>>) ->
-  {error, <<"Invalid hmac key: Not binary">>};
-encrypt_data(_Config, <<_SymKey/binary>>, <<_IV/binary>>, <<_MacKey/binary>>, _Data) ->
-  {error, <<"Invalid data: Not binary">>};
-encrypt_data(_Config, _SymKey, _IV, _MacKey, _PlainText) ->
-  {error, <<"Invalid args">>}.
+  {ok, <<CryptorText/binary, Hmac/binary>>}.
 
 %%--------------------------------------------------------------------------------------------------
 %% Decrypt Data
@@ -170,19 +96,19 @@ encrypt_data(_Config, _SymKey, _IV, _MacKey, _PlainText) ->
 %% @doc Decrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec decrypt_keys(SymKey, MacKey, ConnId, Config, Packet) -> Result when
-    Config :: srpc_server_config() | srpc_client_config(),
+-spec decrypt_data(SymKey, MacKey, ConnId, Config, Packet) -> Result when
     SymKey :: sym_key(),
     MacKey :: sym_key(),
+    Config :: srpc_server_config() | srpc_client_config(),
     ConnId :: binary(),
     Config :: srpc_server_config() | srpc_client_config(),
     Packet :: binary(),
-    Data   :: binary(),
-    Result :: {ok, Data} | error_msg() | invalid_msg().
+    Result :: {ok, binary()} | error_msg() | invalid_msg().
 %%--------------------------------------------------------------------------------------------------
 %% CxTBD Operate based on Config
-decrypt_keys(SymKey, MacKey, ConnId, Config, Packet) ->
+decrypt_data(SymKey, MacKey, ConnId, #{sec_opt := _SecOpt}, Packet) ->
   PacketSize = byte_size(Packet),
+  % CxTBD Get sha alg from SecOpt
   CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_HMAC_256_SIZE}),
   PacketHmac   = binary_part(Packet, {PacketSize, -?SRPC_HMAC_256_SIZE}),
   Hmac = crypto:hmac(sha256, MacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
@@ -190,16 +116,16 @@ decrypt_keys(SymKey, MacKey, ConnId, Config, Packet) ->
     true ->
       case CryptorText of
         <<?SRPC_DATA_VERSION, IV:?SRPC_AES_BLOCK_SIZE/binary, CipherText/binary>> ->
+          % CxTBD Get mode from SecOpt
           PaddedData = crypto:block_decrypt(aes_cbc256, SymKey, IV, CipherText),
           case depad(PaddedData) of
             {ok, Cryptor} ->
-              SrpcMsgHdr = srpc_msg_hdr(ConnId, Config),
-              HdrLen = byte_size(SrpcMsgHdr),
+              ConnIdLen = byte_size(ConnId),
               case Cryptor of
-                <<SrpcMsgHdr:HdrLen/binary, Data/binary>> ->
+                <<ConnId:ConnIdLen/binary, Data/binary>> ->
                   {ok, Data};
-                <<_SrpcMsgHdr:HdrLen/binary, _Data/binary>> ->
-                  {error, <<"Invalid SRPC data header">>}
+                _ ->
+                  {error, <<"Invalid SRPC data conn ID header">>}
               end;
             Error ->
               Error
@@ -210,28 +136,6 @@ decrypt_keys(SymKey, MacKey, ConnId, Config, Packet) ->
     false ->
       {invalid, <<"Invalid hmac">>}
   end.
-
-%%--------------------------------------------------------------------------------------------------
-%%
-%%  SRPC Message Header
-%%     1       1     1     L
-%%   Major | Minor | L | SrpcId
-%%--------------------------------------------------------------------------------------------------
-%% @doc Header for all SRPC messages
-%%
--spec srpc_msg_hdr(ConnId, Config) -> Header when
-    ConnId :: binary(),
-    Config :: srpc_server_config() | srpc_client_config(),
-    Header :: binary().
-%%--------------------------------------------------------------------------------------------------
-srpc_msg_hdr(ConnId, #{srpc_id := SrpcId}) ->
-  SrpcIdLen = erlang:byte_size(SrpcId),
-  DataHdr = <<?SRPC_VERSION_MAJOR:8,
-              ?SRPC_VERSION_MINOR:8,
-              SrpcIdLen:8,
-              SrpcId/binary>>,
-  ConnIdLen = byte_size(ConnId),
-  <<DataHdr/binary, ConnIdLen, ConnId/binary>>.
 
 %%--------------------------------------------------------------------------------------------------
 %%

@@ -105,6 +105,7 @@
                   exch_keys     => exch_keys(),
                   entity_id     => binary(),
                   config        => srpc_client_config() | srpc_server_config(),
+                  msg_hdr       => binary(),
                   sym_alg       => sym_alg(),
                   sha_alg       => sha_alg(),
                   req_sym_key   => sym_key(),
