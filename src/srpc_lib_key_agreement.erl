@@ -82,8 +82,7 @@ process_exchange_request(_, _) ->
     Response     :: {ok, {conn(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 create_exchange_response(ExchConn, ExchangeData) ->
-  {ok, LibSrpValue} = application:get_env(srpc_lib, lib_srp_value),
-  case srpc_sec:client_conn_keys(ExchConn, LibSrpValue) of
+  case srpc_sec:client_conn_keys(ExchConn) of
     {ok, Conn} ->
       {ServerPublicKey, _ServerPrivateKey} = maps:get(exch_keys, Conn),
       ExchangeResponse = <<ServerPublicKey/binary, ExchangeData/binary>>,
