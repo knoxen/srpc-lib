@@ -4,6 +4,8 @@
 
 -include("srpc_lib.hrl").
 
+-define (DEMO_TIME_OUT, 10983).  %% 3 hours, 3 minutes and 3 seconds
+
 %% SRPC info
 -export([srpc_parse_config/1,
          srpc_version/0,
@@ -418,7 +420,12 @@ create_user_key_confirm_response(LibConn, UserConn, ClientChallenge, Data) ->
     Result :: {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 encrypt(Origin, Conn, Data) ->
-  srpc_encryptor:encrypt(Origin, Conn, Data).
+  case demo_check_time() of
+    true ->
+      srpc_encryptor:encrypt(Origin, Conn, Data);
+    _ ->
+      {demo, <<"Srpc Demo server time expired. Restart to continue.">>}
+  end.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Decrypt
@@ -442,3 +449,20 @@ decrypt(Origin, Conn, Packet) ->
 %%--------------------------------------------------------------------------------------------------
 refresh_keys(Conn, Data) ->
   srpc_sec:refresh_keys(Conn, Data).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Demo time out processing
+%%--------------------------------------------------------------------------------------------------
+demo_check_time() ->
+  Elapsed = 
+    case application:get_env(srpc_lib, demo_init) of
+      undefined ->
+        application:set_env(srpc_lib, demo_init,
+                            erlang:monotonic_time(seconds), [{persistent, true}]),
+        0;
+      DemoInit ->
+        erlang:monotonic_time(seconds) - DemoInit
+    end,
+  Elapsed < ?DEMO_TIME_OUT.
+
+      
