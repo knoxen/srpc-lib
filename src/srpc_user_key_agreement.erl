@@ -12,6 +12,7 @@
         ]).
 
 %% User Key Confirm
+%%   CxNote create_confirm_request and process_confirm_response are in srpc_key_agreement
 -export([process_confirm_request/2,
          create_confirm_response/4
         ]).
@@ -66,6 +67,75 @@ process_exchange_request(#{config := #{modulus := N}} = Conn, ExchRequest) ->
       Error
   end.
 
+%%--------------------------------------------------------------------------------------------------
+%%  Create User Key Exchange Response
+%%    User Code | CL | ConnId | KL | Kdf Salt | Rounds | SL | Srp Salt | Server Pub Key | <Data>
+%%--------------------------------------------------------------------------------------------------
+-spec create_exchange_response(ConnId, Conn, Registration, PublicKey, Data) -> Result when
+    ConnId       :: conn_id(),
+    Conn         :: conn(),
+    Registration :: binary() | invalid,
+    PublicKey    :: exch_key(),
+    Data         :: binary(),
+    Result       :: {ok, {conn(), binary()}} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+%%  invalid
+%%--------------------------------------------------------------------------------------------------
+create_exchange_response(ConnId,
+                         #{config := #{modulus   := N,
+                                       kdf_salt  := KdfSalt,
+                                       srp_salt  := SrpSalt
+                                      }} = ExchConn,
+                         invalid,
+                         _ClientPublicKey,
+                         ExchData) ->
+  KSLen = byte_size(KdfSalt),
+  SSLen = byte_size(SrpSalt),
+  PKLen = byte_size(N),
+  encrypt_response_data(ConnId, ExchConn,
+                       ?SRPC_USER_INVALID_IDENTITY,
+                        srpc_sec:zeroed_bytes(KSLen),
+                        0,
+                        srpc_sec:zeroed_bytes(SSLen),
+                        srpc_sec:zeroed_bytes(PKLen),
+                        ExchData);
+
+%%--------------------------------------------------------------------------------------------------
+%%  valid
+%%--------------------------------------------------------------------------------------------------
+create_exchange_response(ConnId,
+                         #{config := Config} = ExchConn,
+                         #{kdf_rounds := KdfRounds,
+                           kdf_salt   := KdfSalt,
+                           srp_salt   := SrpSalt,
+                           srp_value  := SrpValue,
+                           user_id    := UserId
+                          } = _Registration,
+                         ClientPublicKey,
+                         ExchData) ->
+  case srpc_sec:client_conn_keys(#{type        => user,
+                                   entity_id   => UserId,
+                                   conn_id     => ConnId,
+                                   exch_pubkey => ClientPublicKey,
+                                   config      => Config
+                                  },
+                                  SrpValue) of
+    {ok, Conn} ->
+      {ServerPublicKey, _} = maps:get(exch_keys, Conn),
+      case encrypt_response_data(ConnId, ExchConn,
+                                 ?SRPC_USER_OK,
+                                 KdfSalt, KdfRounds,
+                                 SrpSalt,
+                                 ServerPublicKey,
+                                 ExchData) of
+        {ok, ExchangeResponse} ->
+          {ok, {Conn, ExchangeResponse}};
+        Error ->
+          Error
+      end;
+    Error ->
+      Error
+  end.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process User Key Exchange Response
@@ -107,77 +177,7 @@ process_exchange_response(#{config := Config} = Conn,
 
 %%==================================================================================================
 %%
-%%  Server User Client Key Exchange
-%%
-%%==================================================================================================
-%%--------------------------------------------------------------------------------------------------
-%%  Create User Key Exchange Response
-%%    User Code | CL | ConnId | KL | Kdf Salt | Rounds | SL | Srp Salt | Server Pub Key | <Data>
-%%--------------------------------------------------------------------------------------------------
--spec create_exchange_response(ConnId, Conn, Registration, PublicKey, Data) -> Result when
-    ConnId       :: conn_id(),
-    Conn         :: conn(),
-    Registration :: binary() | invalid,
-    PublicKey    :: exch_key(),
-    Data         :: binary(),
-    Result       :: {ok, {conn(), binary()}} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-create_exchange_response(ConnId,
-                         #{config := #{modulus   := N,
-                                       kdf_salt  := KdfSalt,
-                                       srp_salt  := SrpSalt
-                                      }} = ExchConn,
-                         invalid,
-                         _ClientPublicKey,
-                         ExchData) ->
-  KSLen = byte_size(KdfSalt),
-  SSLen = byte_size(SrpSalt),
-  PKLen = byte_size(N),
-  encrypt_response_data(ConnId, ExchConn,
-                       ?SRPC_USER_INVALID_IDENTITY,
-                        srpc_sec:zeroed_bytes(KSLen),
-                        0,
-                        srpc_sec:zeroed_bytes(SSLen),
-                        srpc_sec:zeroed_bytes(PKLen),
-                        ExchData);
-
-create_exchange_response(ConnId,
-                         #{config := Config} = ExchConn,
-                         #{kdf_rounds := KdfRounds,
-                           kdf_salt   := KdfSalt,
-                           srp_salt   := SrpSalt,
-                           srp_value  := SrpValue,
-                           user_id    := UserId
-                          } = _Registration,
-                         ClientPublicKey,
-                         ExchData) ->
-  case srpc_sec:client_conn_keys(#{type        => user,
-                                   entity_id   => UserId,
-                                   conn_id     => ConnId,
-                                   exch_pubkey => ClientPublicKey,
-                                   config      => Config
-                                  },
-                                  SrpValue) of
-    {ok, Conn} ->
-      {ServerPublicKey, _} = maps:get(exch_keys, Conn),
-      case encrypt_response_data(ConnId, ExchConn,
-                                 ?SRPC_USER_OK,
-                                 KdfSalt, KdfRounds,
-                                 SrpSalt,
-                                 ServerPublicKey,
-                                 ExchData) of
-        {ok, ExchangeResponse} ->
-          {ok, {Conn, ExchangeResponse}};
-        Error ->
-          Error
-      end;
-    Error ->
-      Error
-  end.
-
-%%==================================================================================================
-%%
-%%  Server User Client Key Confirm
+%%  User Client Key Confirm
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
