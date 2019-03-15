@@ -5,7 +5,7 @@
 -include("srpc_lib.hrl").
 
 %% SRPC info
--export([srpc_parse_config/1,
+-export([parse_srpc_config/1,
          srpc_version/0,
          srpc_info/1
         ]).
@@ -63,12 +63,12 @@
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC version
 %%--------------------------------------------------------------------------------------------------
--spec srpc_parse_config(Data) -> Result when
+-spec parse_srpc_config(Data) -> Result when
   Data   :: binary(),
   Result :: srpc_client_config() | srpc_server_config().
 %%--------------------------------------------------------------------------------------------------
-srpc_parse_config(Data) ->
-  srpc_config:srpc_parse_config(Data).
+parse_srpc_config(Data) ->
+  srpc_config:parse(Data).
 
 %%--------------------------------------------------------------------------------------------------
 %%  SRPC version

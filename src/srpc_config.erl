@@ -4,13 +4,13 @@
 
 -include("srpc_lib.hrl").
 
--export([srpc_parse_config/1,
+-export([parse/1,
          create_server_config/4,
          create_client_config/7
         ]).
 
 %%--------------------------------------------------------------------------------------------------
-%%  Parse srpc config
+%%  Parse srpc config data
 %%
 %%  <------------------------  Shared Data  -------------------------->
 %%    1      1      IdLen     4        2       GLen       2      NLen
@@ -26,16 +26,16 @@
 %%     1      PLen      1      KLen        4         1      SLen
 %%   PLen | password | KLen | KdfSalt | KdfRounds | SLen | SrpSalt
 %%--------------------------------------------------------------------------------------------------
--spec srpc_parse_config(Data) -> Result when
-  Data   :: binary(),
-  Result :: {ok, srpc_server_config()} | {ok, srpc_client_config()} | error_msg().
+-spec parse(Data) -> Result when
+    Data   :: binary(),
+    Result :: {ok, srpc_server_config()} | {ok, srpc_client_config()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-srpc_parse_config(<<Type:8,
-                    IdLen:8, SrpcId:IdLen/binary,
-                    SecOpt:4/binary,
-                    GLen:16, G:GLen/binary,
-                    NLen:16, N:NLen/binary,
-                    Data/binary >>) ->
+parse(<<Type:8,
+        IdLen:8, SrpcId:IdLen/binary,
+        SecOpt:4/binary,
+        GLen:16, G:GLen/binary,
+        NLen:16, N:NLen/binary,
+        Data/binary >>) ->
   SharedConfig = #{srpc_type => Type,
                    srpc_id => SrpcId,
                    sec_opt => SecOpt,
@@ -43,33 +43,33 @@ srpc_parse_config(<<Type:8,
                    modulus => N},
   case Type of
     0 ->
-      parse_server_config(SharedConfig, Data);
+      parse_server(SharedConfig, Data);
 
     1 ->
-      parse_client_config(SharedConfig, Data);
+      parse_client(SharedConfig, Data);
 
     _ ->
       {error, <<"Invalid config type">>}
   end;
 
-srpc_parse_config(_Data) ->
+parse(_Data) ->
   {error, <<"Invalid config data">>}.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Parse server config
+%%  Parse server config data
 %%  <- Server data ->
 %%     2       SVLen
 %%   SVLen | SrpValue
 %%--------------------------------------------------------------------------------------------------
--spec parse_server_config(SharedConfig, Data) -> Result when
-  SharedConfig :: srpc_shared_config(),
-  Data         :: binary(),
-  Result       :: {ok, srpc_server_config()} | error_msg().
+-spec parse_server(SharedConfig, Data) -> Result when
+    SharedConfig :: srpc_shared_config(),
+    Data         :: binary(),
+    Result       :: {ok, srpc_server_config()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-parse_server_config(SharedConfig, << Len:16, SrpValue:Len/binary >>) ->
+parse_server(SharedConfig, << Len:16, SrpValue:Len/binary >>) ->
   {ok, maps:put(srp_value, SrpValue, SharedConfig)};
 
-parse_server_config(_SharedConfig, _Data) ->
+parse_server(_SharedConfig, _Data) ->
   {error, <<"Invalid SRPC server config data">>}.
 
 %%--------------------------------------------------------------------------------------------------
@@ -78,24 +78,24 @@ parse_server_config(_SharedConfig, _Data) ->
 %%    1      PLen      1      KLen        4         1      SLen
 %%  PLen | password | KLen | KdfSalt | KdfRounds | SLen | SrpSalt
 %%--------------------------------------------------------------------------------------------------
--spec parse_client_config(SharedConfig, Data) -> Result when
-  SharedConfig :: srpc_shared_config(),
-  Data         :: binary(),
-  Result       :: {ok, srpc_client_config()} | error_msg().
+-spec parse_client(SharedConfig, Data) -> Result when
+    SharedConfig :: srpc_shared_config(),
+    Data         :: binary(),
+    Result       :: {ok, srpc_client_config()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-parse_client_config(SharedConfig,
-                    <<PLen:8, Password:PLen/binary,
-                      KLen:8, KdfSalt:KLen/binary,
-                      KdfRounds:32/integer,
-                      SLen:8, SrpSalt:SLen/binary>>) ->
-      ClientConfig = #{password => Password,
-                       kdf_salt => KdfSalt,
-                       kdf_rounds => KdfRounds,
-                       srp_salt => SrpSalt
-                      },
-      {ok, maps:merge(SharedConfig, ClientConfig)};
+parse_client(SharedConfig,
+             <<PLen:8, Password:PLen/binary,
+               KLen:8, KdfSalt:KLen/binary,
+               KdfRounds:32/integer,
+               SLen:8, SrpSalt:SLen/binary>>) ->
+  ClientConfig = #{password => Password,
+                   kdf_salt => KdfSalt,
+                   kdf_rounds => KdfRounds,
+                   srp_salt => SrpSalt
+                  },
+  {ok, maps:merge(SharedConfig, ClientConfig)};
 
-parse_client_config(_SharedConfig, _Data) ->
+parse_client(_SharedConfig, _Data) ->
   {error, <<"Invalid SRPC client config data">>}.
 
 %%==================================================================================================
