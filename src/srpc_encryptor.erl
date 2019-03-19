@@ -27,7 +27,7 @@
     Origin :: origin(),
     Conn   :: conn(),
     Data   :: binary(),
-    Result :: ok_binary().
+    Result :: binary().
 %%--------------------------------------------------------------------------------------------------
 encrypt(Origin,
         #{conn_id := ConnId,
@@ -45,7 +45,7 @@ encrypt(Origin,
   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
   HmacSize = srpc_sec:sha_size(ShaAlg),
   Hmac = crypto:hmac(ShaAlg, HmacKey, CryptorText, HmacSize),
-  {ok, <<CryptorText/binary, Hmac/binary>>}.
+  <<CryptorText/binary, Hmac/binary>>.
 
   %% encrypt_data(SymKey, HmacKey, Conn, MsgData).
 

@@ -14,38 +14,37 @@
 %%
 %%  Challenge: H(SPub | CPub | H(Secret))
 %%--------------------------------------------------------------------------------------------------
--spec create_confirm_request(Conn, OptionalData) -> Result when
-    Conn         :: conn(),
-    OptionalData :: binary(),
-    Result       :: ok_binary() | error_msg().
+-spec create_confirm_request(ExchConn, OptData) -> ConfirmReq when
+    ExchConn   :: conn(),
+    OptData    :: binary(),
+    ConfirmReq :: binary().
 %%--------------------------------------------------------------------------------------------------
 create_confirm_request(#{exch_info := #{pub_key     := ClientPublicKey,
                                         key_pair    := {ServerPublicKey, _},
                                         secret_hash := SecretHash},
                          sec_algs := #{sha_alg := ShaAlg}
-                        } = Conn,
-                       Data) ->
-  Challenge = crypto:hash(ShaAlg,
-                          <<ServerPublicKey/binary, ClientPublicKey/binary, SecretHash/binary>>),
-  srpc_encryptor:encrypt(requester, Conn, <<Challenge/binary, Data/binary>>).
+                        } = ExchConn,
+                       OptData) ->
+  Challenge =
+    crypto:hash(ShaAlg, <<ServerPublicKey/binary, ClientPublicKey/binary, SecretHash/binary>>),
+  srpc_encryptor:encrypt(requester, ExchConn, <<Challenge/binary, OptData/binary>>).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process Key Confirm Response
-%%
 %%--------------------------------------------------------------------------------------------------
--spec process_confirm_response(Conn, Response) -> Result when
-    Conn     :: conn(),
-    Response :: binary(),
-    Result   :: {ok, conn(), binary()} | invalid_msg() | error_msg().
+-spec process_confirm_response(ExchConn, ConfirmResp) -> Result when
+    ExchConn    :: conn(),
+    ConfirmResp :: binary(),
+    Result      :: {ok, conn(), OptData :: binary()} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_confirm_response(#{sec_algs := #{sha_alg := ShaAlg}} = Conn,
-                         Response) ->
+process_confirm_response(#{sec_algs := #{sha_alg := ShaAlg}} = ExchConn,
+                         ConfirmResp) ->
   ChallengeSize = srpc_sec:sha_size(ShaAlg),
-  case srpc_encryptor:decrypt(responder, Conn, Response) of
-    {ok, <<ServerChallenge:ChallengeSize/binary, OptionalData/binary>>} ->
-      case srpc_sec:process_server_challenge(Conn, ServerChallenge) of
+  case srpc_encryptor:decrypt(responder, ExchConn, ConfirmResp) of
+    {ok, <<ServerChallenge:ChallengeSize/binary, OptData/binary>>} ->
+      case srpc_sec:process_server_challenge(ExchConn, ServerChallenge) of
         true ->
-          {ok, maps:remove(exch_info, Conn), OptionalData};
+          {ok, maps:remove(exch_info, ExchConn), OptData};
 
         false ->
           {invalid, <<"Invalid server challenge">>}

@@ -20,13 +20,13 @@
 %%  Create user registration request
 %%    IdLen | UserId | Code | KLen | Kdf Salt | Kdf Rounds | SLen | Srp Salt | Srp Value | <Data>
 %%--------------------------------------------------------------------------------------------------
--spec create_registration_request(Conn, Code, UserId, Password, Data) -> Result when
-  Conn     :: conn(),
-  Code     :: byte(),
-  UserId   :: id(),
-  Password :: password(),
-  Data     :: binary(),
-  Result   :: ok_binary() | error_msg().
+-spec create_registration_request(Conn, Code, UserId, Password, Data) -> RegReq when
+    Conn     :: conn(),
+    Code     :: byte(),
+    UserId   :: id(),
+    Password :: password(),
+    Data     :: binary(),
+    RegReq   :: binary().
 create_registration_request(#{config := #{srp_group := SrpGroup,
                                           srp_info := #{kdf_salt   := ConfigKdfSalt,
                                                         kdf_rounds := KdfRounds,
@@ -60,32 +60,38 @@ create_registration_request(#{config := #{srp_group := SrpGroup,
 %%  Process user registration request
 %%    IdLen | UserId | Code | KLen | Kdf Salt | Kdf Rounds | SLen | Srp Salt | Srp Value | <Data>
 %%--------------------------------------------------------------------------------------------------
--spec process_registration_request(Conn, Request) -> Result when
-  Conn    :: conn(),
-  Request :: binary(),
-  Result  :: {ok, {integer(), srp_registration(), binary()}} | error_msg().
+-spec process_registration_request(Conn, RegReq) -> Result when
+    Conn         :: conn(),
+    RegReq       :: binary(),
+    Result       :: {ok, {RegCode, Registration, RegData}} | error_msg(),
+    RegCode      :: integer(), 
+    Registration :: srp_registration(), 
+    RegData      :: binary().
 %%--------------------------------------------------------------------------------------------------
 process_registration_request(#{config := #{srp_group := {_G, N}}} = Conn,
-                             Request) ->
+                             RegReq) ->
   SVLen = erlang:byte_size(N),
-  case srpc_encryptor:decrypt(requester, Conn, Request) of
+  case srpc_encryptor:decrypt(requester, Conn, RegReq) of
     {ok, <<IdLen:8,
            UserId:IdLen/binary,
-           RegistrationCode:8,
+           RegCode:8,
            KSLen:8, KdfSalt:KSLen/binary,
            KdfRounds:32,
            SSLen:8, SrpSalt:SSLen/binary,
            SrpValue:SVLen/binary,
-           RegistrationData/binary>>} ->
-      {ok, {RegistrationCode,
+           RegData/binary>>} ->
+      {ok, {RegCode,
             #{user_id => UserId,
               srp_info => #{kdf_salt   => KdfSalt,
                             kdf_rounds => KdfRounds,
                             srp_salt   => SrpSalt},
               srp_value => SrpValue
-             }, RegistrationData}};
+             },
+            RegData}};
+
     {ok, _Data} ->
       {error, <<"Process invalid registration data format">>};
+
     Error ->
       Error
   end.
@@ -94,30 +100,29 @@ process_registration_request(#{config := #{srp_group := {_G, N}}} = Conn,
 %%  Create user registration response
 %%    Code | <Registration Data>
 %%--------------------------------------------------------------------------------------------------
--spec create_registration_response(Conn, RegCode, Data) -> Result when
-  Conn    :: conn(),
-  RegCode :: integer(),
-  Data    :: binary() | undefined,
-  Result  :: ok_binary() | error_msg().
+-spec create_registration_response(Conn, RegCode, Data) -> RegResp when
+    Conn    :: conn(),
+    RegCode :: integer(),
+    Data    :: binary(),
+    RegResp :: binary().
 %%--------------------------------------------------------------------------------------------------
-create_registration_response(Conn, RegCode, undefined) ->
-  create_registration_response(Conn, RegCode, <<>>);
-create_registration_response(Conn,  RegCode, RespData) ->
-  srpc_encryptor:encrypt(responder, Conn, <<RegCode:8, RespData/binary>>).
+create_registration_response(Conn, RegCode, OptData) ->
+  srpc_encryptor:encrypt(responder, Conn, <<RegCode:8, OptData/binary>>).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Processs user registration response
 %%    Code | <Registration Data>
 %%--------------------------------------------------------------------------------------------------
--spec process_registration_response(Conn, RegResponse) -> Result when
-  Conn        :: conn(),
-  RegResponse :: binary(),
-  Result      :: {ok, {integer(), binary()}} | error_msg().
+-spec process_registration_response(Conn, RegResp) -> Result when
+    Conn    :: conn(),
+    RegResp :: binary(),
+    Result  :: {ok, {RegCode :: integer(), RespData :: binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_registration_response(Conn, RegResponse) ->
-  case srpc_encryptor:decrypt(responder, Conn, RegResponse) of
+process_registration_response(Conn, RegResp) ->
+  case srpc_encryptor:decrypt(responder, Conn, RegResp) of
     {ok, << RegCode:8, RespData/binary >>} ->
       {ok, {RegCode, RespData}};
+
     Error ->
       Error
   end.

@@ -31,18 +31,18 @@
          process_registration_response/2
         ]).
 
-%% Client User Key Agreement
+%% User Key Exchange
 -export([create_user_key_exchange_request/2, create_user_key_exchange_request/3,
-         process_user_key_exchange_response/5,
-         create_user_key_confirm_request/1, create_user_key_confirm_request/2,
-         process_user_key_confirm_response/2
+         process_user_key_exchange_request/2,
+         create_user_key_exchange_response/5,
+         process_user_key_exchange_response/5
         ]).
 
-%% Server User Key Agreement
--export([process_user_key_exchange_request/2,
-         create_user_key_exchange_response/5,
+%% User Key Confirm
+-export([create_user_key_confirm_request/1, create_user_key_confirm_request/2,
          process_user_key_confirm_request/2,
-         create_user_key_confirm_response/4
+         create_user_key_confirm_response/4,
+         process_user_key_confirm_response/2
         ]).
 
 %% Encryption
@@ -109,16 +109,16 @@ sec_opt_info(_SecOpt) ->
 %%--------------------------------------------------------------------------------------------------
 -spec create_lib_key_exchange_request(Config) -> Result when
     Config :: srpc_client_config(),
-    Result :: {srp_key_pair(), binary()}.
+    Result :: {ClientKeys :: srp_key_pair(), ExchReq :: binary()}.
 %%--------------------------------------------------------------------------------------------------
 create_lib_key_exchange_request(Config) ->
   create_lib_key_exchange_request(Config, <<>>).
 
 %%--------------------------------------------------------------------------------------------------
--spec create_lib_key_exchange_request(Config, OptionalData) -> Result when
-    Config       :: srpc_client_config(),
-    OptionalData :: binary(),
-    Result       :: {srp_key_pair(), binary()}.
+-spec create_lib_key_exchange_request(Config, Data) -> Result when
+    Config :: srpc_client_config(),
+    Data   :: binary(),
+    Result :: {ClientKeys :: srp_key_pair(), ExchReq :: binary()}.
 %%--------------------------------------------------------------------------------------------------
 create_lib_key_exchange_request(Config, OptionalData) ->
   srpc_lib_key_agreement:create_exchange_request(Config, OptionalData).
@@ -130,7 +130,7 @@ create_lib_key_exchange_request(Config, OptionalData) ->
     ConnId  :: id(),
     Config  :: srpc_server_config(),
     ExchReq :: binary(),
-    Result  :: {ok, {srp_pub_key(), binary()}} | invalid_msg() | error_msg().
+    Result  :: {ok, {ExchConn :: conn(), OptData :: binary()}} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_lib_key_exchange_request(ConnId, Config, ExchReq) ->
   srpc_lib_key_agreement:process_exchange_request(ConnId, Config, ExchReq).
@@ -138,10 +138,10 @@ process_lib_key_exchange_request(ConnId, Config, ExchReq) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Create lib key exchange response
 %%--------------------------------------------------------------------------------------------------
--spec create_lib_key_exchange_response(Conn, Data) -> Result when
-    Conn   :: conn(),
-    Data   :: binary(),
-    Result :: {ok, {conn(), binary()}} | error_msg().
+-spec create_lib_key_exchange_response(ExchConn, Data) -> Result when
+    ExchConn :: conn(),
+    Data     :: binary(),
+    Result   :: {ok, {ClientConn :: conn(), ExchResp :: binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 create_lib_key_exchange_response(Conn, Data) ->
   srpc_lib_key_agreement:create_exchange_response(Conn, Data).
@@ -153,7 +153,7 @@ create_lib_key_exchange_response(Conn, Data) ->
     Config   :: srpc_client_config(),
     KeyPair  :: srp_key_pair(),
     ExchData :: binary(),
-    Result   :: ok_conn() | error_msg().
+    Result     :: {ok, LibConn :: conn()} | error_msg().
 %%-------------------------------------------------------------------------------------------------
 process_lib_key_exchange_response(Config, KeyPair, ExchResp) ->
   srpc_lib_key_agreement:process_exchange_response(Config, KeyPair, ExchResp).
@@ -166,55 +166,55 @@ process_lib_key_exchange_response(Config, KeyPair, ExchResp) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Create lib key confirm request
 %%--------------------------------------------------------------------------------------------------
--spec create_lib_key_confirm_request(Conn) -> Result when
-    Conn   :: conn(),
-    Result :: ok_binary() | error_msg().
+-spec create_lib_key_confirm_request(ExchConn) -> ConfirmReq when
+    ExchConn   :: conn(),
+    ConfirmReq :: binary().
 %%--------------------------------------------------------------------------------------------------
-create_lib_key_confirm_request(Conn) ->
-  create_lib_key_confirm_request(Conn, <<>>).
+create_lib_key_confirm_request(ExchConn) ->
+  create_lib_key_confirm_request(ExchConn, <<>>).
 
 %%--------------------------------------------------------------------------------------------------
--spec create_lib_key_confirm_request(Conn, Data) -> Result when
-    Conn   :: conn(),
-    Data   :: binary(),
-    Result :: ok_binary() | error_msg().
+-spec create_lib_key_confirm_request(ExchConn, OptData) -> ConfirmReq when
+    ExchConn   :: conn(),
+    OptData    :: binary(),
+    ConfirmReq :: binary().
 %%--------------------------------------------------------------------------------------------------
-create_lib_key_confirm_request(Conn, Data) ->
-  srpc_key_agreement:create_confirm_request(Conn, Data).
+create_lib_key_confirm_request(ExchConn, OptData) ->
+  srpc_key_agreement:create_confirm_request(ExchConn, OptData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process lib key confirm request
 %%--------------------------------------------------------------------------------------------------
--spec process_lib_key_confirm_request(Conn, Request) -> Result when
-    Conn    :: conn(),
-    Request :: binary(),
-    Result  :: {ok, {binary(), binary()}} | error_msg().
+-spec process_lib_key_confirm_request(ExchConn, Request) -> Result when
+    ExchConn :: conn(),
+    Request  :: binary(),
+    Result   :: {ok, {Challenge :: binary(), Data :: binary()}} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_lib_key_confirm_request(Conn, Request) ->
-  srpc_lib_key_agreement:process_confirm_request(Conn, Request).
+process_lib_key_confirm_request(ExchConn, Request) ->
+  srpc_lib_key_agreement:process_confirm_request(ExchConn, Request).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Create lib key confirm response
 %%--------------------------------------------------------------------------------------------------
--spec create_lib_key_confirm_response(Conn, Challenge, Data) -> Result when
-    Conn      :: conn(),
+-spec create_lib_key_confirm_response(ExchConn, Challenge, Data) -> Result when
+    ExchConn  :: conn(),
     Challenge :: binary(),
     Data      :: binary(),
-    Result    :: {ok, conn(), binary()} | error_msg() | invalid_msg().
+    Result    :: {ok, LibConn :: conn(), Packet :: binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_lib_key_confirm_response(Conn, Challenge, Data) ->
-  srpc_lib_key_agreement:create_confirm_response(Conn, Challenge, Data).
+create_lib_key_confirm_response(ExchConn, Challenge, Data) ->
+  srpc_lib_key_agreement:create_confirm_response(ExchConn, Challenge, Data).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process lib key confirm response
 %%--------------------------------------------------------------------------------------------------
--spec process_lib_key_confirm_response(Conn, Response) -> Result when
-    Conn     :: conn(),
-    Response :: binary(),
-    Result   :: {ok, conn(), binary()} | invalid_msg() | error_msg().
+-spec process_lib_key_confirm_response(ExchConn, ConfirmResp) -> Result when
+    ExchConn    :: conn(),
+    ConfirmResp :: binary(),
+    Result      :: {ok, conn(), OptData :: binary()} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_lib_key_confirm_response(Conn, Response) ->
-  srpc_key_agreement:process_confirm_response(Conn, Response).
+process_lib_key_confirm_response(ExchConn, ConfirmResp) ->
+  srpc_key_agreement:process_confirm_response(ExchConn, ConfirmResp).
 
 %%==================================================================================================
 %%
@@ -224,24 +224,24 @@ process_lib_key_confirm_response(Conn, Response) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Create registration request
 %%--------------------------------------------------------------------------------------------------
--spec create_registration_request(Conn, Code, UserId, Password) -> Result when
+-spec create_registration_request(Conn, Code, UserId, Password) -> RegReq when
     Conn     :: conn(),
     Code     :: integer(),
     UserId   :: binary(),
     Password :: binary(),
-    Result   :: ok_binary() | error_msg().
+    RegReq   :: binary().
 %%--------------------------------------------------------------------------------------------------
 create_registration_request(Conn, Code, UserId, Password) ->
   create_registration_request(Conn, Code, UserId, Password, <<>>).
 
 %%--------------------------------------------------------------------------------------------------
--spec create_registration_request(Conn, Code, UserId, Password, Data) -> Result when
+-spec create_registration_request(Conn, Code, UserId, Password, Data) -> RegReq when
     Conn     :: conn(),
     Code     :: integer(),
     UserId   :: binary(),
     Password :: binary(),
     Data     :: binary(),
-    Result   :: ok_binary() | error_msg().
+    RegReq   :: binary().
 %%--------------------------------------------------------------------------------------------------
 create_registration_request(Conn, Code, UserId, Password, Data) ->
   srpc_registration:create_registration_request(Conn, Code, UserId, Password, Data).
@@ -249,40 +249,43 @@ create_registration_request(Conn, Code, UserId, Password, Data) ->
 %%--------------------------------------------------------------------------------------------------
 %%  Process registration request
 %%--------------------------------------------------------------------------------------------------
--spec process_registration_request(Conn, Request) -> Result when
-    Conn    :: conn(),
-    Request :: binary(),
-    Result  :: {ok, {integer(), map(), binary()}} | error_msg().
+-spec process_registration_request(Conn, RegReq) -> Result when
+    Conn         :: conn(),
+    RegReq       :: binary(),
+    Result       :: {ok, {RegCode, Registration, RegData}} | error_msg(),
+    RegCode      :: integer(), 
+    Registration :: srp_registration(), 
+    RegData      :: binary().
 %%--------------------------------------------------------------------------------------------------
-process_registration_request(Conn, Request) ->
-  srpc_registration:process_registration_request(Conn, Request).
+process_registration_request(Conn, RegReq) ->
+  srpc_registration:process_registration_request(Conn, RegReq).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Create registration response
 %%--------------------------------------------------------------------------------------------------
--spec create_registration_response(Conn, RegCode, Data) -> Result when
+-spec create_registration_response(Conn, RegCode, OptData) -> RegResp when
     Conn    :: conn(),
     RegCode :: integer(),
-    Data    :: binary() | undefined,
-    Result  :: ok_binary() | error_msg().
+    OptData :: binary(),
+    RegResp :: binary().
 %%--------------------------------------------------------------------------------------------------
-create_registration_response(Conn, RegCode, Data) ->
-  srpc_registration:create_registration_response(Conn, RegCode, Data).
+create_registration_response(Conn, RegCode, OptData) ->
+  srpc_registration:create_registration_response(Conn, RegCode, OptData).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Processs registration response
 %%--------------------------------------------------------------------------------------------------
--spec process_registration_response(Conn, Response) -> Result when
-    Conn     :: conn(),
-    Response :: binary(),
-    Result   :: {integer(), binary()} | error_msg().
+-spec process_registration_response(Conn, RegResp) -> Result when
+    Conn    :: conn(),
+    RegResp :: binary(),
+    Result  :: {ok, {RegCode :: integer(), RespData :: binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_registration_response(Conn, Response) ->
-  srpc_registration:process_registration_response(Conn, Response).
+process_registration_response(Conn, RegResp) ->
+  srpc_registration:process_registration_response(Conn, RegResp).
 
 %%==================================================================================================
 %%
-%%  Client User Key Agreement
+%%  User Key Exchange
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
@@ -291,120 +294,129 @@ process_registration_response(Conn, Response) ->
 -spec create_user_key_exchange_request(Conn, UserId) -> Result when
     Conn   :: conn(),
     UserId :: binary(),
-    Result :: {ok, srp_key_pair(), binary()} | error_msg().
+    Result :: {ClientKeys :: srp_key_pair(), Packet :: binary()}.
 %%--------------------------------------------------------------------------------------------------
 create_user_key_exchange_request(Conn, SrpcId) ->
   create_user_key_exchange_request(Conn, SrpcId, <<>>).
 
 %%--------------------------------------------------------------------------------------------------
--spec create_user_key_exchange_request(Conn, UserId, Data) -> Result when
-    Conn   :: conn(),
-    UserId :: binary(),
-    Data   :: binary(),
-    Result :: {ok, srp_key_pair(), binary()} | error_msg().
+-spec create_user_key_exchange_request(Conn, UserId, OptData) -> Result when
+    Conn    :: conn(),
+    UserId  :: binary(),
+    OptData :: binary(),
+    Result  :: {ClientKeys :: srp_key_pair(), Packet :: binary()}.
 %%--------------------------------------------------------------------------------------------------
-create_user_key_exchange_request(Conn, UserId, OptionalData) ->
-  srpc_user_key_agreement:create_exchange_request(Conn, UserId, OptionalData).
+create_user_key_exchange_request(Conn, UserId, OptData) ->
+  srpc_user_key_agreement:create_exchange_request(Conn, UserId, OptData).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Process user key exchange request
+%%--------------------------------------------------------------------------------------------------
+-spec process_user_key_exchange_request(Conn, ExchReq) -> Result when
+    Conn      :: conn(),
+    ExchReq   :: binary(),
+    Result    :: {ok, {UserId, PublicKey, ExchData}} | error_msg(),
+    UserId    :: id(), 
+    PublicKey :: srp_pub_key(), 
+    ExchData  :: binary().
+%%--------------------------------------------------------------------------------------------------
+process_user_key_exchange_request(Conn, ExchReq) ->
+  srpc_user_key_agreement:process_exchange_request(Conn, ExchReq).
+
+%%--------------------------------------------------------------------------------------------------
+%%  Create user key exchange response
+%%--------------------------------------------------------------------------------------------------
+-spec create_user_key_exchange_response(ConnId, Conn, Registration, PublicKey, Data) -> Result when
+    ConnId       :: id(),
+    Conn         :: conn(),
+    Registration :: binary() | invalid,
+    PublicKey    :: srp_pub_key(),
+    Data         :: binary(),
+    Result       :: {ok, {conn(), ExchResp :: binary()}} | error_msg().
+%%--------------------------------------------------------------------------------------------------
+create_user_key_exchange_response(ConnId, Conn, Registration, PublicKey, Data) ->
+  srpc_user_key_agreement:create_exchange_response(ConnId, Conn, Registration, PublicKey, Data).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process user key exchange response
 %%--------------------------------------------------------------------------------------------------
--spec process_user_key_exchange_response(Conn, UserId, Password, KeyPair, Response) -> Result when
+-spec process_user_key_exchange_response(Conn, UserId, Password, KeyPair, ExchResp) -> Result when
     Conn     :: conn(),
     UserId   :: id(),
     Password :: password(),
     KeyPair  :: srp_key_pair(),
-    Response :: binary(),
-    Result   :: ok_conn() | error_msg().
+    ExchResp :: binary(),
+    Result   :: {ok, UserConn :: conn()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_user_key_exchange_response(Conn, UserId, Passwd, ClientKeyPair, Response) ->
-  srpc_user_key_agreement:process_exchange_response(Conn, UserId, Passwd, ClientKeyPair, Response).
+process_user_key_exchange_response(Conn, UserId, Passwd, ClientKeyPair, ExchResp) ->
+  srpc_user_key_agreement:process_exchange_response(Conn, UserId, Passwd, ClientKeyPair, ExchResp).
 
+%%==================================================================================================
+%%
+%%  User Key Confirm
+%%
+%%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 %%  Create user key confirm request
 %%--------------------------------------------------------------------------------------------------
--spec create_user_key_confirm_request(Conn) -> Result when
-    Conn   :: conn(),
-    Result :: ok_binary() | error_msg().
+-spec create_user_key_confirm_request(Conn) -> ConfirmReq when
+    Conn       :: conn(),
+    ConfirmReq :: binary().
 %%--------------------------------------------------------------------------------------------------
 create_user_key_confirm_request(Conn) ->
   create_user_key_confirm_request(Conn, <<>>).
 
 %%--------------------------------------------------------------------------------------------------
--spec create_user_key_confirm_request(Conn, Data) -> Result when
-    Conn   :: conn(),
-    Data   :: binary(),
-    Result :: ok_binary() | error_msg().
+-spec create_user_key_confirm_request(Conn, OptData) -> ConfirmReq when
+    Conn       :: conn(),
+    OptData    :: binary(),
+    ConfirmReq :: binary().
 %%--------------------------------------------------------------------------------------------------
-create_user_key_confirm_request(Conn, Data) ->
-  srpc_key_agreement:create_confirm_request(Conn, Data).
+create_user_key_confirm_request(Conn, OptData) ->
+  srpc_key_agreement:create_confirm_request(Conn, OptData).
 
 %%--------------------------------------------------------------------------------------------------
-%%  Process user key exchange response
+%%  Process user key confirm request
 %%--------------------------------------------------------------------------------------------------
--spec process_user_key_confirm_response(Conn, Response) -> Result when
-    Conn     :: conn(),
-    Response :: binary(),
-    Result   :: {ok, conn(), binary()} | invalid_msg() | error_msg().
+-spec process_user_key_confirm_request(Conn, ConfirmReq) -> Result when
+    Conn        :: conn(),
+    ConfirmReq  :: binary(),
+    Result      :: {ok, {Challenge, ConfirmData}} | invalid_msg() | error_msg(),
+    Challenge   :: binary(),
+    ConfirmData :: binary().
 %%--------------------------------------------------------------------------------------------------
-process_user_key_confirm_response(Conn, Response) ->
-  srpc_key_agreement:process_confirm_response(Conn, Response).
-
-%%==================================================================================================
-%%
-%%  Server User Key Agreement
-%%
-%%==================================================================================================
-%%--------------------------------------------------------------------------------------------------
-%%  User key exchange request
-%%--------------------------------------------------------------------------------------------------
--spec process_user_key_exchange_request(Conn, Request) -> Result when
-    Conn    :: conn(),
-    Request :: binary(),
-    Result  :: {ok, {id(), srp_pub_key(), binary()}} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-process_user_key_exchange_request(Conn, Request) ->
-  srpc_user_key_agreement:process_exchange_request(Conn, Request).
+process_user_key_confirm_request(Conn, ConfirmReq) ->
+  srpc_user_key_agreement:process_confirm_request(Conn, ConfirmReq).
 
 %%--------------------------------------------------------------------------------------------------
-%%  User key exchange response
+%%  Create user key confirm response
 %%--------------------------------------------------------------------------------------------------
--spec create_user_key_exchange_response(ConnId, Conn, Registration, PubKey, Data) -> Result when
-    ConnId       :: id(),
-    Conn         :: conn(),
-    Registration :: binary() | invalid,
-    PubKey       :: srp_pub_key(),
-    Data         :: binary(),
-    Result       :: {ok, {conn(), binary()}} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-create_user_key_exchange_response(ConnId, Conn, Registration, PubKey, Data) ->
-  srpc_user_key_agreement:create_exchange_response(ConnId, Conn, Registration, PubKey, Data).
-
-%%--------------------------------------------------------------------------------------------------
-%%  User key confirm request
-%%--------------------------------------------------------------------------------------------------
--spec process_user_key_confirm_request(Conn, Request) -> Result when
-    Conn    :: conn(),
-    Request :: binary(),
-    Result  :: {ok, {binary(), binary()}} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-process_user_key_confirm_request(Conn, Request) ->
-  srpc_user_key_agreement:process_confirm_request(Conn, Request).
-
-%%--------------------------------------------------------------------------------------------------
-%%  User key confirm response
-%%--------------------------------------------------------------------------------------------------
--spec create_user_key_confirm_response(LConn, UConn, Challenge, Data) -> Result when
-    LConn     :: conn(),
-    UConn     :: conn() | invalid,
+-spec create_user_key_confirm_response(LibConn, UserConn, Challenge, Data) -> Result when
+    LibConn   :: conn(),
+    UserConn  :: conn() | invalid,
     Challenge :: binary(),
     Data      :: binary(),
-    Result    :: {Atom, map(), binary()} | error_msg(),
-    Atom      :: ok | invalid.
+    Result    :: {Atom :: ok | invalid, UserConn :: conn() | #{}, Packet :: binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 create_user_key_confirm_response(LibConn, UserConn, ClientChallenge, Data) ->
   srpc_user_key_agreement:create_confirm_response(LibConn, UserConn, ClientChallenge, Data).
 
+%%--------------------------------------------------------------------------------------------------
+%%  Process user key confirm response
+%%--------------------------------------------------------------------------------------------------
+-spec process_user_key_confirm_response(Conn, ConfirmResp) -> Result when
+    Conn        :: conn(),
+    ConfirmResp :: binary(),
+    Result      :: {ok, conn(), OptData :: binary()} | invalid_msg() | error_msg().
+%%--------------------------------------------------------------------------------------------------
+process_user_key_confirm_response(Conn, ConfirmResp) ->
+  srpc_key_agreement:process_confirm_response(Conn, ConfirmResp).
+
+%%==================================================================================================
+%%
+%%  Encrypt / Decrypt
+%%
+%%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 %%  Encrypt
 %%--------------------------------------------------------------------------------------------------
@@ -412,7 +424,7 @@ create_user_key_confirm_response(LibConn, UserConn, ClientChallenge, Data) ->
     Origin :: origin(),
     Conn   :: conn(),
     Data   :: binary(),
-    Result :: ok_binary() | error_msg().
+    Result :: binary().
 %%--------------------------------------------------------------------------------------------------
 encrypt(Origin, Conn, Data) ->
   srpc_encryptor:encrypt(Origin, Conn, Data).
@@ -429,8 +441,11 @@ encrypt(Origin, Conn, Data) ->
 decrypt(Origin, Conn, Packet) ->
   srpc_encryptor:decrypt(Origin, Conn, Packet).
 
-%%--------------------------------------------------------------------------------------------------
+%%==================================================================================================
+%%
 %%  Refresh keys
+%%
+%%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
 -spec refresh_keys(Conn, Data) -> Result when
     Conn   :: conn(),
