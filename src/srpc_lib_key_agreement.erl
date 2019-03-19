@@ -166,10 +166,10 @@ process_confirm_request(#{sec_algs := #{sha_alg := ShaAlg}} = ExchConn,
     ExchConn  :: conn(),
     Challenge :: binary(),
     OptData   :: binary(),
-    Result    :: {ok, LibConn :: conn(), Packet :: binary()}.
+    Result    :: {LibConn :: conn(), Packet :: binary()}.
 %%--------------------------------------------------------------------------------------------------
 create_confirm_response(ExchConn, ServerChallenge, OptData) ->
   Response = <<ServerChallenge/binary, OptData/binary>>,
   LibConn = maps:remove(exch_info, ExchConn),
   Packet = srpc_encryptor:encrypt(responder, LibConn, Response),
-  {ok, LibConn, Packet}.
+  {LibConn, Packet}.

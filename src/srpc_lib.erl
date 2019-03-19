@@ -200,7 +200,7 @@ process_lib_key_confirm_request(ExchConn, Request) ->
     ExchConn  :: conn(),
     Challenge :: binary(),
     Data      :: binary(),
-    Result    :: {ok, LibConn :: conn(), Packet :: binary()}.
+    Result    :: {LibConn :: conn(), Packet :: binary()}.
 %%--------------------------------------------------------------------------------------------------
 create_lib_key_confirm_response(ExchConn, Challenge, Data) ->
   srpc_lib_key_agreement:create_confirm_response(ExchConn, Challenge, Data).

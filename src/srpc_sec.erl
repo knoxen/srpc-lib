@@ -321,9 +321,9 @@ process_server_challenge(#{exch_info := #{pub_key := ServerPublicKey,
 %%--------------------------------------------------------------------------------------------------
 %% @doc Refresh client keys using data
 %%
--spec refresh_keys(Conn, Salt) -> Result when
+-spec refresh_keys(Conn, Data) -> Result when
     Conn   :: conn(),
-    Salt   :: binary(),
+    Data   :: binary(),
     Result :: ok_conn() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 refresh_keys(#{conn_id   := ConnId,
@@ -332,10 +332,10 @@ refresh_keys(#{conn_id   := ConnId,
                          req_hmac_key  := ReqHmacKey,
                          resp_sym_key  := RespSymKey,
                          resp_hmac_key := RespHmacKey}} = Conn,
-             Salt) ->
+             Data) ->
 
   IKM = <<ReqSymKey/binary, ReqHmacKey/binary, RespSymKey/binary, RespHmacKey/binary>>,
-  case hkdf_keys(SecAlgs, Salt, ConnId, IKM) of
+  case hkdf_keys(SecAlgs, Data, ConnId, IKM) of
     {ok, ConnKeys} ->
       {ok, maps:put(keys, ConnKeys, Conn)};
 
@@ -452,6 +452,7 @@ expand(ShaAlg, Info, PRK, Len) ->
     {Len, MaxLen} when Len =< MaxLen ->
       OKM = expand(ShaAlg, PRK, Info, 1, num_octets(ShaAlg, Len), <<>>, <<>>),
       {ok, <<OKM:Len/binary>>};
+
     _ ->
       {error, <<"Max length overflow">>}
   end.
