@@ -34,7 +34,7 @@ encrypt(Origin,
           sec_algs := #{sym_alg := SymAlg,
                         sym_mode := SymMode,
                         sha_alg := ShaAlg},
-          conn_keys := ConnKeys},
+          keys := ConnKeys},
         Data) ->
   MsgData = <<ConnId/binary, Data/binary>>,
   {SymKey, HmacKey} = origin_keys(Origin, ConnKeys),
@@ -61,7 +61,7 @@ encrypt(Origin,
     Result :: ok_binary() | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 decrypt(Origin,
-        #{conn_keys := ConnKeys} = Conn,
+        #{keys := ConnKeys} = Conn,
         Packet) ->
   {SymKey, HmacKey} = origin_keys(Origin, ConnKeys),
   decrypt_data(SymKey, HmacKey, Conn, Packet).

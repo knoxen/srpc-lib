@@ -229,8 +229,8 @@ conn_keys(#{conn_id := ConnId,
       {ok, maps:merge(maps:put(exch_info,
                                maps:put(secret_hash, crypto:hash(ShaAlg, Secret), ExchInfo),
                                Conn),
-                      #{sec_algs  => SecAlgs,
-                        conn_keys => ConnKeys})};
+                      #{sec_algs => SecAlgs,
+                        keys => ConnKeys})};
 
     Error ->
       Error
@@ -328,16 +328,16 @@ process_server_challenge(#{exch_info := #{pub_key := ServerPublicKey,
 %%--------------------------------------------------------------------------------------------------
 refresh_keys(#{conn_id   := ConnId,
                sec_algs  := SecAlgs,
-               conn_keys := #{req_sym_key   := ReqSymKey,
-                              req_hmac_key  := ReqHmacKey,
-                              resp_sym_key  := RespSymKey,
-                              resp_hmac_key := RespHmacKey}} = Conn,
+               keys := #{req_sym_key   := ReqSymKey,
+                         req_hmac_key  := ReqHmacKey,
+                         resp_sym_key  := RespSymKey,
+                         resp_hmac_key := RespHmacKey}} = Conn,
              Salt) ->
 
   IKM = <<ReqSymKey/binary, ReqHmacKey/binary, RespSymKey/binary, RespHmacKey/binary>>,
   case hkdf_keys(SecAlgs, Salt, ConnId, IKM) of
     {ok, ConnKeys} ->
-      {ok, maps:put(conn_keys, ConnKeys, Conn)};
+      {ok, maps:put(keys, ConnKeys, Conn)};
 
     Error ->
       Error

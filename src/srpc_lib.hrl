@@ -153,8 +153,7 @@
                   config    => srpc_client_config() | srpc_server_config(),
                   msg_hdr   => binary(),
                   sec_algs  => sec_algs(),
-                  conn_keys => conn_keys()
+                  keys      => conn_keys()
                  }.
 
 -type ok_conn() :: {ok, conn()}.
-
