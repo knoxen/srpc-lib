@@ -13,25 +13,6 @@
          remove_map_keys/2
         ]).
 
-%% CxDebug
-%% -export([debug_info/2]).
-
-%% debug_info(Description,
-%%            #{conn_id      := ConnId,
-%%              type         := ConnType,
-%%              entity_id    := EntityId,
-%%              req_sym_key  := ReqSymKey,
-%%              req_mac_key  := ReqSymKey,
-%%              resp_sym_key := RespSymKey,
-%%              resp_mac_key := MacKey
-%%             }) ->
-%%   io:format("~s~n", [Description]),
-%%   io:format("  Connection Id = ~p, Type = ~p~n", [ConnId, ConnType]),
-%%   io:format("  EntityId = ~p~n", [EntityId]),
-%%   io:format("  ReqSymKey = ~p~n", [srpc_util:bin_to_hex(ReqSymKey)]),
-%%   io:format("  RespSymKey = ~p~n", [srpc_util:bin_to_hex(RespSymKey)]),
-%%   io:format("  MacKey =   ~p~n", [srpc_util:bin_to_hex(MacKey)]).
-
 %%==================================================================================================
 %%
 %% Conversions for hex to binary to hex
@@ -87,7 +68,7 @@ hex_to_bin([X,Y|T], Acc) ->
 %% @doc Convert integer to hex string.
 %%--------------------------------------------------------------------------------------------------
 -spec int_to_hex(Int) -> Hex when
-    Int :: integer(),
+    Int :: non_neg_integer(),
     Hex :: string().
 %%--------------------------------------------------------------------------------------------------
 int_to_hex(Int) ->

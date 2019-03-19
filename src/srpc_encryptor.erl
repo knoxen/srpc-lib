@@ -10,7 +10,7 @@
 %%
 %%==================================================================================================
 -export([encrypt/3,
-        decrypt/3
+         decrypt/3
         ]).
 
 %%==================================================================================================
@@ -27,19 +27,27 @@
     Origin :: origin(),
     Conn   :: conn(),
     Data   :: binary(),
-    Result :: {ok, binary()} | error_msg().
+    Result :: ok_binary().
 %%--------------------------------------------------------------------------------------------------
-encrypt(Origin, #{conn_id := ConnId, config := Config} = Conn, Data) ->
+encrypt(Origin,
+        #{conn_id := ConnId,
+          sec_algs := #{sym_alg := SymAlg,
+                        sym_mode := SymMode,
+                        sha_alg := ShaAlg},
+          conn_keys := ConnKeys},
+        Data) ->
   MsgData = <<ConnId/binary, Data/binary>>,
-  case Origin of
-    requester ->
-      #{req_sym_key := SymKey, req_mac_key := MacKey} = Conn,
-      encrypt_data(SymKey, MacKey, Config, MsgData);
+  {SymKey, HmacKey} = origin_keys(Origin, ConnKeys),
 
-    responder ->
-      #{resp_sym_key := SymKey, resp_mac_key := MacKey} = Conn,
-      encrypt_data(SymKey, MacKey, Config, MsgData)
-  end.
+  BlockSize = srpc_sec:sym_blk_size(SymAlg),
+  IV = crypto:strong_rand_bytes(BlockSize),
+  CipherText = crypto:block_encrypt(SymMode, SymKey, IV, enpad(SymAlg, MsgData)),
+  CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
+  HmacSize = srpc_sec:sha_size(ShaAlg),
+  Hmac = crypto:hmac(ShaAlg, HmacKey, CryptorText, HmacSize),
+  {ok, <<CryptorText/binary, Hmac/binary>>}.
+
+  %% encrypt_data(SymKey, HmacKey, Conn, MsgData).
 
 %%--------------------------------------------------------------------------------------------------
 %% Decrypt
@@ -50,18 +58,13 @@ encrypt(Origin, #{conn_id := ConnId, config := Config} = Conn, Data) ->
     Origin :: origin(),
     Conn   :: conn(),
     Packet :: binary(),
-    Result :: {ok, binary()} | error_msg().
+    Result :: ok_binary() | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-decrypt(Origin, #{conn_id := ConnId, config := Config} = Conn, Packet) ->
-  case Origin of
-    requester ->
-      #{req_sym_key := SymKey, req_mac_key := MacKey} = Conn,
-      decrypt_data(SymKey, MacKey, ConnId, Config, Packet);
-
-    responder ->
-      #{resp_sym_key := SymKey, resp_mac_key := MacKey} = Conn,
-      decrypt_data(SymKey, MacKey, ConnId, Config, Packet)
-  end.
+decrypt(Origin,
+        #{conn_keys := ConnKeys} = Conn,
+        Packet) ->
+  {SymKey, HmacKey} = origin_keys(Origin, ConnKeys),
+  decrypt_data(SymKey, HmacKey, Conn, Packet).
 
 %%==================================================================================================
 %%
@@ -69,26 +72,45 @@ decrypt(Origin, #{conn_id := ConnId, config := Config} = Conn, Packet) ->
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
+-spec origin_keys(Origin, Conn) -> Result when
+    Origin :: origin(),
+    Conn   :: conn(),
+    Result :: {sym_key(), hmac_key()}.
+%%--------------------------------------------------------------------------------------------------
+origin_keys(requester, #{req_sym_key := SymKey,
+                          req_hmac_key := HmacKey}) ->
+  {SymKey, HmacKey};
+
+origin_keys(responder, #{resp_sym_key := SymKey,
+                          resp_hmac_key := HmacKey}) ->
+  {SymKey, HmacKey}.
+
+%%--------------------------------------------------------------------------------------------------
 %% Encrypt Data
 %%--------------------------------------------------------------------------------------------------
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec encrypt_data(SymKey, MacKey, Config, Data) -> {ok, Packet} | error_msg() when
-    SymKey :: sym_key(),
-    MacKey :: hmac_key(),
-    Config :: srpc_server_config() | srpc_client_config(),
-    Data   :: binary(),
-    Packet :: binary().
-%%--------------------------------------------------------------------------------------------------
-encrypt_data(SymKey, MacKey, #{sec_opt := _SecOpt}, Data) ->
-  IV = crypto:strong_rand_bytes(?SRPC_AES_BLOCK_SIZE),
-  % CxTBD Get mode from SecOpt
-  CipherText = crypto:block_encrypt(aes_cbc256, SymKey, IV, enpad(Data)),
-  CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
-  % CxTBD Get sha alg from SecOpt
-  Hmac = crypto:hmac(sha256, MacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
-  {ok, <<CryptorText/binary, Hmac/binary>>}.
+%% -spec encrypt_data(SymKey, MacKey, Conn, Data) -> Result when 
+%%     SymKey :: sym_key(),
+%%     MacKey :: hmac_key(),
+%%     Conn   :: conn(),
+%%     Data   :: binary(),
+%%     Result :: ok_binary().
+%% %%--------------------------------------------------------------------------------------------------
+%% encrypt_data(SymKey,
+%%              MacKey,
+%%              #{sec_algs := #{sym_alg := SymAlg,
+%%                              sym_mode := SymMode,
+%%                              sha_alg := ShaAlg}},
+%%              Data) ->
+%%   BlockSize = srpc_sec:sym_blk_size(SymAlg),
+%%   IV = crypto:strong_rand_bytes(BlockSize),
+%%   CipherText = crypto:block_encrypt(SymMode, SymKey, IV, enpad(SymAlg, Data)),
+%%   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
+%%   HmacSize = srpc_sec:sha_size(ShaAlg),
+%%   Hmac = crypto:hmac(ShaAlg, MacKey, CryptorText, HmacSize),
+%%   {ok, <<CryptorText/binary, Hmac/binary>>}.
 
 %%--------------------------------------------------------------------------------------------------
 %% Decrypt Data
@@ -96,29 +118,31 @@ encrypt_data(SymKey, MacKey, #{sec_opt := _SecOpt}, Data) ->
 %% @doc Decrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
--spec decrypt_data(SymKey, MacKey, ConnId, Config, Packet) -> Result when
+-spec decrypt_data(SymKey, MacKey, Conn, Packet) -> Result when
     SymKey :: sym_key(),
-    MacKey :: sym_key(),
-    Config :: srpc_server_config() | srpc_client_config(),
-    ConnId :: binary(),
-    Config :: srpc_server_config() | srpc_client_config(),
+    MacKey :: hmac_key(),
+    Conn   :: conn(),
     Packet :: binary(),
-    Result :: {ok, binary()} | error_msg() | invalid_msg().
+    Result :: ok_binary() | error_msg() | invalid_msg().
 %%--------------------------------------------------------------------------------------------------
-%% CxTBD Operate based on Config
-decrypt_data(SymKey, MacKey, ConnId, #{sec_opt := _SecOpt}, Packet) ->
+decrypt_data(SymKey, MacKey,
+             #{conn_id := ConnId,
+               sec_algs := #{sym_alg := SymAlg,
+                             sym_mode := SymMode,
+                             sha_alg := ShaAlg}},
+             Packet) ->
   PacketSize = byte_size(Packet),
-  % CxTBD Get sha alg from SecOpt
-  CryptorText = binary_part(Packet, {0, PacketSize-?SRPC_HMAC_256_SIZE}),
-  PacketHmac   = binary_part(Packet, {PacketSize, -?SRPC_HMAC_256_SIZE}),
-  Hmac = crypto:hmac(sha256, MacKey, CryptorText, ?SRPC_HMAC_256_SIZE),
+  HmacSize = srpc_sec:sha_size(ShaAlg),
+  CryptorText = binary_part(Packet, {0, PacketSize - HmacSize}),
+  PacketHmac = binary_part(Packet, {PacketSize, - HmacSize}),
+  Hmac = crypto:hmac(ShaAlg, MacKey, CryptorText, HmacSize),
+  BlockSize = srpc_sec:sym_blk_size(SymAlg),
   case srpc_sec:const_compare(PacketHmac, Hmac) of
     true ->
       case CryptorText of
-        <<?SRPC_DATA_VERSION, IV:?SRPC_AES_BLOCK_SIZE/binary, CipherText/binary>> ->
-          % CxTBD Get mode from SecOpt
-          PaddedData = crypto:block_decrypt(aes_cbc256, SymKey, IV, CipherText),
-          case depad(PaddedData) of
+        <<?SRPC_DATA_VERSION, IV:BlockSize/binary, CipherText/binary>> ->
+          PaddedData = crypto:block_decrypt(SymMode, SymKey, IV, CipherText),
+          case depad(SymAlg, PaddedData) of
             {ok, Cryptor} ->
               ConnIdLen = byte_size(ConnId),
               case Cryptor of
@@ -127,6 +151,7 @@ decrypt_data(SymKey, MacKey, ConnId, #{sec_opt := _SecOpt}, Packet) ->
                 _ ->
                   {error, <<"Invalid SRPC data conn ID header">>}
               end;
+
             Error ->
               Error
           end;
@@ -144,15 +169,17 @@ decrypt_data(SymKey, MacKey, ConnId, #{sec_opt := _SecOpt}, Packet) ->
 %%--------------------------------------------------------------------------------------------------
 %% @doc Pad binary input using PKCS7 scheme.
 %%
--spec enpad(Bin) -> Padded when
+-spec enpad(SymAlg, Bin) -> Padded when
+    SymAlg :: sym_alg(),
     Bin    :: binary(),
     Padded :: binary().
 %%--------------------------------------------------------------------------------------------------
-enpad(Bin) ->
-  enpad(Bin, ?SRPC_AES_BLOCK_SIZE-(byte_size(Bin) rem ?SRPC_AES_BLOCK_SIZE)).
+enpad(SymAlg, Bin) ->
+  BlockSize = srpc_sec:sym_blk_size(SymAlg),
+  pad_end(Bin, BlockSize - (byte_size(Bin) rem BlockSize)).
 
 %% @private
-enpad(Bin, Len) ->
+pad_end(Bin, Len) ->
   Pad = list_to_binary(lists:duplicate(Len,Len)),
   <<Bin/binary, Pad/binary>>.
 
@@ -175,12 +202,17 @@ enpad(Bin, Len) ->
 %% don't add padding in this case, i.e. if the last byte is greater than
 %% <strong>k</strong> we interpret as no padding.
 %%
--spec depad(Padded :: binary()) -> {ok, binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-depad(Bin) ->
+-spec depad(SymAlg, Padded) -> Result when
+    SymAlg :: sym_alg(),
+    Padded :: binary(),
+    Result :: ok_binary() | error_msg().
+%%--------------------------------------------------------------------------------------------------
+depad(SymAlg, Bin) ->
+  BlockSize = srpc_sec:sym_blk_size(SymAlg),
   Len = byte_size(Bin),
   Pad = binary:last(Bin),
-  case Pad =< ?SRPC_AES_BLOCK_SIZE of
+  case Pad =< BlockSize of
     true ->
       %% The last byte less-equal than our block size and hence represents a padding value
       BinPad = list_to_binary(lists:duplicate(Pad, Pad)),
@@ -189,9 +221,11 @@ depad(Bin) ->
       case Bin of
         <<Data:DataLen/binary, BinPad/binary>> ->
           {ok, Data};
+
         _ ->
-          {error, "Data not properly padded"}
+          {error, <<"Data not properly padded">>}
       end;
+
     false ->
       %% The last byte is greater than our block size; we interpret as no padding
       {ok, Bin}

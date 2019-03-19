@@ -30,15 +30,15 @@
     Conn         :: conn(),
     UserId       :: binary(),
     OptionalData :: binary(),
-    ClientKeys   :: exch_keys(),
-    Result       :: {ClientKeys, binary()}.
+    Result       :: {ok, srp_key_pair(), binary()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-create_exchange_request(Conn, UserId, OptionalData) ->
+create_exchange_request(#{config := Config} = Conn, UserId, OptionalData) ->
   IdLen = erlang:byte_size(UserId),
-  ClientKeys = srpc_sec:generate_client_keys(),
+  ClientKeys = srpc_sec:generate_client_keys(Config),
   {ClientPublicKey, _} = ClientKeys,
   ExchangeData = << IdLen:8, UserId/binary, ClientPublicKey/binary, OptionalData/binary >>,
-  {ClientKeys, srpc_encryptor:encrypt(requester, Conn, ExchangeData)}.
+  {ok, Packet} = srpc_encryptor:encrypt(requester, Conn, ExchangeData),
+  {ok, ClientKeys, Packet}.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process User Key Exchange Request
@@ -47,9 +47,9 @@ create_exchange_request(Conn, UserId, OptionalData) ->
 -spec process_exchange_request(Conn, Request) -> Result when
     Conn    :: conn(),
     Request :: binary(),
-    Result  :: {ok, {conn_id(), exch_key(), binary()}} | error_msg().
+    Result  :: {ok, {id(), srp_pub_key(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_exchange_request(#{config := #{modulus := N}} = Conn, ExchRequest) ->
+process_exchange_request(#{config := #{srp_group := {_G, N}}} = Conn, ExchRequest) ->
   PubKeySize = byte_size(N),
   case srpc_encryptor:decrypt(requester, Conn, ExchRequest) of
     {ok, <<IdSize:8, UserId:IdSize/binary, PublicKey:PubKeySize/binary, ExchData/binary>>} ->
@@ -69,85 +69,94 @@ process_exchange_request(#{config := #{modulus := N}} = Conn, ExchRequest) ->
 
 %%--------------------------------------------------------------------------------------------------
 %%  Create User Key Exchange Response
-%%    User Code | CL | ConnId | KL | Kdf Salt | Rounds | SL | Srp Salt | Server Pub Key | <Data>
+%%    User Code | CLen | ConnId | KLen | Kdf Salt | Rounds | SLen | Srp Salt | Srv Pub Key | <Data>
 %%--------------------------------------------------------------------------------------------------
 -spec create_exchange_response(ConnId, Conn, Registration, PublicKey, Data) -> Result when
-    ConnId       :: conn_id(),
+    ConnId       :: id(),
     Conn         :: conn(),
     Registration :: binary() | invalid,
-    PublicKey    :: exch_key(),
+    PublicKey    :: srp_pub_key(),
     Data         :: binary(),
     Result       :: {ok, {conn(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 %%  invalid
 %%--------------------------------------------------------------------------------------------------
 create_exchange_response(ConnId,
-                         #{config := #{modulus   := N,
-                                       kdf_salt  := KdfSalt,
-                                       srp_salt  := SrpSalt
-                                      }} = ExchConn,
+                         #{config := #{srp_group := {_G, N},
+                                       srp_info := #{kdf_salt  := ConfigKdfSalt,
+                                                     srp_salt  := ConfigSrpSalt}}
+                          } = Conn,
                          invalid,
                          _ClientPublicKey,
                          ExchData) ->
-  KSLen = byte_size(KdfSalt),
-  SSLen = byte_size(SrpSalt),
-  PKLen = byte_size(N),
-  encrypt_response_data(ConnId, ExchConn,
-                       ?SRPC_USER_INVALID_IDENTITY,
-                        srpc_sec:zeroed_bytes(KSLen),
-                        0,
-                        srpc_sec:zeroed_bytes(SSLen),
-                        srpc_sec:zeroed_bytes(PKLen),
-                        ExchData);
+  KdfSalt = srpc_sec:zeroed_bytes(byte_size(ConfigKdfSalt)),
+  KdfRounds = 0,
+  SrpSalt = srpc_sec:zeroed_bytes(byte_size(ConfigSrpSalt)),
+  PublicKey = srpc_sec:zeroed_bytes(byte_size(N)),
+  {ok, ExchangeResponse} =
+    encrypt_exchange_response(ConnId, Conn,
+                              ?SRPC_USER_INVALID_IDENTITY,
+                              KdfSalt, KdfRounds, SrpSalt,
+                              PublicKey, ExchData),
+  {ok, {Conn, ExchangeResponse}};
 
 %%--------------------------------------------------------------------------------------------------
 %%  valid
 %%--------------------------------------------------------------------------------------------------
 create_exchange_response(ConnId,
                          #{config := Config} = ExchConn,
-                         #{kdf_rounds := KdfRounds,
-                           kdf_salt   := KdfSalt,
-                           srp_salt   := SrpSalt,
-                           srp_value  := SrpValue,
-                           user_id    := UserId
+                         #{userId := UserId,
+                           srp_info := #{kdf_salt   := KdfSalt,
+                                         kdf_rounds := KdfRounds,
+                                         srp_salt   := SrpSalt},
+                           srp_value := SrpValue
                           } = _Registration,
                          ClientPublicKey,
                          ExchData) ->
-  case srpc_sec:client_conn_keys(#{type        => user,
-                                   entity_id   => UserId,
-                                   conn_id     => ConnId,
-                                   exch_pubkey => ClientPublicKey,
-                                   config      => Config
-                                  },
-                                  SrpValue) of
-    {ok, Conn} ->
-      {ServerPublicKey, _} = maps:get(exch_keys, Conn),
-      case encrypt_response_data(ConnId, ExchConn,
-                                 ?SRPC_USER_OK,
-                                 KdfSalt, KdfRounds,
-                                 SrpSalt,
-                                 ServerPublicKey,
-                                 ExchData) of
-        {ok, ExchangeResponse} ->
-          {ok, {Conn, ExchangeResponse}};
-        Error ->
-          Error
-      end;
+
+  UserConn1 = #{type      => user,
+                conn_id   => ConnId,
+                entity_id => UserId,
+                exch_info => #{pub_key => ClientPublicKey},
+                config    => Config
+               },
+
+  case srpc_sec:client_conn_keys(UserConn1, SrpValue) of
+    {ok, UserConn2} ->
+      #{exch_info := #{key_pair := {ServerPublicKey, _}}} = UserConn2,
+      {ok, ExchResponse} = 
+        encrypt_exchange_response(ConnId, ExchConn,
+                                  ?SRPC_USER_OK,
+                                  KdfSalt, KdfRounds, SrpSalt,
+                                  ServerPublicKey, ExchData),
+      {ok, {UserConn2, ExchResponse}};
+
     Error ->
       Error
   end.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process User Key Exchange Response
-%%   Code | IdL | ConnId | KL | Kdf Salt | Rounds | SL | Srp Salt | Server Pub Key | <Data>
+%%   Code | IdLen | ConnId | KLen | Kdf Salt | Rounds | SLen | Srp Salt | Server Pub Key | <Data>
+%%--------------------------------------------------------------------------------------------------
+-spec process_exchange_response(Conn, UserId, Password, KeyPair, Response) -> Result when
+    Conn     :: conn(),
+    UserId   :: id(),
+    Password :: password(),
+    KeyPair  :: srp_key_pair(),
+    Response :: binary(),
+    Result   :: ok_conn() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_exchange_response(#{config := Config} = Conn,
-                          UserId, Password, ClientKeys, EncryptedResponse) ->
-  #{kdf_salt := ConfigKdfSalt, srp_salt := ConfigSrpSalt, modulus := N} = Config,
+                          UserId, Password, ClientKeys, Response) ->
+  #{srp_group := {_G, N},
+    srp_info := #{kdf_salt   := ConfigKdfSalt,
+                  kdf_rounds := KdfRounds,
+                  srp_salt   := ConfigSrpSalt}} = Config,
   KLen = byte_size(ConfigKdfSalt),
   SLen = byte_size(ConfigSrpSalt),
   SPKLen = byte_size(N),
-  case srpc_encryptor:decrypt(responder, Conn, EncryptedResponse) of
+  case srpc_encryptor:decrypt(responder, Conn, Response) of
     {ok, <<Code:8,
            IdLen:8, ConnId:IdLen/binary,
            KdfSalt:KLen/binary,
@@ -156,16 +165,19 @@ process_exchange_response(#{config := Config} = Conn,
            ServerPublicKey:SPKLen/binary,
            OptionalData/binary>>} ->
 
-      Conn1 = #{conn_id     => ConnId,
-                   entity_id   => UserId,
-                   exch_pubkey => ServerPublicKey,
-                   exch_keys   => ClientKeys,
-                   config      => Config
-                  },
-      case srpc_sec:server_conn_keys(Conn1, {UserId, Password},
-                                     {KdfRounds, KdfSalt, SrpSalt}) of
-        {ok, Conn} ->
-          {ok, Conn, Code, OptionalData};
+      UserConn1 = #{conn_id => ConnId,
+                    entity_id => UserId,
+                    exch_info => #{pub_key  => ServerPublicKey,
+                                   key_pair => ClientKeys},
+                    config => Config
+               },
+      SrpInfo = #{password   => Password,
+                  kdf_salt   => KdfSalt,
+                  kdf_rounds => KdfRounds,
+                  srp_salt   => SrpSalt},
+      case srpc_sec:server_conn_keys(UserConn1, UserId, SrpInfo) of
+        {ok, UserConn2} ->
+          {ok, UserConn2, Code, OptionalData};
         Error ->
           Error
       end;
@@ -189,7 +201,8 @@ process_exchange_response(#{config := Config} = Conn,
     Request :: binary(),
     Result  :: {ok, {binary(), binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_confirm_request(#{sha_alg := ShaAlg} = Conn, Request) ->
+process_confirm_request(#{sec_algs := #{sha_alg := ShaAlg}} = Conn,
+                        Request) ->
   ChallengeSize = srpc_sec:sha_size(ShaAlg),
   case srpc_encryptor:decrypt(requester, Conn, Request) of
     {ok, <<Challenge:ChallengeSize/binary, ConfirmData/binary>>} ->
@@ -206,34 +219,29 @@ process_confirm_request(#{sha_alg := ShaAlg} = Conn, Request) ->
 %%  Create User Key Confirm Response
 %%    Server Challenge | <Confirm Data>
 %%--------------------------------------------------------------------------------------------------
--spec create_confirm_response(LibConn, UserConn, ClientChallenge, Data) -> Result when
-    LibConn         :: conn(),
-    UserConn        :: conn() | invalid,
-    ClientChallenge :: binary(),
-    Data            :: binary(),
-    Result          :: {ok, binary()} | {invalid, binary()} | error_msg().
+-spec create_confirm_response(LibConn, UserConn, Challenge, Data) -> Result when
+    LibConn   :: conn(),
+    UserConn  :: conn() | invalid,
+    Challenge :: binary(),
+    Data      :: binary(),
+    Result    :: {Atom, map(), binary()} | error_msg(),
+    Atom      :: ok | invalid.
 %%--------------------------------------------------------------------------------------------------
-create_confirm_response(#{sha_alg := ShaAlg} = LibConn, invalid, _ClientChallenge, ConfirmData) ->
+create_confirm_response(#{sec_algs := #{sha_alg := ShaAlg}} = LibConn,
+                        invalid,
+                        _ClientChallenge,
+                        ConfirmData) ->
   ServerChallenge = srpc_sec:zeroed_bytes(srpc_sec:sha_size(ShaAlg)),
   ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
-  case srpc_encryptor:encrypt(responder, LibConn, ConfirmResponse) of
-    {ok, ConfirmPacket} ->
-      {invalid, #{}, ConfirmPacket};
-    Error ->
-      Error
-  end;
+  {ok, ConfirmPacket} = srpc_encryptor:encrypt(responder, LibConn, ConfirmResponse),
+  {invalid, #{}, ConfirmPacket};
 
+%%--------------------------------------------------------------------------------------------------
 create_confirm_response(LibConn, UserConn, ClientChallenge, ConfirmData) ->
   {Atom, ServerChallenge} = srpc_sec:process_client_challenge(UserConn, ClientChallenge),
   ConfirmResponse = <<ServerChallenge/binary, ConfirmData/binary>>,
-  case srpc_encryptor:encrypt(responder, LibConn, ConfirmResponse) of
-    {ok, ConfirmPacket} ->
-      {Atom,
-       srpc_util:remove_map_keys(UserConn, [exch_pubkey, exch_keys, exch_hash]),
-       ConfirmPacket};
-    Error ->
-      Error
-  end.
+  {ok, ConfirmPacket}  = srpc_encryptor:encrypt(responder, LibConn, ConfirmResponse),
+  {Atom, maps:remove(exch_info, UserConn), ConfirmPacket}.
 
 %%==================================================================================================
 %%
@@ -244,26 +252,22 @@ create_confirm_response(LibConn, UserConn, ClientChallenge, ConfirmData) ->
 %%  Create User Key Exchange Response
 %%   Code | CLen | ConnId | KLen | Kdf Salt | Kdf Rounds | SLen | Srp Salt | Server Pub Key | <Data>
 %%--------------------------------------------------------------------------------------------------
--spec encrypt_response_data(ConnId, Conn, UserCode,
-                            KdfSalt, KdfRounds, SrpSalt,
-                            ServerPublicKey,
-                            ExchangeData) -> Result when
-    ConnId          :: conn_id(),
-    Conn            :: conn(),
-    UserCode        :: integer(),
-    KdfSalt         :: binary(),
-    KdfRounds       :: bin_32(),
-    SrpSalt         :: binary(),
-    ServerPublicKey :: exch_key(),
-    ExchangeData    :: binary(),
-    Result          :: {ok, binary()} | error_msg().
+-spec encrypt_exchange_response(ConnId, Conn, UserCode,
+                                KdfSalt, KdfRounds, SrpSalt,
+                                PublicKey, Data) -> Result when
+    ConnId    :: id(),
+    Conn      :: conn(),
+    UserCode  :: integer(),
+    KdfSalt   :: binary(),
+    KdfRounds :: integer(),
+    SrpSalt   :: binary(),
+    PublicKey :: srp_pub_key(),
+    Data      :: binary(),
+    Result    :: ok_binary() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-encrypt_response_data(ConnId, Conn,
-                      UserCode,
-                      KdfSalt, KdfRounds,
-                      SrpSalt,
-                      ServerPublicKey,
-                      Data) ->
+encrypt_exchange_response(ConnId, Conn, UserCode,
+                          KdfSalt, KdfRounds, SrpSalt,
+                          PublicKey, Data) ->
   CLen = byte_size(ConnId),
   KLen = byte_size(KdfSalt),
   SLen = byte_size(SrpSalt),
@@ -272,6 +276,6 @@ encrypt_response_data(ConnId, Conn,
                    KLen:8, KdfSalt/binary,
                    KdfRounds:32,
                    SLen:8, SrpSalt/binary,
-                   ServerPublicKey/binary,
+                   PublicKey/binary,
                    Data/binary>>,
   srpc_encryptor:encrypt(responder, Conn, ResponseData).

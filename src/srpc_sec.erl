@@ -5,16 +5,17 @@
 -include("srpc_lib.hrl").
 
 -export([const_compare/2,
-         pbkdf2/3,
+         pbkdf2/1,
          generate_client_keys/1,
          validate_public_key/2,
          client_conn_keys/2,
          server_conn_keys/3,
-         calc_srp_value/7,
+         calc_srp_value/3,
          process_client_challenge/2,
          process_server_challenge/2,
          refresh_keys/2,
          sym_key_size/1,
+         sym_blk_size/1,
          sha_size/1,
          zeroed_bytes/1
         ]).
@@ -53,15 +54,17 @@ const_compare(<<>>, <<>>, Acc) ->
 
 %%--------------------------------------------------------------------------------------------------
 %%  Compute PBKDF2 passkey.
+%%
+%%  CxTBD ShaAlg is currently fixed at sha256
 %%--------------------------------------------------------------------------------------------------
--spec pbkdf2(Password, Salt, Rounds) -> PassKey when
-    Password :: binary(),
-    Salt     :: binary(),
-    Rounds   :: integer(),
-    PassKey  :: binary().
+-spec pbkdf2(SrpInfo) -> PassKey when
+  SrpInfo :: srp_info(),
+  PassKey :: binary().
 %%--------------------------------------------------------------------------------------------------
-pbkdf2(Password, Salt, Rounds) when is_binary(Password), is_binary(Salt), is_integer(Rounds) ->
-  pbkdf2(Password, Salt, Rounds, ?SRPC_HMAC_256_SIZE, 1, []).
+pbkdf2(#{password   := Password,
+         kdf_salt   := KdfSalt,
+         kdf_rounds := KdfRounds}) ->
+  pbkdf2(Password, KdfSalt, KdfRounds, sha_size(sha256), 1, []).
 
 %% @private
 pbkdf2(Password, Salt, Rounds, Length, Block, Value) ->
@@ -78,11 +81,11 @@ pbkdf2(_Password, _Salt, Rounds, _Block, Iteration, _Prev, Value) when Iteration
   Value;
 
 pbkdf2(Password, Salt, Rounds, Block, 1, _Prev, _Value) ->
-  Data = crypto:hmac(sha256, Password, <<Salt/binary, Block:32/integer>>, ?SRPC_HMAC_256_SIZE),
+  Data = crypto:hmac(sha256, Password, <<Salt/binary, Block:32/integer>>, sha_size(sha256)),
   pbkdf2(Password, Salt, Rounds, Block, 2, Data, Data);
 
 pbkdf2(Password, Salt, Rounds, Block, Iteration, Current, Value) ->
-  More = crypto:hmac(sha256, Password, Current, ?SRPC_HMAC_256_SIZE),
+  More = crypto:hmac(sha256, Password, Current, sha_size(sha256)),
   pbkdf2(Password, Salt, Rounds, Block, Iteration + 1, More, crypto:exor(More, Value)).
 
 %%--------------------------------------------------------------------------------------------------
@@ -91,7 +94,7 @@ pbkdf2(Password, Salt, Rounds, Block, Iteration, Current, Value) ->
 %%--------------------------------------------------------------------------------------------------
 -spec validate_public_key(PublicKey, N) -> Result when
     PublicKey :: binary(),
-    N         :: binary(),
+    N         :: srp_N(),
     Result    :: ok | error_msg().
 %%--------------------------------------------------------------------------------------------------
 validate_public_key(PublicKey, N) when byte_size(PublicKey) =:= byte_size(N) ->
@@ -110,38 +113,40 @@ validate_public_key(_PublicKey, _N) ->
 %%--------------------------------------------------------------------------------------------------
 -spec generate_client_keys(Config) -> PublicKeys when
     Config     :: srpc_client_config(),
-    PublicKeys :: exch_keys().
+    PublicKeys :: srp_key_pair().
 %%--------------------------------------------------------------------------------------------------
-generate_client_keys(#{generator := G,
-                       modulus   := N}) ->
+generate_client_keys(#{srp_group := {G, N}}) ->
   {PublicKey, PrivateKey} = crypto:generate_key(srp, {user, [G, N, ?SRPC_SRP_VERSION]}),
   {pad_value(PublicKey, byte_size(N)), PrivateKey}.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Generate SRP server keys
 %%--------------------------------------------------------------------------------------------------
--spec generate_server_keys(SrpValue, G, N) -> PublicKeys when
-    G          :: binary(),
-    N          :: binary(),
+-spec generate_server_keys(SrpGroup, SrpValue) -> PublicKeys when
+    SrpGroup   :: srp_group(),
     SrpValue   :: srp_value(),
-    PublicKeys :: exch_keys().
+    PublicKeys :: srp_key_pair().
 %%--------------------------------------------------------------------------------------------------
-generate_server_keys(SrpValue, G, N) ->
-  SrpParams = [SrpValue, G, N, ?SRPC_SRP_VERSION],
-  {PublicKey, PrivateKey} = crypto:generate_key(srp, {host, SrpParams}),
+generate_server_keys({G, N}, SrpValue) ->
+  SrpKeyParams = [SrpValue, G, N, ?SRPC_SRP_VERSION],
+  {PublicKey, PrivateKey} = crypto:generate_key(srp, {host, SrpKeyParams}),
   {pad_value(PublicKey, byte_size(N)), PrivateKey}.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Prepend 0's to ensure length. Necessary for values transmitted between client and server
 %%--------------------------------------------------------------------------------------------------
-pad_value(PublicKey, Size) ->
-  case byte_size(PublicKey) of
-    Size ->
-      PublicKey;
-    ByteSize ->
-      Padding = (Size - ByteSize) * 8,
-      << 0:Padding, PublicKey/binary >>
-  end.
+-spec pad_value(PublicKey, Size) -> Result when
+    PublicKey :: binary(),
+    Size      :: pos_integer(),
+    Result    :: binary().
+%%--------------------------------------------------------------------------------------------------
+pad_value(PublicKey, Size) when byte_size(PublicKey) < Size ->
+  KeySize = byte_size(PublicKey),
+  Padding = (Size - KeySize) * 8,
+  << 0:Padding, PublicKey/binary >>;
+
+pad_value(PublicKey, Size) when byte_size(PublicKey) == Size ->
+      PublicKey.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Client Connection Keys
@@ -149,54 +154,69 @@ pad_value(PublicKey, Size) ->
 -spec client_conn_keys(Conn, SrpValue) -> Result when
     Conn     :: conn(),
     SrpValue :: binary(),
-    Result   :: {ok, conn()} | error_msg().
+    Result   :: ok_conn() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-client_conn_keys(#{config := #{generator := G, modulus := N}} = Conn, SrpValue) ->
-  ExchKeys = generate_server_keys(SrpValue, G, N),
-  SrpServerParams = {host, [SrpValue, N, ?SRPC_SRP_VERSION]},
-  conn_keys(maps:put(exch_keys, ExchKeys, Conn), SrpServerParams).
+client_conn_keys(#{exch_info := ExchInfo,
+                   config := #{srp_group := {_G, N} = SrpGroup}
+                  } = Conn,
+                 SrpValue) ->
+
+  ExchKeyPair = generate_server_keys(SrpGroup, SrpValue),
+  ExchInfo1 = maps:put(key_pair, ExchKeyPair, ExchInfo),
+  Conn1 = maps:put(exch_info, ExchInfo1, Conn),
+
+  SrpKeyParams = {host, [SrpValue, N, ?SRPC_SRP_VERSION]},
+
+  conn_keys(Conn1, SrpKeyParams).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Server Connection Keys
 %%--------------------------------------------------------------------------------------------------
--spec server_conn_keys(Conn, IdPass, SaltInfo) -> Result when
-    Conn     :: conn(),
-    IdPass   :: {binary(), binary()},
-    SaltInfo :: {integer(), binary(), binary()},
-    Result   :: {ok, conn()} | error_msg().
+-spec server_conn_keys(Conn, Id, SrpInfo) -> Result when
+    Conn    :: conn(),
+    Id      :: id(),
+    SrpInfo :: srp_info(),
+    Result  :: ok_conn() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-server_conn_keys(#{config := Config} = Conn, {Id, Password}, {KdfRounds, KdfSalt, SrpSalt}) ->
-  X = user_private_key(Id, Password, KdfRounds, KdfSalt, SrpSalt),
-  #{generator := G, modulus := N} = Config,
-  conn_keys(Conn, {user, [X, N, G, ?SRPC_SRP_VERSION]}).
+server_conn_keys(#{config := #{srp_group := {G, N}}} = Conn,
+                 Id, SrpInfo) ->
+  X = user_private_key(Id, SrpInfo),
+  SrpKeyParams = {user, [X, N, G, ?SRPC_SRP_VERSION]},
+  conn_keys(Conn, SrpKeyParams).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Connection Keys
 %%--------------------------------------------------------------------------------------------------
-conn_keys(#{conn_id     := ConnId,
-            exch_pubkey := ExchPublicKey,
-            exch_keys   := ExchKeys,
-            config      := #{sec_opt := SecOpt, modulus := N}
+-spec conn_keys(Conn, SrpKeyParams) -> Result when
+    Conn         :: conn(),
+    SrpKeyParams :: {atom(), list()},
+    Result       :: ok_conn() | error_msg().
+%%--------------------------------------------------------------------------------------------------
+conn_keys(#{conn_id := ConnId,
+            exch_info := #{pub_key  := ExchPublicKey,
+                           key_pair := ExchKeyPair} = ExchInfo,
+            config := #{sec_opt   := SecOpt,
+                        srp_group := {_G,N}}
           } = Conn,
-          SrpParams) ->
+          SrpKeyParams) ->
 
   Size = erlang:byte_size(ExchPublicKey),
   Secret =
     case srpc_sec:const_compare(ExchPublicKey, zeroed_bytes(Size)) of
       false ->
-        Computed = crypto:compute_key(srp, ExchPublicKey, ExchKeys, SrpParams),
+        Computed = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, SrpKeyParams),
         pad_value(Computed, erlang:byte_size(N));
       true ->
         zeroed_bytes(erlang:byte_size(N))
     end,
 
   %% CxTBD Error handling
-  {ok, {SymAlg, ShaAlg}} = key_algs(SecOpt),
+  {ok, #{sha_alg := ShaAlg} = SecAlgs} = sec_algs(SecOpt),
 
   %% HKDF Salt is hash of the concatenation of the public keys
   A = ExchPublicKey,
-  {B,_} = ExchKeys,
-  SaltData = case SrpParams of
+  {B, _} = ExchKeyPair,
+  SaltData = case SrpKeyParams of
                {host,_} ->
                  <<A/binary, B/binary>>;
                {user,_} ->
@@ -204,16 +224,14 @@ conn_keys(#{conn_id     := ConnId,
              end,
   HkdfSalt = crypto:hash(ShaAlg, SaltData),
 
-  case hkdf_keys({SymAlg, ShaAlg}, HkdfSalt, ConnId, Secret) of
-    {ReqSymKey, ReqMacKey, RespSymKey, RespMacKey} ->
-      HashSecret = crypto:hash(ShaAlg, Secret),
-      {ok, maps:merge(Conn, #{exch_hash    => HashSecret,
-                              sym_alg      => SymAlg,
-                              req_sym_key  => ReqSymKey,
-                              req_mac_key  => ReqMacKey,
-                              resp_sym_key => RespSymKey,
-                              resp_mac_key => RespMacKey,
-                              sha_alg      => ShaAlg})};
+  case hkdf_keys(SecAlgs, HkdfSalt, ConnId, Secret) of
+    {ok, ConnKeys} ->
+      {ok, maps:merge(maps:put(exch_info,
+                               maps:put(secret_hash, crypto:hash(ShaAlg, Secret), ExchInfo),
+                               Conn),
+                      #{sec_algs  => SecAlgs,
+                        conn_keys => ConnKeys})};
+
     Error ->
       Error
   end.
@@ -221,29 +239,30 @@ conn_keys(#{conn_id     := ConnId,
 %%--------------------------------------------------------------------------------------------------
 %%  Calculate SRP value
 %%--------------------------------------------------------------------------------------------------
--spec calc_srp_value(Id, Password,  KdfSalt, KdfRounds, SrpSalt, G, N) -> SrpValue when
-    Id        :: binary(),
-    Password  :: binary(),
-    KdfSalt   :: binary(),
-    KdfRounds :: integer(),
-    SrpSalt   :: binary(),
-    G         :: binary(),
-    N         :: binary(),
-    SrpValue  :: binary().
+-spec calc_srp_value(Id, SrpInfo, SrpGroup) -> Result when
+  Id       :: id(),
+  SrpInfo  :: srp_info(),
+  SrpGroup :: srp_group(),
+  Result   :: srp_value().
 %%--------------------------------------------------------------------------------------------------
-calc_srp_value(Id, Password, KdfSalt, KdfRounds, SrpSalt, G, N) ->
-  X = user_private_key(Id, Password, KdfSalt, KdfRounds, SrpSalt),
+calc_srp_value(Id, SrpInfo, {G, N}) ->
+  X = user_private_key(Id, SrpInfo),
   crypto:mod_pow(G, X, N).
 
 %%--------------------------------------------------------------------------------------------------
 %%  SRP user private key (exponent for srp value calculation)
 %%    X = Sha1( Salt | Sha1(Id | : | Pasword))
 %%--------------------------------------------------------------------------------------------------
-user_private_key(Id, Password, KdfSalt, KdfRounds, SrpSalt) ->
+-spec user_private_key(Id, SrpInfo) -> Result when
+  Id      :: id(),
+  SrpInfo :: srp_info(),
+  Result  :: srp_priv_key().
+%%--------------------------------------------------------------------------------------------------
+user_private_key(Id, #{srp_salt := SrpSalt} = SrpInfo) ->
   %% X = Sha1( S | Sha1(Id | : | P))
-  Passkey = pbkdf2(Password, KdfSalt, KdfRounds),
-  I_P = crypto:hash(sha, <<Id/binary, ":", Passkey/binary>>),
-  crypto:hash(sha, <<SrpSalt/binary, I_P/binary>>).
+  Passkey = pbkdf2(SrpInfo),
+  IdPkHash = crypto:hash(sha, <<Id/binary, ":", Passkey/binary>>),
+  crypto:hash(sha, <<SrpSalt/binary, IdPkHash/binary>>).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process client challenge
@@ -251,22 +270,23 @@ user_private_key(Id, Password, KdfSalt, KdfRounds, SrpSalt) ->
 -spec process_client_challenge(Conn, ClientChallenge) -> Result when
     Conn            :: conn(),
     ClientChallenge :: binary(),
-    Result          :: {ok, binary()} | {invalid, binary()}.
+    Result          :: ok_binary() | invalid_msg().
 %%--------------------------------------------------------------------------------------------------
-process_client_challenge(#{exch_pubkey := ClientPublicKey,
-                           exch_keys   := ServerKeyPair,
-                           exch_hash   := ExchHash,
-                           sha_alg     := ShaAlg},
+process_client_challenge(#{exch_info := #{pub_key := ClientPublicKey,
+                                          key_pair := ServerKeyPair,
+                                          secret_hash := SecretHash},
+                           sec_algs := #{sha_alg := ShaAlg}
+                          },
                          ClientChallenge) ->
 
   {ServerPublicKey, _PrivateKey} = ServerKeyPair,
-  ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ExchHash/binary>>,
+  ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, SecretHash/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
 
   case const_compare(ChallengeCheck, ClientChallenge) of
     true ->
       ServerChallengeData =
-        <<ClientPublicKey/binary, ClientChallenge/binary, ExchHash/binary>>,
+        <<ClientPublicKey/binary, ClientChallenge/binary, SecretHash/binary>>,
       ServerChallenge = crypto:hash(ShaAlg, ServerChallengeData),
       {ok, ServerChallenge};
     false ->
@@ -280,17 +300,18 @@ process_client_challenge(#{exch_pubkey := ClientPublicKey,
     Conn            :: conn(),
     ServerChallenge :: binary().
 %%--------------------------------------------------------------------------------------------------
-process_server_challenge(#{exch_pubkey := ServerPublicKey,
-                           exch_keys   := ClientKeyPair,
-                           exch_hash   := ExchHash,
-                           sha_alg     := ShaAlg},
+process_server_challenge(#{exch_info := #{pub_key := ServerPublicKey,
+                                          key_pair := ClientKeyPair,
+                                          secret_hash := SecretHash},
+                           sec_algs := #{sha_alg := ShaAlg}
+                          },
                          ServerChallenge) ->
   {ClientPublicKey, _PrivateKey} = ClientKeyPair,
 
-  ClientChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, ExchHash/binary>>,
+  ClientChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, SecretHash/binary>>,
   ClientChallenge = crypto:hash(ShaAlg, ClientChallengeData),
 
-  ServerChallengeData = <<ClientPublicKey/binary, ClientChallenge/binary, ExchHash/binary>>,
+  ServerChallengeData = <<ClientPublicKey/binary, ClientChallenge/binary, SecretHash/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ServerChallengeData),
 
   const_compare(ChallengeCheck, ServerChallenge).
@@ -303,40 +324,38 @@ process_server_challenge(#{exch_pubkey := ServerPublicKey,
 -spec refresh_keys(Conn, Salt) -> Result when
     Conn   :: conn(),
     Salt   :: binary(),
-    Result :: {ok, conn()} | error_msg().
+    Result :: ok_conn() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-refresh_keys(#{conn_id      := ConnId,
-               sym_alg      := SymAlg,
-               req_sym_key  := ReqSymKey,
-               req_mac_key  := ReqMacKey,
-               resp_sym_key := RespSymKey,
-               resp_mac_key := RespMacKey,
-               sha_alg      := ShaAlg
-              } = Conn, Salt) ->
+refresh_keys(#{conn_id   := ConnId,
+               sec_algs  := SecAlgs,
+               conn_keys := #{req_sym_key   := ReqSymKey,
+                              req_hmac_key  := ReqHmacKey,
+                              resp_sym_key  := RespSymKey,
+                              resp_hmac_key := RespHmacKey}} = Conn,
+             Salt) ->
 
-  IKM = <<ReqSymKey/binary, ReqMacKey/binary, RespSymKey/binary, RespMacKey/binary>>,
-  case hkdf_keys({SymAlg, ShaAlg}, Salt, ConnId, IKM) of
-    {NewReqSymKey, NewReqMacKey, NewRespSymKey, NewRespMacKey} ->
-      {ok, maps:merge(Conn,
-                      #{req_sym_key  => NewReqSymKey,
-                        req_mac_key  => NewReqMacKey,
-                        resp_sym_key => NewRespSymKey,
-                        resp_mac_key => NewRespMacKey})};
+  IKM = <<ReqSymKey/binary, ReqHmacKey/binary, RespSymKey/binary, RespHmacKey/binary>>,
+  case hkdf_keys(SecAlgs, Salt, ConnId, IKM) of
+    {ok, ConnKeys} ->
+      {ok, maps:put(conn_keys, ConnKeys, Conn)};
+
     Error ->
       Error
   end.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Sym and hmac key algorithms for security option
+%%  Algorithms for security option
 %%--------------------------------------------------------------------------------------------------
--spec key_algs(SecOpt) -> Result when
-  SecOpt :: bin_32(),
-  Result :: {ok, {sym_alg(), sha_alg()}} | error_msg().
+-spec sec_algs(SecOpt) -> Result when
+  SecOpt :: sec_opt(),
+  Result :: {ok, sec_algs()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-key_algs(?SRPC_PBKDF2_SHA256_G2048_AES256_CBC_HMAC_SHA256) ->
-  {ok, {aes256, sha256}};
+sec_algs(?SRPC_PBKDF2_SHA256_G2048_AES256_CBC_HMAC_SHA256) ->
+  {ok, #{sym_alg  => aes256,
+         sym_mode => aes_cbc256,
+         sha_alg  => sha256}};
 
-key_algs(_) ->
+sec_algs(_) ->
   {error, <<"Invalid SecOpt">>}.
 
 %%--------------------------------------------------------------------------------------------------
@@ -348,6 +367,16 @@ key_algs(_) ->
 sym_key_size(aes128) -> ?SRPC_AES_128_KEY_SIZE;
 sym_key_size(aes192) -> ?SRPC_AES_192_KEY_SIZE;
 sym_key_size(aes256) -> ?SRPC_AES_256_KEY_SIZE.
+
+%%--------------------------------------------------------------------------------------------------
+%%  Sym block size
+%%--------------------------------------------------------------------------------------------------
+-spec sym_blk_size(SymAlg) -> non_neg_integer() when
+    SymAlg :: sym_alg().
+%%--------------------------------------------------------------------------------------------------
+sym_blk_size(aes128) -> ?SRPC_AES_BLOCK_SIZE;
+sym_blk_size(aes192) -> ?SRPC_AES_BLOCK_SIZE;
+sym_blk_size(aes256) -> ?SRPC_AES_BLOCK_SIZE.
 
 %%--------------------------------------------------------------------------------------------------
 %%  HMAC size
@@ -362,25 +391,30 @@ sha_size(sha512) -> ?SRPC_HMAC_512_SIZE.
 %%--------------------------------------------------------------------------------------------------
 %%  Keys using HKDF
 %%--------------------------------------------------------------------------------------------------
--spec hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) -> keys() | error_msg() when
-    SymAlg :: sym_alg(),
-    ShaAlg :: sha_alg(),
-    Salt   :: binary(),
-    Info   :: binary(),
-    IKM    :: binary().
+-spec hkdf_keys(SecAlgs, Salt, Info, IKM) -> Result when
+    SecAlgs :: sec_algs(),
+    Salt    :: salt(),
+    Info    :: binary(),
+    IKM     :: binary(),
+    Result  :: {ok, conn_keys()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
+hkdf_keys(#{sym_alg := SymAlg,
+            sha_alg := ShaAlg},
+          Salt, Info, IKM) ->
   SymKeySize = sym_key_size(SymAlg),
-  MacKeySize = sha_size(ShaAlg),
-  Len = 2 * SymKeySize + 2 * MacKeySize,
+  HmacKeySize = sha_size(ShaAlg),
+  Len = 2 * SymKeySize + 2 * HmacKeySize,
 
   case hkdf(ShaAlg, Salt, Info, IKM, Len) of
-    {ok, KeyingMaterial} ->
-      <<ReqSymKey:SymKeySize/binary,
-        ReqMacKey:MacKeySize/binary,
-        RespSymKey:SymKeySize/binary,
-        RespMacKey:MacKeySize/binary>> = KeyingMaterial,
-      {ReqSymKey, ReqMacKey, RespSymKey, RespMacKey};
+    {ok, <<ReqSymKey:SymKeySize/binary,
+           ReqHmacKey:HmacKeySize/binary,
+           RespSymKey:SymKeySize/binary,
+           RespHmacKey:HmacKeySize/binary>>} ->
+      {ok, #{req_sym_key   => ReqSymKey,
+             req_hmac_key  => ReqHmacKey,
+             resp_sym_key  => RespSymKey,
+             resp_hmac_key => RespHmacKey}};
+
     Error ->
       Error
   end.
@@ -391,12 +425,13 @@ hkdf_keys({SymAlg, ShaAlg}, Salt, Info, IKM) ->
 %%
 %% This is NOT a general implementation of HKDF.
 %%--------------------------------------------------------------------------------------------------
--spec hkdf(ShaAlg, Salt, Info, IKM, Len) -> {ok, binary()} | error_msg() when
+-spec hkdf(ShaAlg, Salt, Info, IKM, Len) -> Result when
     ShaAlg :: sha_alg(),
     Salt   :: binary(),
     Info   :: binary(),
     IKM    :: binary(),
-    Len    :: non_neg_integer().
+    Len    :: non_neg_integer(),
+    Result :: ok_binary() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 hkdf(ShaAlg, Salt, Info, IKM, Len) ->
   PRK = crypto:hmac(ShaAlg, Salt, IKM),
@@ -405,11 +440,12 @@ hkdf(ShaAlg, Salt, Info, IKM, Len) ->
 %%--------------------------------------------------------------------------------------------------
 %% Expand phase
 %%--------------------------------------------------------------------------------------------------
--spec expand(ShaAlg, Info, PRK, Len) -> {ok, binary()} | error_msg() when
+-spec expand(ShaAlg, Info, PRK, Len) -> Result when
     ShaAlg :: sha_alg(),
     Info   :: binary(),
     PRK    :: binary(),
-    Len    :: non_neg_integer().
+    Len    :: non_neg_integer(),
+    Result :: ok_binary() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 expand(ShaAlg, Info, PRK, Len) ->
   case {Len, sha_size(ShaAlg) * 255} of
