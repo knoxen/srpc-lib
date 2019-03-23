@@ -157,17 +157,19 @@ pad_value(PublicKey, Size) when byte_size(PublicKey) == Size ->
     Result   :: ok_conn() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 client_conn_keys(#{exch_info := ExchInfo,
-                   config := #{srp_group := {_G, N} = SrpGroup}
-                  } = Conn,
+                   config    := Config} = Conn,
                  SrpValue) ->
+  SrpGroup = srpc_config:srp_group(Config),
+  {_G, N} = SrpGroup,
 
   ExchKeyPair = generate_server_keys(SrpGroup, SrpValue),
+
   ExchInfo1 = maps:put(key_pair, ExchKeyPair, ExchInfo),
   Conn1 = maps:put(exch_info, ExchInfo1, Conn),
 
   SrpKeyParams = {host, [SrpValue, N, ?SRPC_SRP_VERSION]},
 
-  conn_keys(Conn1, SrpKeyParams).
+  fill_conn(Conn1, SrpKeyParams).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Server Connection Keys
@@ -182,24 +184,23 @@ server_conn_keys(#{config := #{srp_group := {G, N}}} = Conn,
                  Id, SrpInfo) ->
   X = user_private_key(Id, SrpInfo),
   SrpKeyParams = {user, [X, N, G, ?SRPC_SRP_VERSION]},
-  conn_keys(Conn, SrpKeyParams).
+  fill_conn(Conn, SrpKeyParams).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Connection Keys
 %%--------------------------------------------------------------------------------------------------
--spec conn_keys(Conn, SrpKeyParams) -> Result when
+-spec fill_conn(Conn, SrpKeyParams) -> Result when
     Conn         :: conn(),
     SrpKeyParams :: {atom(), list()},
     Result       :: ok_conn() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-conn_keys(#{conn_id := ConnId,
+fill_conn(#{conn_id := ConnId,
             exch_info := #{pub_key  := ExchPublicKey,
                            key_pair := ExchKeyPair} = ExchInfo,
-            config := #{sec_opt   := SecOpt,
-                        srp_group := {_G,N}}
+            config := Config
           } = Conn,
           SrpKeyParams) ->
-
+  N = srpc_config:modulus(Config),
   Size = erlang:byte_size(ExchPublicKey),
   Secret =
     case srpc_sec:const_compare(ExchPublicKey, zeroed_bytes(Size)) of
@@ -210,8 +211,6 @@ conn_keys(#{conn_id := ConnId,
         zeroed_bytes(erlang:byte_size(N))
     end,
 
-  %% CxTBD Error handling
-  {ok, #{sha_alg := ShaAlg} = SecAlgs} = sec_algs(SecOpt),
 
   %% HKDF Salt is hash of the concatenation of the public keys
   A = ExchPublicKey,
@@ -222,15 +221,18 @@ conn_keys(#{conn_id := ConnId,
                {user,_} ->
                  <<B/binary, A/binary>>
              end,
+
+  SecAlgs = srpc_config:sec_algs(Config),
+  #{sha_alg := ShaAlg} = SecAlgs,
+
   HkdfSalt = crypto:hash(ShaAlg, SaltData),
 
   case hkdf_keys(SecAlgs, HkdfSalt, ConnId, Secret) of
     {ok, ConnKeys} ->
-      {ok, maps:merge(maps:put(exch_info,
-                               maps:put(secret_hash, crypto:hash(ShaAlg, Secret), ExchInfo),
-                               Conn),
-                      #{sec_algs => SecAlgs,
-                        keys => ConnKeys})};
+      ExchInfo2 = maps:put(secret_hash, crypto:hash(ShaAlg, Secret), ExchInfo),
+      Conn2 = maps:put(exch_info, ExchInfo2, Conn),
+      Conn3 = maps:put(keys, ConnKeys, Conn2),
+      {ok, Conn3};
 
     Error ->
       Error
@@ -275,10 +277,13 @@ user_private_key(Id, #{srp_salt := SrpSalt} = SrpInfo) ->
 process_client_challenge(#{exch_info := #{pub_key := ClientPublicKey,
                                           key_pair := ServerKeyPair,
                                           secret_hash := SecretHash},
-                           sec_algs := #{sha_alg := ShaAlg}
+                           config := Config
                           },
                          ClientChallenge) ->
+  
+  io:format("~n client pub key: ~p~n", [srpc_util:bin_to_hex(ClientPublicKey)]),
 
+  ShaAlg = srpc_config:sha_alg(Config),
   {ServerPublicKey, _PrivateKey} = ServerKeyPair,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, SecretHash/binary>>,
   ChallengeCheck = crypto:hash(ShaAlg, ChallengeData),
@@ -289,6 +294,7 @@ process_client_challenge(#{exch_info := #{pub_key := ClientPublicKey,
         <<ClientPublicKey/binary, ClientChallenge/binary, SecretHash/binary>>,
       ServerChallenge = crypto:hash(ShaAlg, ServerChallengeData),
       {ok, ServerChallenge};
+
     false ->
       {invalid, zeroed_bytes(sha_size(ShaAlg))}
   end.
@@ -303,11 +309,11 @@ process_client_challenge(#{exch_info := #{pub_key := ClientPublicKey,
 process_server_challenge(#{exch_info := #{pub_key := ServerPublicKey,
                                           key_pair := ClientKeyPair,
                                           secret_hash := SecretHash},
-                           sec_algs := #{sha_alg := ShaAlg}
-                          },
+                           config := Config},
                          ServerChallenge) ->
-  {ClientPublicKey, _PrivateKey} = ClientKeyPair,
 
+  {ClientPublicKey, _PrivateKey} = ClientKeyPair,
+  ShaAlg = srpc_config:sha_alg(Config),
   ClientChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, SecretHash/binary>>,
   ClientChallenge = crypto:hash(ShaAlg, ClientChallengeData),
 
@@ -326,14 +332,18 @@ process_server_challenge(#{exch_info := #{pub_key := ServerPublicKey,
     Data   :: binary(),
     Result :: ok_conn() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-refresh_keys(#{conn_id   := ConnId,
-               sec_algs  := SecAlgs,
-               keys := #{req_sym_key   := ReqSymKey,
-                         req_hmac_key  := ReqHmacKey,
-                         resp_sym_key  := RespSymKey,
-                         resp_hmac_key := RespHmacKey}} = Conn,
-             Data) ->
+refresh_keys(#{keys := #{}}, _Data) ->
+  io:format("\nCxDebug From whence this call?\n"),
+  throw("CxInc");
 
+refresh_keys(#{conn_id := ConnId,
+               config  := Config,
+               keys    := #{req_sym_key   := ReqSymKey,
+                            req_hmac_key  := ReqHmacKey,
+                            resp_sym_key  := RespSymKey,
+                            resp_hmac_key := RespHmacKey}} = Conn,
+             Data) ->
+  SecAlgs = srpc_config:sec_algs(Config),
   IKM = <<ReqSymKey/binary, ReqHmacKey/binary, RespSymKey/binary, RespHmacKey/binary>>,
   case hkdf_keys(SecAlgs, Data, ConnId, IKM) of
     {ok, ConnKeys} ->
@@ -342,21 +352,6 @@ refresh_keys(#{conn_id   := ConnId,
     Error ->
       Error
   end.
-
-%%--------------------------------------------------------------------------------------------------
-%%  Algorithms for security option
-%%--------------------------------------------------------------------------------------------------
--spec sec_algs(SecOpt) -> Result when
-  SecOpt :: sec_opt(),
-  Result :: {ok, sec_algs()} | error_msg().
-%%--------------------------------------------------------------------------------------------------
-sec_algs(?SRPC_PBKDF2_SHA256_G2048_AES256_CBC_HMAC_SHA256) ->
-  {ok, #{sym_alg  => aes256,
-         sym_mode => aes_cbc256,
-         sha_alg  => sha256}};
-
-sec_algs(_) ->
-  {error, <<"Invalid SecOpt">>}.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Sym key size

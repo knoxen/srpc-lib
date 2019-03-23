@@ -31,13 +31,19 @@
 %%--------------------------------------------------------------------------------------------------
 encrypt(Origin,
         #{conn_id := ConnId,
-          sec_algs := #{sym_alg := SymAlg,
-                        sym_mode := SymMode,
-                        sha_alg := ShaAlg},
-          keys := ConnKeys},
+          keys := ConnKeys,
+          config := Config
+         },
         Data) ->
+
+  #{sym_alg  := SymAlg,
+    sym_mode := SymMode,
+    sha_alg  := ShaAlg} = srpc_config:sec_algs(Config),
+
   MsgData = <<ConnId/binary, Data/binary>>,
   {SymKey, HmacKey} = origin_keys(Origin, ConnKeys),
+
+  io:format("~nCxDebug mac using hmac key: ~p~n", [HmacKey]),
 
   BlockSize = srpc_sec:sym_blk_size(SymAlg),
   IV = crypto:strong_rand_bytes(BlockSize),
@@ -47,7 +53,7 @@ encrypt(Origin,
   Hmac = crypto:hmac(ShaAlg, HmacKey, CryptorText, HmacSize),
   <<CryptorText/binary, Hmac/binary>>.
 
-  %% encrypt_data(SymKey, HmacKey, Conn, MsgData).
+%% encrypt_data(SymKey, HmacKey, Conn, MsgData).
 
 %%--------------------------------------------------------------------------------------------------
 %% Decrypt
@@ -77,13 +83,13 @@ decrypt(Origin,
     Conn   :: conn(),
     Result :: {sym_key(), hmac_key()}.
 %%--------------------------------------------------------------------------------------------------
-origin_keys(requester, #{req_sym_key := SymKey,
-                          req_hmac_key := HmacKey}) ->
-  {SymKey, HmacKey};
+origin_keys(requester,
+            #{req_sym_key  := SymKey,
+              req_hmac_key := HmacKey}) -> {SymKey, HmacKey};
 
-origin_keys(responder, #{resp_sym_key := SymKey,
-                          resp_hmac_key := HmacKey}) ->
-  {SymKey, HmacKey}.
+origin_keys(responder,
+            #{resp_sym_key  := SymKey,
+              resp_hmac_key := HmacKey}) -> {SymKey, HmacKey}.
 
 %%--------------------------------------------------------------------------------------------------
 %% Encrypt Data
@@ -91,7 +97,7 @@ origin_keys(responder, #{resp_sym_key := SymKey,
 %% @doc Encrypt data with symmetric key and sign with hmac key.
 %% @private
 %%
-%% -spec encrypt_data(SymKey, MacKey, Conn, Data) -> Result when 
+%% -spec encrypt_data(SymKey, MacKey, Conn, Data) -> Result when
 %%     SymKey :: sym_key(),
 %%     MacKey :: hmac_key(),
 %%     Conn   :: conn(),
@@ -127,10 +133,13 @@ origin_keys(responder, #{resp_sym_key := SymKey,
 %%--------------------------------------------------------------------------------------------------
 decrypt_data(SymKey, MacKey,
              #{conn_id := ConnId,
-               sec_algs := #{sym_alg := SymAlg,
-                             sym_mode := SymMode,
-                             sha_alg := ShaAlg}},
+               config  := Config},
              Packet) ->
+
+  #{sym_alg  := SymAlg,
+    sym_mode := SymMode,
+    sha_alg  := ShaAlg} = srpc_config:sec_algs(Config),
+
   PacketSize = byte_size(Packet),
   HmacSize = srpc_sec:sha_size(ShaAlg),
   CryptorText = binary_part(Packet, {0, PacketSize - HmacSize}),

@@ -25,7 +25,7 @@
 -type srp_key_pair() :: {srp_pub_key(), srp_priv_key()}.
 
 -type aes_block() :: <<_:128>>.
--type sym_key()   :: <<_:128>> | <<_:192>> | <<_:256>>.
+-type sym_key()   :: <<_:128,_:_*64>>.
 -type hmac_key()  :: <<_:256>>.
 
 -type origin() :: requester | responder.
@@ -97,8 +97,7 @@
                   exch_info => exch_info(),
                   config    => srpc_client_config() | srpc_server_config(),
                   msg_hdr   => binary(),
-                  sec_algs  => sec_algs(),
-                  keys      => conn_keys()
+                  keys      => conn_keys() | #{}
                  }.
 
 -type ok_conn() :: {ok, conn()}.

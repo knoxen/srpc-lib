@@ -42,17 +42,18 @@ create_exchange_request(#{srpc_id := SrpcId} = Config,
 %%  Process Lib Key Exchange Request
 %%    L | SrpcId | Client Pub Key | <Optional Data>
 %%--------------------------------------------------------------------------------------------------
--spec process_exchange_request(ConnId, Config, Request) -> Result when
+-spec process_exchange_request(ConnId, Config, ExchReq) -> Result when
     ConnId  :: id(),
     Config  :: srpc_server_config(),
-    Request :: binary(),
+    ExchReq :: binary(),
     Result  :: {ok, {ExchConn :: conn(), OptData :: binary()}} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_exchange_request(ConnId,
-                         #{srpc_id := SrpcId, 
-                           srpc_group := {_G, N}} = Config,
+                         #{srpc_id := SrpcId} = Config,
                          <<IdSize:8, SrpcId:IdSize/binary, Data/binary>>) ->
+  N = srpc_config:modulus(Config),
   PubKeySize = byte_size(N),
+
   case Data of
     <<ClientPublicKey:PubKeySize/binary, OptData/binary>> ->
       case srpc_sec:validate_public_key(ClientPublicKey, N) of
@@ -82,15 +83,15 @@ process_exchange_request(_, _, _) ->
 -spec create_exchange_response(ExchConn, OptData) -> Result when
     ExchConn :: conn(),
     OptData  :: binary(),
-    Result   :: {ok, {ClientConn :: conn(), ExchResp :: binary()}} | error_msg().
+    Result   :: {ok, {ExchConn :: conn(), ExchResp :: binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-create_exchange_response(#{exch_info := #{key_pair := {ServerPublicKey, _PrivateKey}},
-                           config := #{srp_value := SrpValue}} = ExchConn,
+create_exchange_response(#{config := #{srp_value := SrpValue}} = ExchConn,
                          OptData) ->
   case srpc_sec:client_conn_keys(ExchConn, SrpValue) of
-    {ok, ClientConn} ->
+    {ok, LibConn} ->
+      #{exch_info := #{key_pair := {ServerPublicKey, _}}} = LibConn,
       ExchResp = <<ServerPublicKey/binary, OptData/binary>>,
-      {ok, {ClientConn, ExchResp}};
+      {ok, {LibConn, ExchResp}};
 
     Error ->
       Error
@@ -107,11 +108,12 @@ create_exchange_response(#{exch_info := #{key_pair := {ServerPublicKey, _Private
     Result     :: {ok, LibConn :: conn()} | error_msg().
 %%--------------------------------------------------------------------------------------------------
 process_exchange_response(#{srpc_id   := SrpcId,
-                            srp_group := {_G, N},
+                            srp_group := SrpGroup,
                             srp_info  := SrpInfo
                            } = Config,
                           ClientKeys,
                           ExchResp) ->
+  N = srpc_config:modulus(SrpGroup),
   PubKeySize = byte_size(N),
   <<Len:8, ConnId:Len/binary, ServerPublicKey:PubKeySize/binary, _OptionalData/binary>> = ExchResp,
   LibConn = #{type      => lib,
@@ -138,8 +140,9 @@ process_exchange_response(#{srpc_id   := SrpcId,
     Request  :: binary(),
     Result   :: {ok, {Challenge :: binary(), Data :: binary()}} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_confirm_request(#{sec_algs := #{sha_alg := ShaAlg}} = ExchConn,
+process_confirm_request(#{config := Config} = ExchConn,
                         Request) ->
+  ShaAlg = srpc_config:sha_alg(Config),
   ChallengeSize = srpc_sec:sha_size(ShaAlg),
   case srpc_encryptor:decrypt(requester, ExchConn, Request) of
     {ok, <<Challenge:ChallengeSize/binary, ConfirmData/binary>>} ->

@@ -22,9 +22,11 @@
 create_confirm_request(#{exch_info := #{pub_key     := ClientPublicKey,
                                         key_pair    := {ServerPublicKey, _},
                                         secret_hash := SecretHash},
-                         sec_algs := #{sha_alg := ShaAlg}
+                         config := Config
                         } = ExchConn,
                        OptData) ->
+
+  ShaAlg = srpc_config:sha_alg(Config),
   Challenge =
     crypto:hash(ShaAlg, <<ServerPublicKey/binary, ClientPublicKey/binary, SecretHash/binary>>),
   srpc_encryptor:encrypt(requester, ExchConn, <<Challenge/binary, OptData/binary>>).
@@ -37,8 +39,9 @@ create_confirm_request(#{exch_info := #{pub_key     := ClientPublicKey,
     ConfirmResp :: binary(),
     Result      :: {ok, conn(), OptData :: binary()} | invalid_msg() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-process_confirm_response(#{sec_algs := #{sha_alg := ShaAlg}} = ExchConn,
+process_confirm_response(#{config := Config} = ExchConn,
                          ConfirmResp) ->
+  ShaAlg = srpc_config:sha_alg(Config),
   ChallengeSize = srpc_sec:sha_size(ShaAlg),
   case srpc_encryptor:decrypt(responder, ExchConn, ConfirmResp) of
     {ok, <<ServerChallenge:ChallengeSize/binary, OptData/binary>>} ->

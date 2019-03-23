@@ -143,8 +143,8 @@ process_lib_key_exchange_request(ConnId, Config, ExchReq) ->
     Data     :: binary(),
     Result   :: {ok, {ClientConn :: conn(), ExchResp :: binary()}} | error_msg().
 %%--------------------------------------------------------------------------------------------------
-create_lib_key_exchange_response(Conn, Data) ->
-  srpc_lib_key_agreement:create_exchange_response(Conn, Data).
+create_lib_key_exchange_response(ExchConn, Data) ->
+  srpc_lib_key_agreement:create_exchange_response(ExchConn, Data).
 
 %%--------------------------------------------------------------------------------------------------
 %%  Process lib key exchange response
@@ -153,7 +153,7 @@ create_lib_key_exchange_response(Conn, Data) ->
     Config   :: srpc_client_config(),
     KeyPair  :: srp_key_pair(),
     ExchData :: binary(),
-    Result     :: {ok, LibConn :: conn()} | error_msg().
+    Result   :: {ok, LibConn :: conn()} | error_msg().
 %%-------------------------------------------------------------------------------------------------
 process_lib_key_exchange_response(Config, KeyPair, ExchResp) ->
   srpc_lib_key_agreement:process_exchange_response(Config, KeyPair, ExchResp).

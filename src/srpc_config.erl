@@ -6,7 +6,11 @@
 
 -export([parse/1,
          create_server_config/3,
-         create_client_config/3
+         create_client_config/3,
+         srp_group/1,
+         modulus/1,
+         sec_algs/1,
+         sha_alg/1
         ]).
 
 %%--------------------------------------------------------------------------------------------------
@@ -87,11 +91,7 @@ parse_client(SharedConfig,
                KLen:8, KdfSalt:KLen/binary,
                KdfRounds:32,
                SLen:8, SrpSalt:SLen/binary>>) ->
-  SrpInfo = #{password => Password,
-              kdf_salt => KdfSalt,
-              kdf_rounds => KdfRounds,
-              srp_salt => SrpSalt
-             },
+  SrpInfo = srpc_registration:create_srp_info(Password, KdfSalt, KdfRounds, SrpSalt),
   {ok, maps:put(srp_info, SrpInfo, SharedConfig)};
 
 parse_client(_SharedConfig, _Data) ->
@@ -180,3 +180,45 @@ create_client_config(SrpcId, SrpGroup, #{password   := Password,
     Error ->
       Error
   end.
+
+%%--------------------------------------------------------------------------------------------------
+%%
+%%--------------------------------------------------------------------------------------------------
+-spec srp_group(Config) -> SrpGroup when
+    Config   :: srpc_server_config() | srpc_client_config(),
+    SrpGroup :: srp_group().
+%%--------------------------------------------------------------------------------------------------
+srp_group(#{srp_group := SrpGroup}) -> SrpGroup.
+
+%%--------------------------------------------------------------------------------------------------
+%%
+%%--------------------------------------------------------------------------------------------------
+-spec modulus(Config) -> Modulus when
+    Config  :: srpc_server_config() | srpc_client_config(),
+    Modulus :: srp_N().
+%%--------------------------------------------------------------------------------------------------
+modulus(#{srp_group := {_G, N}}) -> N.
+
+%%--------------------------------------------------------------------------------------------------
+%%
+%%--------------------------------------------------------------------------------------------------
+-spec sec_algs(Config) -> SecAlgs when
+    Config  :: srpc_server_config() | srpc_client_config(),
+    SecAlgs :: sec_algs().
+%%--------------------------------------------------------------------------------------------------
+sec_algs(#{sec_opt := ?SRPC_PBKDF2_SHA256_G2048_AES256_CBC_HMAC_SHA256}) ->
+    #{sym_alg  => aes256,
+      sym_mode => aes_cbc256,
+      sha_alg  => sha256}.
+
+%%--------------------------------------------------------------------------------------------------
+%%
+%%--------------------------------------------------------------------------------------------------
+-spec sha_alg(Config) -> ShaAlg when
+    Config :: srpc_server_config() | srpc_client_config(),
+    ShaAlg :: sha_alg().
+%%--------------------------------------------------------------------------------------------------
+sha_alg(Config) ->
+  #{sha_alg := ShaAlg} = sec_algs(Config),
+  ShaAlg.
+
