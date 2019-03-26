@@ -43,8 +43,6 @@ encrypt(Origin,
   MsgData = <<ConnId/binary, Data/binary>>,
   {SymKey, HmacKey} = origin_keys(Origin, ConnKeys),
 
-  io:format("~nCxDebug mac using hmac key: ~p~n", [HmacKey]),
-
   BlockSize = srpc_sec:sym_blk_size(SymAlg),
   IV = crypto:strong_rand_bytes(BlockSize),
   CipherText = crypto:block_encrypt(SymMode, SymKey, IV, enpad(SymAlg, MsgData)),

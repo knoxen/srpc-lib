@@ -277,12 +277,9 @@ user_private_key(Id, #{srp_salt := SrpSalt} = SrpInfo) ->
 process_client_challenge(#{exch_info := #{pub_key := ClientPublicKey,
                                           key_pair := ServerKeyPair,
                                           secret_hash := SecretHash},
-                           config := Config
+                             config := Config
                           },
                          ClientChallenge) ->
-  
-  io:format("~n client pub key: ~p~n", [srpc_util:bin_to_hex(ClientPublicKey)]),
-
   ShaAlg = srpc_config:sha_alg(Config),
   {ServerPublicKey, _PrivateKey} = ServerKeyPair,
   ChallengeData = <<ClientPublicKey/binary, ServerPublicKey/binary, SecretHash/binary>>,
