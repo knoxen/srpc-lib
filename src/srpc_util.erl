@@ -24,6 +24,9 @@
     Bin :: binary(),
     Hex :: string().
 %%--------------------------------------------------------------------------------------------------
+bin_to_hex(<<>>) ->
+  "";
+
 bin_to_hex(Bin) ->
   lists:flatten([io_lib:format("~2.16.0B", [X]) || X <- binary_to_list(Bin)]).
 
@@ -36,6 +39,7 @@ bin_to_hex(Bin) ->
 %%--------------------------------------------------------------------------------------------------
 hex_to_bin(Bin) when is_binary(Bin) ->
   hex_to_bin(binary_to_list(Bin), []);
+
 hex_to_bin(List) when is_list(List) ->
   Padded = case length(List) rem 2 of
              0 -> List;
@@ -54,6 +58,7 @@ hex_to_bin(List) when is_list(List) ->
 %%--------------------------------------------------------------------------------------------------
 hex_to_bin([], Acc) ->
   list_to_binary(lists:reverse(Acc));
+
 hex_to_bin([X,Y|T], Acc) ->
   {ok, [V], []} = io_lib:fread("~16u", [X,Y]),
   hex_to_bin(T, [V | Acc]).
