@@ -4,14 +4,14 @@
 
 -include("srpc_lib.hrl").
 
-%% Lib Key Exchange
+%% Lib Exchange
 -export([create_exchange_request/2,
          process_exchange_request/3,
          create_exchange_response/2,
          process_exchange_response/3
         ]).
 
-%% Lib Key Confirm
+%% Lib Confirm
 %%   CxNote create_confirm_request and process_confirm_response are in srpc_key_agreement
 -export([process_confirm_request/2,
          create_confirm_response/3
@@ -19,11 +19,11 @@
 
 %%==================================================================================================
 %%
-%%  Lib Key Exchange
+%%  Lib Exchange
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  Create Lib Key Exchange Request
+%%  Create Lib Exchange Request
 %%    L | SrpcId | Client Pub Key | <Data>
 %%--------------------------------------------------------------------------------------------------
 -spec create_exchange_request(Config, Data) -> Result when
@@ -39,7 +39,7 @@ create_exchange_request(#{srpc_id := SrpcId} = Config,
   {ClientKeys, <<Len:8, SrpcId/binary, PublicKey/binary, OptionalData/binary>>}.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Process Lib Key Exchange Request
+%%  Process Lib Exchange Request
 %%    L | SrpcId | Client Pub Key | <Optional Data>
 %%--------------------------------------------------------------------------------------------------
 -spec process_exchange_request(ConnId, Config, ExchReq) -> Result when
@@ -77,7 +77,7 @@ process_exchange_request(_, _, _) ->
   {error, <<"Invalid exchange request">>}.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Create Lib Key Exchange Response
+%%  Create Lib Exchange Response
 %%    Server Pub Key | <Data>
 %%--------------------------------------------------------------------------------------------------
 -spec create_exchange_response(ExchConn, OptData) -> Result when
@@ -98,7 +98,7 @@ create_exchange_response(#{config := #{srp_value := SrpValue}} = ExchConn,
   end.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Process Lib Key Exchange Response
+%%  Process Lib Exchange Response
 %%    L | ConnId | Server Pub Key | <Data>
 %%--------------------------------------------------------------------------------------------------
 -spec process_exchange_response(Config, ClientKeys, ExchResp) -> Result when
@@ -128,12 +128,12 @@ process_exchange_response(#{srpc_id   := SrpcId,
 
 %%==================================================================================================
 %%
-%%  Lib Key Confifrm
+%%  Lib Confirm
 %%
 %%==================================================================================================
 %%--------------------------------------------------------------------------------------------------
-%%  Process Lib Key Confirm Request
-%%    Client Challenge | <Data>
+%%  Process Lib Confirm Request
+%%    0 | Client Challenge | <Data>
 %%--------------------------------------------------------------------------------------------------
 -spec process_confirm_request(ExchConn, Request) -> Result when
     ExchConn :: conn(),
@@ -145,7 +145,7 @@ process_confirm_request(#{config := Config} = ExchConn,
   ShaAlg = srpc_config:sha_alg(Config),
   ChallengeSize = srpc_sec:sha_size(ShaAlg),
   case srpc_encryptor:decrypt(requester, ExchConn, Request) of
-    {ok, <<Challenge:ChallengeSize/binary, ConfirmData/binary>>} ->
+    {ok, <<0:8, Challenge:ChallengeSize/binary, ConfirmData/binary>>} ->
       case srpc_sec:process_client_challenge(ExchConn, Challenge) of
         {ok, ServerChallenge} ->
           {ok, {ServerChallenge, ConfirmData}};
@@ -162,7 +162,7 @@ process_confirm_request(#{config := Config} = ExchConn,
   end.
 
 %%--------------------------------------------------------------------------------------------------
-%%  Create Lib Key Confirm Response
+%%  Create Lib Confirm Response
 %%    Server Challenge | <Data>
 %%--------------------------------------------------------------------------------------------------
 -spec create_confirm_response(ExchConn, Challenge, OptData) -> Result when

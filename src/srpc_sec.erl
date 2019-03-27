@@ -274,11 +274,10 @@ user_private_key(Id, #{srp_salt := SrpSalt} = SrpInfo) ->
     ClientChallenge :: binary(),
     Result          :: ok_binary() | invalid_msg().
 %%--------------------------------------------------------------------------------------------------
-process_client_challenge(#{exch_info := #{pub_key := ClientPublicKey,
+process_client_challenge(#{config := Config,
+                           exch_info := #{pub_key := ClientPublicKey,
                                           key_pair := ServerKeyPair,
-                                          secret_hash := SecretHash},
-                             config := Config
-                          },
+                                          secret_hash := SecretHash}},
                          ClientChallenge) ->
   ShaAlg = srpc_config:sha_alg(Config),
   {ServerPublicKey, _PrivateKey} = ServerKeyPair,
