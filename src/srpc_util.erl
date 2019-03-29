@@ -9,7 +9,9 @@
          int_to_hex/1,
          hex_to_int/1,
          int_to_bin/1,
-         bin_to_int/1
+         bin_to_int/1,
+         display_conn_keys/2,
+         display_keys/2
         ]).
 
 %%==================================================================================================
@@ -118,3 +120,20 @@ bin_to_int(Bin) ->
   Bits = erlang:byte_size(Bin) * 8,
   << Int:Bits >> = Bin,
   Int.
+
+
+display_conn_keys(Desc, #{keys := ConnKeys}) ->
+  display_keys(Desc, ConnKeys).
+
+display_keys(Desc,
+             #{req_sym_key   := ReqSymKey,
+               req_hmac_key  := ReqHmacKey,
+               resp_sym_key  := RespSymKey,
+               resp_hmac_key := RespHmacKey}) ->
+  io:format("~n~s~n", [Desc]),
+  io:format("  Req Sym Key:   ~s~n", [srpc_util:bin_to_hex(ReqSymKey)]),
+  io:format("  Req Hmac Key:  ~s~n", [srpc_util:bin_to_hex(ReqHmacKey)]),
+  io:format("  Resp Sym Key:  ~s~n", [srpc_util:bin_to_hex(RespSymKey)]),
+  io:format("  Resp Hmac Key: ~s~n", [srpc_util:bin_to_hex(RespHmacKey)]).
+  
+  
