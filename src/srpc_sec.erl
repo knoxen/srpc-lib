@@ -328,10 +328,6 @@ process_server_challenge(#{exch_info := #{pub_key := ServerPublicKey,
     Data   :: binary(),
     Result :: ok_conn() | error_msg().
 %%--------------------------------------------------------------------------------------------------
-refresh_keys(#{keys := #{}}, _Data) ->
-  io:format("\nCxDebug From whence this call?\n"),
-  throw("CxInc");
-
 refresh_keys(#{conn_id := ConnId,
                config  := Config,
                keys    := #{req_sym_key   := ReqSymKey,
@@ -347,7 +343,13 @@ refresh_keys(#{conn_id := ConnId,
 
     Error ->
       Error
-  end.
+  end;
+
+refresh_keys(_Conn, _Data) ->
+  io:format("\nCxDebug From whence this call?\n"),
+  Trace = try throw(42) catch 42 -> erlang:get_stacktrace() end,
+  erlang:display(Trace),
+  throw("CxInc").
 
 %%--------------------------------------------------------------------------------------------------
 %%  Sym key size
@@ -396,7 +398,7 @@ hkdf_keys(#{sym_alg := SymAlg,
   HmacKeySize = sha_size(ShaAlg),
   Len = 2 * SymKeySize + 2 * HmacKeySize,
 
-  case hkdf(ShaAlg, Salt, Info, IKM, Len) of
+  case srpc_hkdf:derive(ShaAlg, Salt, Info, IKM, Len) of
     {ok, <<ReqSymKey:SymKeySize/binary,
            ReqHmacKey:HmacKeySize/binary,
            RespSymKey:SymKeySize/binary,
@@ -411,63 +413,9 @@ hkdf_keys(#{sym_alg := SymAlg,
   end.
 
 %%--------------------------------------------------------------------------------------------------
-%%
-%% HMAC-based Key Derivation Function (RFC 5869)
-%%
-%% This is NOT a general implementation of HKDF.
+%%  Zeroed bytes
 %%--------------------------------------------------------------------------------------------------
--spec hkdf(ShaAlg, Salt, Info, IKM, Len) -> Result when
-    ShaAlg :: sha_alg(),
-    Salt   :: binary(),
-    Info   :: binary(),
-    IKM    :: binary(),
-    Len    :: non_neg_integer(),
-    Result :: ok_binary() | error_msg().
+-spec zeroed_bytes(Size :: non_neg_integer()) -> binary().
 %%--------------------------------------------------------------------------------------------------
-hkdf(ShaAlg, Salt, Info, IKM, Len) ->
-  PRK = crypto:hmac(ShaAlg, Salt, IKM),
-  expand(ShaAlg, Info, PRK, Len).
-
-%%--------------------------------------------------------------------------------------------------
-%% Expand phase
-%%--------------------------------------------------------------------------------------------------
--spec expand(ShaAlg, Info, PRK, Len) -> Result when
-    ShaAlg :: sha_alg(),
-    Info   :: binary(),
-    PRK    :: binary(),
-    Len    :: non_neg_integer(),
-    Result :: ok_binary() | error_msg().
-%%--------------------------------------------------------------------------------------------------
-expand(ShaAlg, Info, PRK, Len) ->
-  case {Len, sha_size(ShaAlg) * 255} of
-    {Len, MaxLen} when Len =< MaxLen ->
-      OKM = expand(ShaAlg, PRK, Info, 1, num_octets(ShaAlg, Len), <<>>, <<>>),
-      {ok, <<OKM:Len/binary>>};
-
-    _ ->
-      {error, <<"Max length overflow">>}
-  end.
-
-expand(_ShaAlg, _PRK, _Info, I, N, _Tp, Acc) when I > N ->
-  Acc;
-expand(ShaAlg, PRK, Info, I, N, Tp, Acc) ->
-  Ti = crypto:hmac(ShaAlg, PRK, <<Tp/binary, Info/binary, I:8>>),
-  expand(ShaAlg, PRK, Info, I+1, N, Ti, <<Acc/binary, Ti/binary>>).
-
-%%--------------------------------------------------------------------------------------------------
-%%  Number of octets
-%%--------------------------------------------------------------------------------------------------
--spec num_octets(ShaAlg, Len) -> non_neg_integer() when
-    ShaAlg :: sha_alg(),
-    Len    :: non_neg_integer().
-%%--------------------------------------------------------------------------------------------------
-num_octets(ShaAlg, Len) ->
-  Octets = sha_size(ShaAlg),
-  NumOctets = Len div Octets,
-  case (Len rem Octets) of
-    0 -> NumOctets;
-    _ -> NumOctets + 1
-  end.
-
 zeroed_bytes(Size) ->
   << 0:(8*Size) >>.
