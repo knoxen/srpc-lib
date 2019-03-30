@@ -117,7 +117,7 @@ validate_public_key(_PublicKey, _N) ->
 %%--------------------------------------------------------------------------------------------------
 generate_client_keys(#{srp_group := {G, N}}) ->
   {PublicKey, PrivateKey} = crypto:generate_key(srp, {user, [G, N, ?SRPC_SRP_VERSION]}),
-  {pad_value(PublicKey, byte_size(N)), PrivateKey}.
+  {prepad_zero(PublicKey, byte_size(N)), PrivateKey}.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Generate SRP server keys
@@ -130,23 +130,23 @@ generate_client_keys(#{srp_group := {G, N}}) ->
 generate_server_keys({G, N}, SrpValue) ->
   SrpKeyParams = [SrpValue, G, N, ?SRPC_SRP_VERSION],
   {PublicKey, PrivateKey} = crypto:generate_key(srp, {host, SrpKeyParams}),
-  {pad_value(PublicKey, byte_size(N)), PrivateKey}.
+  {prepad_zero(PublicKey, byte_size(N)), PrivateKey}.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Prepend 0's to ensure length. Necessary for values transmitted between client and server
 %%--------------------------------------------------------------------------------------------------
--spec pad_value(PublicKey, Size) -> Result when
-    PublicKey :: binary(),
-    Size      :: pos_integer(),
-    Result    :: binary().
+-spec prepad_zero(Value, Size) -> Result when
+    Value  :: binary(),
+    Size   :: pos_integer(),
+    Result :: binary().
 %%--------------------------------------------------------------------------------------------------
-pad_value(PublicKey, Size) when byte_size(PublicKey) < Size ->
-  KeySize = byte_size(PublicKey),
-  Padding = (Size - KeySize) * 8,
-  << 0:Padding, PublicKey/binary >>;
+prepad_zero(Value, Size) when byte_size(Value) < Size ->
+  ValueSize = byte_size(Value),
+  Padding = (Size - ValueSize) * 8,
+  << 0:Padding, Value/binary >>;
 
-pad_value(PublicKey, Size) when byte_size(PublicKey) == Size ->
-      PublicKey.
+prepad_zero(Value, Size) when byte_size(Value) == Size ->
+  Value.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Client Connection Keys
@@ -206,21 +206,21 @@ fill_conn(#{conn_id := ConnId,
     case srpc_sec:const_compare(ExchPublicKey, zeroed_bytes(Size)) of
       false ->
         Computed = crypto:compute_key(srp, ExchPublicKey, ExchKeyPair, SrpKeyParams),
-        pad_value(Computed, erlang:byte_size(N));
+        prepad_zero(Computed, erlang:byte_size(N));
       true ->
         zeroed_bytes(erlang:byte_size(N))
     end,
 
-
   %% HKDF Salt is hash of the concatenation of the public keys
   A = ExchPublicKey,
   {B, _} = ExchKeyPair,
-  SaltData = case SrpKeyParams of
-               {host,_} ->
-                 <<A/binary, B/binary>>;
-               {user,_} ->
-                 <<B/binary, A/binary>>
-             end,
+  SaltData = 
+    case SrpKeyParams of
+      {host,_} ->
+        <<A/binary, B/binary>>;
+      {user,_} ->
+        <<B/binary, A/binary>>
+    end,
 
   SecAlgs = srpc_config:sec_algs(Config),
   #{sha_alg := ShaAlg} = SecAlgs,
@@ -343,13 +343,7 @@ refresh_keys(#{conn_id := ConnId,
 
     Error ->
       Error
-  end;
-
-refresh_keys(_Conn, _Data) ->
-  io:format("\nCxDebug From whence this call?\n"),
-  Trace = try throw(42) catch 42 -> erlang:get_stacktrace() end,
-  erlang:display(Trace),
-  throw("CxInc").
+  end.
 
 %%--------------------------------------------------------------------------------------------------
 %%  Sym key size
