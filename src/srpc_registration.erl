@@ -30,6 +30,7 @@
     Password :: password(),
     Data     :: binary(),
     RegReq   :: binary().
+%%--------------------------------------------------------------------------------------------------
 create_registration_request(#{config := #{srp_group := SrpGroup,
                                           srp_info := #{kdf_salt   := ConfigKdfSalt,
                                                         kdf_rounds := KdfRounds,
@@ -67,8 +68,7 @@ create_registration_request(#{config := #{srp_group := SrpGroup,
     Registration :: srp_registration(),
     RegData      :: binary().
 %%--------------------------------------------------------------------------------------------------
-process_registration_request(#{config := Config} = Conn,
-                             RegReq) ->
+process_registration_request(#{config := Config} = Conn, RegReq) ->
   N = srpc_config:modulus(Config),
   SVLen = erlang:byte_size(N),
   case srpc_encryptor:decrypt(requester, Conn, RegReq) of
@@ -80,6 +80,7 @@ process_registration_request(#{config := Config} = Conn,
            SSLen:8, SrpSalt:SSLen/binary,
            SrpValue:SVLen/binary,
            RegData/binary>>} ->
+
       SrpInfo = create_srp_info(KdfSalt, KdfRounds, SrpSalt),
       Registration = create_registration(UserId, SrpInfo, SrpValue),
       {ok, {RegCode, Registration, RegData}};
