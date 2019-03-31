@@ -25,7 +25,7 @@
 -type srp_key_pair() :: {srp_pub_key(), srp_priv_key()}.
 
 -type aes_block() :: <<_:128>>.
--type sym_key()   :: <<_:128,_:_*64>>.
+-type sym_key()   :: <<_:128>> | <<_:192>> | <<_:256>>.
 -type hmac_key()  :: <<_:256>>.
 
 -type origin() :: requester | responder.
