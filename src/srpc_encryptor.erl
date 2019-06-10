@@ -45,7 +45,8 @@ encrypt(Origin,
 
   BlockSize = srpc_sec:sym_blk_size(SymAlg),
   IV = crypto:strong_rand_bytes(BlockSize),
-  CipherText = crypto:block_encrypt(SymMode, SymKey, IV, enpad(SymAlg, MsgData)),
+  PlainText = enpad(SymAlg, MsgData),
+  CipherText = crypto:crypto_one_time(SymMode, SymKey, IV, PlainText, true),
   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
   HmacSize = srpc_sec:sha_size(ShaAlg),
   Hmac = crypto:hmac(ShaAlg, HmacKey, CryptorText, HmacSize),
@@ -90,33 +91,6 @@ origin_keys(responder,
               resp_hmac_key := HmacKey}) -> {SymKey, HmacKey}.
 
 %%--------------------------------------------------------------------------------------------------
-%% Encrypt Data
-%%--------------------------------------------------------------------------------------------------
-%% @doc Encrypt data with symmetric key and sign with hmac key.
-%% @private
-%%
-%% -spec encrypt_data(SymKey, MacKey, Conn, Data) -> Result when
-%%     SymKey :: sym_key(),
-%%     MacKey :: hmac_key(),
-%%     Conn   :: conn(),
-%%     Data   :: binary(),
-%%     Result :: ok_binary().
-%% %%--------------------------------------------------------------------------------------------------
-%% encrypt_data(SymKey,
-%%              MacKey,
-%%              #{sec_algs := #{sym_alg := SymAlg,
-%%                              sym_mode := SymMode,
-%%                              sha_alg := ShaAlg}},
-%%              Data) ->
-%%   BlockSize = srpc_sec:sym_blk_size(SymAlg),
-%%   IV = crypto:strong_rand_bytes(BlockSize),
-%%   CipherText = crypto:block_encrypt(SymMode, SymKey, IV, enpad(SymAlg, Data)),
-%%   CryptorText = <<?SRPC_DATA_VERSION, IV/binary, CipherText/binary>>,
-%%   HmacSize = srpc_sec:sha_size(ShaAlg),
-%%   Hmac = crypto:hmac(ShaAlg, MacKey, CryptorText, HmacSize),
-%%   {ok, <<CryptorText/binary, Hmac/binary>>}.
-
-%%--------------------------------------------------------------------------------------------------
 %% Decrypt Data
 %%--------------------------------------------------------------------------------------------------
 %% @doc Decrypt data with symmetric key and sign with hmac key.
@@ -148,11 +122,11 @@ decrypt_data(SymKey, MacKey,
     true ->
       case CryptorText of
         <<?SRPC_DATA_VERSION, IV:BlockSize/binary, CipherText/binary>> ->
-          PaddedData = crypto:block_decrypt(SymMode, SymKey, IV, CipherText),
-          case depad(SymAlg, PaddedData) of
-            {ok, Cryptor} ->
+          PaddedText = crypto:crypto_one_time(SymMode, SymKey, IV, CipherText, false),
+          case depad(SymAlg, PaddedText) of
+            {ok, PlainText} ->
               ConnIdLen = byte_size(ConnId),
-              case Cryptor of
+              case PlainText of
                 <<ConnId:ConnIdLen/binary, Data/binary>> ->
                   {ok, Data};
                 _ ->
